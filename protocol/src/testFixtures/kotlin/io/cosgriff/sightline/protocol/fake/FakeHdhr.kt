@@ -423,6 +423,7 @@ class FakeHdhr(
         fun demoLineup() = listOf(
             FakeChannel("2.1", "DEMO Steady", 7, SignalPattern.steady(), subchannels = listOf("2.2 DEMO Two")),
             FakeChannel("4.1", "DEMO Flutter", 9, SignalPattern.flutter()),
+            FakeChannel("5.1", "DEMO Wind", 11, SignalPattern.windy()),
             FakeChannel("7.1", "DEMO Fade", 16, SignalPattern.slowFade()),
             FakeChannel("9.1", "DEMO Dropout", 21, SignalPattern.dropouts()),
             FakeChannel("14.1", "DEMO Weak", 27, SignalPattern.steady(ss = 64, snq = 58)),

@@ -31,6 +31,10 @@ data object Aim : NavKey
 @Serializable
 data object Sweep : NavKey
 
+/** One saved session analysed: charts, diagnosis and events. Opens from History or a finished Monitor. */
+@Serializable
+data class Session(val id: Long) : NavKey
+
 /** Thresholds, units, theme and the rest (milestone 6; not built yet). Opens from Live's top bar. */
 @Serializable
 data object Settings : NavKey

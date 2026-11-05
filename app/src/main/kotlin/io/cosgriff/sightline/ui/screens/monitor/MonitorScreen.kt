@@ -39,7 +39,7 @@ import java.time.ZoneId
  * starts whatever the answers.
  */
 @Composable
-fun MonitorScreen(viewModel: MonitorViewModel = hiltViewModel()) {
+fun MonitorScreen(onOpenSession: (Long) -> Unit, viewModel: MonitorViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val network = rememberLocalNetworkAccess()
     val context = LocalContext.current
@@ -111,6 +111,7 @@ fun MonitorScreen(viewModel: MonitorViewModel = hiltViewModel()) {
             onStart = onStart,
             onStop = viewModel::stop,
             onDismiss = viewModel::dismiss,
+            onOpenSession = onOpenSession,
         ),
     )
 }

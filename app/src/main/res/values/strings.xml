@@ -143,7 +143,6 @@
     <!-- Screens not built yet. Each says so plainly, so an unfinished screen never looks like an empty result. -->
     <string name="monitor_title">Monitor</string>
     <string name="history_title">History</string>
-    <string name="history_not_built">Not built yet. Saved sessions will be listed here, newest first.</string>
     <string name="settings_title">Settings</string>
     <string name="settings_not_built">Not built yet. Thresholds, units, theme and data retention will be set here.</string>
 
@@ -305,7 +304,7 @@
     <string name="monitor_setup_notify">Notify me about dips</string>
     <string name="monitor_setup_notify_note">At most one notification every 10 minutes.</string>
     <string name="monitor_setup_weather">Fetch weather afterwards</string>
-    <string name="monitor_setup_weather_note">Wind, rain and temperature from Open-Meteo, to set against the dips. Remembered now; fetched once Session detail is built.</string>
+    <string name="monitor_setup_weather_note">Wind, rain and temperature from Open-Meteo for your home, to set against the dips. Fetched when the session ends.</string>
     <string name="monitor_estimate">About %1$s readings, %2$s.</string>
     <string name="monitor_estimate_hourly">About %1$s readings and %2$s an hour.</string>
     <string name="monitor_setup_charger">Keep the phone on a charger: it reads the tuner all night.</string>
@@ -391,7 +390,8 @@
         <item quantity="other">Stopped after %2$s, with %1$d dips.</item>
     </plurals>
     <string name="monitor_ended_refused">Ended: the tuner refused every channel.</string>
-    <string name="monitor_ended_where">History and Session detail, with the charts and diagnosis, are not built yet; the session is kept for them.</string>
+    <string name="monitor_ended_where">The charts and diagnosis are in the session, and it stays in History.</string>
+    <string name="monitor_ended_open">Open session</string>
     <string name="monitor_ended_done">Done</string>
 
     <!-- Monitor: notifications -->
@@ -421,4 +421,262 @@
     <string name="monitor_paused_title">Monitoring paused</string>
     <string name="monitor_paused_taken_by">%1$s took the tuner. Monitoring carries on when one is free.</string>
     <string name="monitor_paused_taken">Another client took the tuner. Monitoring carries on when one is free.</string>
+    <!-- History (SPEC Screens › 9) -->
+    <string name="history_empty">No sessions yet. Monitor and Sweep sessions are kept here, newest first.</string>
+    <string name="history_kind_monitor">Monitor</string>
+    <string name="history_kind_sweep">Sweep</string>
+    <string name="history_kind_live">Live</string>
+    <string name="history_kind_aim">Aim</string>
+    <string name="history_row_when">%1$s · %2$s</string>
+    <string name="history_row_when_device">%1$s · %2$s · %3$s</string>
+    <string name="history_row_detail">%1$s · %2$s</string>
+    <string name="history_row_detail_dips">%1$s · %2$s · %3$s</string>
+    <string name="history_open">Open</string>
+    <string name="history_select">Select</string>
+    <plurals name="history_row_dips">
+        <item quantity="one">%d dip</item>
+        <item quantity="other">%d dips</item>
+    </plurals>
+    <string name="history_row_no_readings">No readings</string>
+    <string name="history_row_summarising">Summarising…</string>
+    <plurals name="history_selected">
+        <item quantity="one">%d selected</item>
+        <item quantity="other">%d selected</item>
+    </plurals>
+    <string name="history_clear_selection">Clear selection</string>
+    <string name="history_delete">Delete</string>
+    <plurals name="history_delete_title">
+        <item quantity="one">Delete this session?</item>
+        <item quantity="other">Delete %d sessions?</item>
+    </plurals>
+    <string name="history_delete_body">Its readings, events and weather go too. This can\'t be undone.</string>
+    <string name="history_delete_confirm">Delete</string>
+    <string name="history_delete_cancel">Keep</string>
+    <string name="history_select_hint">Press and hold a session to select it.</string>
+    <string name="history_sparkline_description">Signal quality across the session</string>
+
+    <!-- Session detail (SPEC Screens › 8, mockups/Session.png) -->
+    <string name="session_title_monitor">Monitor session</string>
+    <string name="session_title_sweep">Sweep</string>
+    <string name="session_title_live">Live session</string>
+    <string name="session_title_aim">Aim session</string>
+    <string name="session_back">Back</string>
+    <string name="session_subtitle">%1$s – %2$s · %3$s · %4$s</string>
+    <string name="session_and">%1$s and %2$s</string>
+    <plurals name="session_channels">
+        <item quantity="one">%d channel</item>
+        <item quantity="other">%d channels</item>
+    </plurals>
+    <string name="session_loading">Analysing the session…</string>
+    <string name="session_gone">This session is gone.</string>
+    <string name="session_no_readings">This session has no readings, so there is nothing to analyse.</string>
+    <string name="session_card_good">Time in good health</string>
+    <string name="session_card_dips">Dips</string>
+    <string name="session_card_dropout">Longest dropout</string>
+    <string name="session_card_median">Median quality</string>
+    <string name="session_percent">%1$.1f%%</string>
+    <string name="session_none">None</string>
+    <string name="session_dash">–</string>
+    <string name="session_duration_s">%1$ds</string>
+    <string name="session_duration_ms">%1$dm %2$02ds</string>
+    <string name="session_duration_hm">%1$dh %2$02dm</string>
+    <string name="session_hours">%1$d h</string>
+    <string name="session_minutes">%1$d min</string>
+
+    <string name="session_diagnosis">Diagnosis</string>
+    <string name="session_likely">Likely</string>
+    <string name="session_possible">Possible</string>
+    <string name="session_no_pattern">No pattern found</string>
+    <string name="session_no_pattern_evidence">%1$s of the time in good health, %2$s, median quality %3$s. Nothing here matches a known cause.</string>
+    <plurals name="session_dips_count">
+        <item quantity="one">%d dip</item>
+        <item quantity="other">%d dips</item>
+    </plurals>
+    <string name="session_no_pattern_fix">Nothing to fix. A longer session catches rarer problems.</string>
+    <string name="session_ratio">%1$.1f</string>
+
+    <string name="session_finding_overload">Signal is too strong and noisy</string>
+    <string name="session_evidence_overload_one">On %3$s: median strength %1$d, quality only %2$d.</string>
+    <plurals name="session_evidence_overload_more">
+        <item quantity="one">Median strength %1$d with quality only %2$d on %3$s, and %4$d other channel like it.</item>
+        <item quantity="other">Median strength %1$d with quality only %2$d on %3$s, and %4$d other channels like it.</item>
+    </plurals>
+    <string name="session_fix_overload">Fix: remove the amplifier or preamp, or try a 6–10 dB attenuator.</string>
+
+    <string name="session_finding_weak">Signal is weak</string>
+    <string name="session_evidence_weak_one">On %3$s: median strength %1$d, quality %2$d.</string>
+    <plurals name="session_evidence_weak_more">
+        <item quantity="one">Median strength %1$d and quality %2$d on %3$s, and %4$d other channel like it.</item>
+        <item quantity="other">Median strength %1$d and quality %2$d on %3$s, and %4$d other channels like it.</item>
+    </plurals>
+    <string name="session_fix_weak">Fix: re-aim, raise the antenna, shorten the coax, or add a preamp.</string>
+
+    <string name="session_finding_one_channel">%1$s is weaker overall</string>
+    <string name="session_evidence_one_channel">Median quality %1$d on %2$s vs %3$d on %4$s.</string>
+    <string name="session_evidence_one_channel_others">Median quality %1$d on %2$s vs %3$d on the other channels.</string>
+    <string name="session_evidence_one_channel_every_hour">Median quality %1$d on %2$s vs %3$d on %4$s, at every hour.</string>
+    <string name="session_evidence_one_channel_others_every_hour">Median quality %1$d on %2$s vs %3$d on the other channels, at every hour.</string>
+    <string name="session_fix_one_channel">Fix: check that tower\'s direction and band in a signal report.</string>
+
+    <string name="session_finding_vhf">Antenna may not receive VHF well</string>
+    <string name="session_evidence_vhf">Median quality %1$d on VHF (%2$s) vs %3$d on UHF.</string>
+    <string name="session_fix_vhf">Fix: use an antenna with VHF elements.</string>
+
+    <string name="session_finding_upper_uhf">Possible cellular interference</string>
+    <string name="session_evidence_upper_uhf_ratio">Dips came %1$s× as often on RF 30–36 (%2$s) as on lower channels.</string>
+    <plurals name="session_evidence_upper_uhf_only">
+        <item quantity="one">%1$d dip on RF 30–36 (%2$s), none on lower channels.</item>
+        <item quantity="other">%1$d dips on RF 30–36 (%2$s), none on lower channels.</item>
+    </plurals>
+    <string name="session_fix_upper_uhf">Fix: add an LTE/5G filter.</string>
+
+    <string name="session_finding_time_of_day">Dips follow the clock</string>
+    <plurals name="session_evidence_time_of_day">
+        <item quantity="one">%1$d%% of the time in dips fell between %2$s and %3$s, on %4$d day.</item>
+        <item quantity="other">%1$d%% of the time in dips fell between %2$s and %3$s, on %4$d different days.</item>
+    </plurals>
+    <string name="session_fix_time_of_day">Fix: look for atmospheric effects, or a device nearby on a schedule.</string>
+
+    <string name="session_finding_wind">Dips follow the wind</string>
+    <string name="session_evidence_wind_ratio">Dip rate was %1$s× higher with gusts over %2$s.</string>
+    <plurals name="session_evidence_wind_only">
+        <item quantity="one">%1$d dip with gusts over %2$s, none in calm hours.</item>
+        <item quantity="other">%1$d dips with gusts over %2$s, none in calm hours.</item>
+    </plurals>
+    <string name="session_fix_wind">Fix: secure the mast and antenna; check outdoor connectors.</string>
+
+    <string name="session_finding_rain">Dips follow rain</string>
+    <string name="session_evidence_rain_ratio">Dip rate was %1$s× higher while it rained.</string>
+    <plurals name="session_evidence_rain_only">
+        <item quantity="one">%1$d dip while it rained, none in dry hours.</item>
+        <item quantity="other">%1$d dips while it rained, none in dry hours.</item>
+    </plurals>
+    <string name="session_fix_rain">Fix: check outdoor connectors and the coax for water.</string>
+
+    <string name="session_finding_heat">Dips follow temperature</string>
+    <string name="session_evidence_heat_ratio">Dip rate was %1$s× higher in the hottest hours, %2$s and up.</string>
+    <plurals name="session_evidence_heat_only">
+        <item quantity="one">%1$d dip in the hottest hours, %2$s and up, none in the coolest.</item>
+        <item quantity="other">%1$d dips in the hottest hours, %2$s and up, none in the coolest.</item>
+    </plurals>
+    <string name="session_fix_heat">Fix: check the amplifier\'s power supply and the HDHomeRun\'s ventilation.</string>
+
+    <plurals name="session_evidence_peak_day">
+        <item quantity="one">%1$d of %2$d dip fell on %3$s between %4$s and %5$s.</item>
+        <item quantity="other">%1$d of %2$d dips fell on %3$s between %4$s and %5$s.</item>
+    </plurals>
+    <plurals name="session_evidence_peak_span">
+        <item quantity="one">%1$d of %2$d dip fell between %3$s and %4$s.</item>
+        <item quantity="other">%1$d of %2$d dips fell between %3$s and %4$s.</item>
+    </plurals>
+
+    <string name="session_finding_common_path">Everything drops together</string>
+    <plurals name="session_evidence_common_path">
+        <item quantity="one">%1$d of %2$d dip hit every channel within 2 seconds.</item>
+        <item quantity="other">%1$d of %2$d dips hit every channel within 2 seconds.</item>
+    </plurals>
+    <string name="session_fix_common_path">Fix: check the shared cable, splitter, amplifier power, or the tuner.</string>
+
+    <string name="session_finding_one_tuner">Possible tuner fault</string>
+    <plurals name="session_evidence_one_tuner_only">
+        <item quantity="one">%1$s dipped %2$d time on tuner %3$d and never on tuner %4$s.</item>
+        <item quantity="other">%1$s dipped %2$d times on tuner %3$d and never on tuner %4$s.</item>
+    </plurals>
+    <plurals name="session_evidence_one_tuner">
+        <item quantity="one">%1$s dipped %2$d times on tuner %3$d, only once on tuner %5$s.</item>
+        <item quantity="other">%1$s dipped %2$d times on tuner %3$d, %4$d times on tuner %5$s.</item>
+    </plurals>
+    <string name="session_fix_one_tuner">Fix: avoid that tuner, and contact SiliconDust support.</string>
+
+    <string name="session_finding_impulse">Short bursts of interference</string>
+    <plurals name="session_evidence_impulse">
+        <item quantity="one">%1$d of %2$d dip was symbol errors while quality stayed good; symbol quality fell to %3$d.</item>
+        <item quantity="other">%1$d of %2$d dips were symbol errors while quality stayed good; symbol quality fell to %3$d.</item>
+    </plurals>
+    <plurals name="session_evidence_impulse_no_seq">
+        <item quantity="one">%1$d of %2$d dip was symbol errors while quality stayed good.</item>
+        <item quantity="other">%1$d of %2$d dips were symbol errors while quality stayed good.</item>
+    </plurals>
+    <string name="session_fix_impulse">Fix: look for LED drivers, motors or power supplies near the antenna or cable.</string>
+
+    <string name="session_finding_flutter">Multipath or aircraft flutter</string>
+    <plurals name="session_evidence_flutter">
+        <item quantity="one">Quality swung 20 points or more within 10 seconds %1$d time, on %2$s.</item>
+        <item quantity="other">Quality swung 20 points or more within 10 seconds %1$d times, on %2$s.</item>
+    </plurals>
+    <string name="session_fix_flutter">Fix: re-aim for a cleaner path, or try a more directional antenna.</string>
+
+    <string name="session_finding_not_rf">The network dropped, not the signal</string>
+    <plurals name="session_evidence_not_rf">
+        <item quantity="one">The tuner stopped answering %1$d time, %2$s in all.</item>
+        <item quantity="other">The tuner stopped answering %1$d times, %2$s in all.</item>
+    </plurals>
+    <string name="session_fix_not_rf">Fix: wire the tuner and the player; check the switch and Wi-Fi.</string>
+
+    <string name="session_list_separator">, </string>
+
+    <string name="session_timeline_title">Signal quality</string>
+    <string name="session_timeline_title_wind">Signal quality and wind</string>
+    <string name="session_timeline_line">%1$s quality</string>
+    <string name="session_timeline_description">Signal quality from %1$s to %2$s, with %3$s marked.</string>
+    <string name="session_zoomed">Showing %1$s – %2$s</string>
+    <string name="session_zoom_out">Whole session</string>
+    <string name="session_weather_gusts">Gusts</string>
+    <string name="session_weather_temperature">Temperature</string>
+    <string name="session_weather_rain">Rain</string>
+    <string name="session_weather_axis_gusts_mph">gusts, mph</string>
+    <string name="session_weather_axis_gusts_kph">gusts, km/h</string>
+    <string name="session_weather_axis_temp_f">temperature, °F</string>
+    <string name="session_weather_axis_temp_c">temperature, °C</string>
+    <string name="session_weather_axis_rain">rain, mm</string>
+    <string name="session_weather_description">%1$s by the hour, highest %2$s.</string>
+    <string name="session_weather_demo">Demo weather, made up to match the Demo wind channel.</string>
+    <string name="session_weather_missing">Weather was asked for but couldn\'t be fetched from Open-Meteo.</string>
+    <string name="session_weather_retry">Try again</string>
+    <string name="session_weather_no_home">Weather was asked for, but Sightline doesn\'t know where home is. One coarse location fix sets it, kept to about 1 km.</string>
+    <string name="session_weather_use_location">Use my location</string>
+    <string name="session_mph">%1$d mph</string>
+    <string name="session_kph">%1$d km/h</string>
+    <string name="session_deg_f">%1$d °F</string>
+    <string name="session_deg_c">%1$d °C</string>
+    <string name="session_mm">%1$.1f mm</string>
+
+    <string name="session_heatmap_title">When dips happen</string>
+    <string name="session_heatmap_subtitle">Share of each hour below quality %1$d. Tap an hour to see it.</string>
+    <string name="session_heatmap_0" formatted="false">0%</string>
+    <string name="session_heatmap_max" formatted="false">12%+</string>
+    <string name="session_heatmap_row">%1$s: worst at %2$s, %3$d%% below.</string>
+    <string name="session_heatmap_row_clean">%1$s: never below.</string>
+    <string name="session_hour_12am">12 AM</string>
+    <string name="session_hour_6am">6 AM</string>
+    <string name="session_hour_12pm">12 PM</string>
+    <string name="session_hour_6pm">6 PM</string>
+    <string name="session_hour_11pm">11 PM</string>
+
+    <string name="session_ranges_title">Channels</string>
+    <string name="session_rf_band">RF %1$d · %2$s</string>
+    <string name="session_rf">RF %1$d</string>
+
+    <string name="session_histogram_title">Quality distribution</string>
+    <string name="session_histogram_description">Readings by signal quality: %1$d%% good, %2$d%% marginal, %3$d%% poor.</string>
+
+    <string name="session_events_title">Events</string>
+    <string name="session_events_all">All %1$d</string>
+    <string name="session_events_fewer">Fewer</string>
+    <string name="session_events_none">No dips or outages.</string>
+    <string name="session_event_title">%1$s · %2$s · %3$s</string>
+    <string name="session_event_title_device">%1$s · %2$s</string>
+    <string name="session_event_dip">Dip</string>
+    <string name="session_event_dropout">Dropout</string>
+    <string name="session_event_tuner_lost">Tuner lost</string>
+    <string name="session_event_unreachable">No answer</string>
+    <string name="session_event_gap">Gap</string>
+    <string name="session_event_lowest">Lowest quality %1$d</string>
+    <string name="session_event_lock_lost">Lock lost</string>
+    <string name="session_event_lowest_lock_lost">Lowest quality %1$d, lock lost %2$s</string>
+    <string name="session_event_unreachable_detail">The tuner didn\'t answer</string>
+    <string name="session_event_tuner_lost_detail">Another client took the tuner</string>
+    <string name="session_event_gap_detail">The phone wasn\'t reading</string>
+    <string name="session_event_with_gusts">%1$s · gusts %2$s</string>
+    <string name="session_event_zoom">Show on the chart</string>
 </resources>

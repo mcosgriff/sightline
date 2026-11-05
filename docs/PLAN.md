@@ -65,12 +65,28 @@ Work milestone by milestone, in order. Each milestone ends with the app building
 
 ## Milestone 5 — Analysis
 
-- [ ] Open-Meteo hourly history fetch after a session (home coordinates from settings).
-- [ ] Aggregations: time in good health, dip counts, longest dropout, medians, per-hour below-threshold share, histogram bins, per-channel ranges.
-- [ ] Diagnosis engine: one rule class per row of the SPEC table, each returning a finding with Likely/Possible, an evidence string with numbers, and a fix. Unit tests per rule with synthetic sessions that should and should not fire.
-- [ ] Session detail screen per `mockups/Session.png`: summary cards, diagnosis cards, `SignalTimeline` with weather panel, `HourHeatmap`, `ChannelRangeBars`, `Histogram`, event list with tap-to-zoom.
-- [ ] History screen (spec section 9).
+- [x] Open-Meteo hourly history fetch after a session (home coordinates from settings).
+  - `OpenMeteo` in `:data` (forecast API for recent sessions, archive for old), stored as `WeatherHour` rows.
+    Retried at app start and from Session detail, which can also set home from one location fix. Demo sessions
+    get made-up weather from the Demo wind channel's gust schedule, labelled as Demo.
+- [x] Aggregations: time in good health, dip counts, longest dropout, medians, per-hour below-threshold share, histogram bins, per-channel ranges.
+  - `SessionStats` and `timelineOf` in `:analysis`; a `SessionSummary` row (Room v4) per finished session for History.
+- [x] Diagnosis engine: one rule class per row of the SPEC table, each returning a finding with Likely/Possible, an evidence string with numbers, and a fix. Unit tests per rule with synthetic sessions that should and should not fire.
+  - `Diagnosis.kt`; numbers and Likely criteria in `docs/rules/diagnosis.md`. `:analysis` returns typed evidence;
+    `:app` words it (`session/Findings.kt`). Not RF's "seq at 100 during reported glitches" needs user reports, so
+    only its device-unreachable half is built.
+- [x] Session detail screen per `mockups/Session.png`: summary cards, diagnosis cards, `SignalTimeline` with weather panel, `HourHeatmap`, `ChannelRangeBars`, `Histogram`, event list with tap-to-zoom.
+  - Tapping an event or a heatmap hour zooms the timeline (re-read at that detail); "Whole session" zooms out.
+    Pinch-zoom and a draggable range selector are not built. Export CSV and Share report wait for milestone 6,
+    so their buttons aren't shown.
+- [x] History screen (spec section 9).
+  - Newest first, with kind, start, length, channels, sparkline and health chip; tap opens, press and hold
+    selects for delete. Comparing two sessions is milestone 6 ("History compare").
 - **Done when:** a Demo session with the wind pattern plus a synthetic weather fixture produces the "Dips follow the wind" finding shown in the mockup.
+  - New Demo channel 5.1 "DEMO Wind" (`SignalPattern.windy()`, gusty hours 2–4 of every 6). Checked by
+    `DiagnosisTest` (six hours of it with weather from the same schedule: the wind finding, Likely, first) and
+    `SessionContentTest` (the card's title, badge, evidence and fix). The Demo tuner is in debug builds only, so
+    on a release build this is seen with a real tuner and real weather.
 
 ## Milestone 6 — Polish and release
 

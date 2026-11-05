@@ -1,4 +1,4 @@
-package io.cosgriff.sightline.ui.screens.aim
+package io.cosgriff.sightline.ui.components
 
 import android.Manifest
 import android.content.Context

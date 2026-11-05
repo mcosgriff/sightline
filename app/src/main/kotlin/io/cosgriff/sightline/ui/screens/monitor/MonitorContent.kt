@@ -90,6 +90,8 @@ data class MonitorActions(
     val onStart: () -> Unit,
     val onStop: () -> Unit,
     val onDismiss: () -> Unit,
+    /** Opens a finished session in Session detail. */
+    val onOpenSession: (Long) -> Unit = {},
 )
 
 /** The Monitor tab: the running session per `mockups/Monitor.png`, otherwise the setup (SPEC Screens 6 and 7). */
@@ -110,7 +112,7 @@ fun MonitorContent(
         } else {
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                 Title(stringResource(R.string.monitor_title), stringResource(R.string.monitor_setup_subtitle))
-                if (status != null) Ended(status, actions.onDismiss)
+                if (status != null) Ended(status, actions.onDismiss, actions.onOpenSession)
                 if (networkCard != null) {
                     Box(Modifier.padding(16.dp)) { networkCard() }
                 } else {
@@ -325,7 +327,7 @@ private fun durationLabel(d: MonitorDuration): String =
     d.hours?.let { stringResource(R.string.monitor_hours, it) } ?: stringResource(R.string.monitor_until_stopped)
 
 @Composable
-private fun Ended(status: MonitorStatus, onDismiss: () -> Unit) {
+private fun Ended(status: MonitorStatus, onDismiss: () -> Unit, onOpen: (Long) -> Unit) {
     val colors = MaterialTheme.sightlineColors
     val ran = elapsedText(((status.endedAt ?: status.startedAt) - status.startedAt).coerceAtLeast(0))
     val dips = status.events.dipCount()
@@ -342,7 +344,13 @@ private fun Ended(status: MonitorStatus, onDismiss: () -> Unit) {
         Text(stringResource(R.string.monitor_ended_title), style = MaterialTheme.typography.titleMedium)
         Text(text, style = MaterialTheme.typography.bodyMedium)
         Text(stringResource(R.string.monitor_ended_where), style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
-        TextButton(onClick = onDismiss) { Text(stringResource(R.string.monitor_ended_done)) }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Refused every channel: nothing was read, so there is no session worth opening.
+            if (status.ended != MonitorEnd.NO_CHANNEL) {
+                TextButton(onClick = { onOpen(status.sessionId) }) { Text(stringResource(R.string.monitor_ended_open)) }
+            }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.monitor_ended_done)) }
+        }
     }
 }
 
@@ -383,7 +391,7 @@ private fun ColumnScope.Running(status: MonitorStatus, thresholds: Thresholds, n
             }
             val end = status.endsAt
             SignalTimeline(
-                series = status.timeline,
+                lines = listOf(status.timeline),
                 events = events,
                 nowMs = nowMs,
                 endMs = end,

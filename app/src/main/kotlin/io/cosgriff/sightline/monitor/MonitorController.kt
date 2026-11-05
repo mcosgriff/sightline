@@ -6,6 +6,8 @@ import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.cosgriff.sightline.analysis.DipAlert
 import io.cosgriff.sightline.data.device.DeviceRepository
+import io.cosgriff.sightline.data.di.ApplicationScope
+import io.cosgriff.sightline.data.session.SessionRepository
 import io.cosgriff.sightline.data.device.TunerAccess
 import io.cosgriff.sightline.data.device.TunerLeases
 import io.cosgriff.sightline.data.monitor.MonitorEnd
@@ -13,6 +15,7 @@ import io.cosgriff.sightline.data.monitor.MonitorPlan
 import io.cosgriff.sightline.data.monitor.MonitorRepository
 import io.cosgriff.sightline.data.monitor.MonitorRunner
 import io.cosgriff.sightline.data.monitor.MonitorStatus
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -33,7 +36,9 @@ class MonitorController @Inject constructor(
     private val leases: TunerLeases,
     private val devices: DeviceRepository,
     private val repository: MonitorRepository,
+    private val sessions: SessionRepository,
     private val clock: Clock,
+    @param:ApplicationScope private val appScope: CoroutineScope,
 ) {
     private val _status = MutableStateFlow<MonitorStatus?>(null)
 
@@ -80,7 +85,14 @@ class MonitorController @Inject constructor(
                 runner.run(plan)
             } finally {
                 mirror.cancel()
-                runner.status.value?.let { _status.value = it }
+                runner.status.value?.let { ended ->
+                    _status.value = ended
+                    // After the session (SPEC): its History summary, then the weather it asked for. Outlives the service.
+                    appScope.launch {
+                        sessions.summarise(ended.sessionId)
+                        sessions.fetchWeather(ended.sessionId)
+                    }
+                }
             }
         }
     }

@@ -28,4 +28,8 @@
 - **Heading** — where the phone points, degrees clockwise from north: true north once home is known, magnetic before.
 - **Tower bearing** — the direction of a transmitter from home, typed in from true north (up to 3), drawn on Aim's plot.
 - **Finding** — one diagnosis-engine result: Likely or Possible, with evidence numbers and a fix.
+- **Dip rate** — dips starting in a set of hours per hour of readings in them; the weather rules compare two.
+- **Session summary** — what History shows of a finished session (time good, dips, median, health, sparkline),
+  stored once it ends and kept when its readings are deleted.
+- **Weather hour** — one clock hour of Open-Meteo history at home (temperature, wind, gusts, precipitation), metric.
 - **Demo tuner** — the fake HDHomeRun (`FakeHdhr`) built into debug builds, with scripted signal patterns.

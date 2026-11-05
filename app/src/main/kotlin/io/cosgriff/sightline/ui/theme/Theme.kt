@@ -33,6 +33,15 @@ data class SightlineColors(
     val healthNoLock: Color,
     /** The bottom bar: a step off the background, as in the mockups. */
     val bar: Color,
+    /**
+     * Lines for the second and later channels on a chart; the first is [accent]. From the Session mockup (4.1 in
+     * violet). Told apart by the legend's names too, never by colour alone.
+     */
+    val chartLines: List<Color>,
+    /** Weather bars on Session detail: neutral, so the health colours keep their meaning. */
+    val weatherBar: Color,
+    /** A heatmap cell with nothing below the line. */
+    val heatEmpty: Color,
 )
 
 private val DarkColors = SightlineColors(
@@ -47,6 +56,9 @@ private val DarkColors = SightlineColors(
     healthPoor = Color(0xFFF2685C),
     healthNoLock = Color(0xFF6B7580),
     bar = Color(0xFF12161A),
+    chartLines = listOf(Color(0xFFC99BFF), Color(0xFF4FD1C5), Color(0xFFF28FB8)),
+    weatherBar = Color(0xFF3A434C),
+    heatEmpty = Color(0xFF232A31),
 )
 
 /** True black (OLED) swaps only the backgrounds. */
@@ -64,6 +76,9 @@ private val LightColors = SightlineColors(
     healthPoor = Color(0xFFC62828),
     healthNoLock = Color(0xFF616161),
     bar = Color(0xFFFFFFFF),
+    chartLines = listOf(Color(0xFF7B4CC2), Color(0xFF00897B), Color(0xFFC2185B)),
+    weatherBar = Color(0xFFB8C2CB),
+    heatEmpty = Color(0xFFE6EBEF),
 )
 
 /** The theme setting (SPEC Screens › 10). Dark is the default, whatever the phone's own setting. */

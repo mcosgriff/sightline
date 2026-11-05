@@ -42,6 +42,7 @@ import io.cosgriff.sightline.ui.components.NotBuiltYet
 import io.cosgriff.sightline.ui.screens.live.LiveActions
 import io.cosgriff.sightline.ui.screens.live.LiveScreen
 import io.cosgriff.sightline.ui.screens.monitor.MonitorScreen
+import io.cosgriff.sightline.ui.screens.session.SessionScreen
 import io.cosgriff.sightline.ui.screens.sweep.SweepScreen
 import io.cosgriff.sightline.ui.theme.sightlineColors
 
@@ -91,8 +92,8 @@ fun SightlineNavHost(
         }
     }
     val selected = TopLevel.entries.lastOrNull { tab -> backStack.lastOrNull { it in topLevelKeys } == tab.key }
-    // Aim and Sweep fill the screen, as in their mockups; their back arrow returns to Live.
-    val fullScreen = backStack.lastOrNull() in fullScreenKeys
+    // Aim, Sweep and Session detail fill the screen, as in their mockups; their back arrow returns to where they opened.
+    val fullScreen = backStack.lastOrNull().let { it in fullScreenKeys || it is Session }
     Scaffold(
         bottomBar = { if (!fullScreen) BottomBar(selected = selected, onSelect = { backStack.showTab(it.key) }) },
         // Full-screen pages paint their own background under the system bars and pad themselves.
@@ -114,6 +115,7 @@ fun SightlineNavHost(
                 entry<Aim> { screen(Aim, navigator) }
                 entry<Sweep> { screen(Sweep, navigator) }
                 entry<Settings> { screen(Settings, navigator) }
+                entry<Session> { screen(it, navigator) }
                 entry<ProtocolDebug> { screen(ProtocolDebug, navigator) }
             },
         )
@@ -137,8 +139,9 @@ private fun AppScreen(key: NavKey, navigator: Navigator) {
                 onDevices = { navigator.showTab(Devices) },
             ),
         )
-        Monitor -> MonitorScreen()
-        History -> HistoryScreen()
+        Monitor -> MonitorScreen(onOpenSession = { navigator.push(Session(it)) })
+        History -> HistoryScreen(onOpen = { navigator.push(Session(it)) })
+        is Session -> SessionScreen(key.id, onBack = navigator::back)
         Aim -> AimScreen(onBack = navigator::back)
         Sweep -> SweepScreen(onBack = navigator::back)
         Settings -> NotBuiltYet(stringResource(R.string.settings_title), stringResource(R.string.settings_not_built))
