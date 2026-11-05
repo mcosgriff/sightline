@@ -9,6 +9,11 @@ updates:
       # Wait until a version has been out for 5 days; a bad release is usually caught and pulled by then.
       # Security updates ignore this.
       default-days: 5
+    ignore:
+      # Robolectric's Android jar is pinned to the build its Robolectric version names for SDK 35
+      # (libs.versions.toml). A newer one is another Android version that Robolectric doesn't look for, and
+      # the screen tests fail. It moves by hand with `robolectric`.
+      - dependency-name: "org.robolectric:android-all-instrumented"
     groups:
       # Kotlin, its compiler plugins and KSP must move together. Hilt/Dagger reads Kotlin metadata,
       # so a Kotlin bump usually needs a Hilt bump in the same change.
