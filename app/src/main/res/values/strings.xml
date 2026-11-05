@@ -142,7 +142,6 @@
 
     <!-- Screens not built yet. Each says so plainly, so an unfinished screen never looks like an empty result. -->
     <string name="monitor_title">Monitor</string>
-    <string name="monitor_not_built">Not built yet. Hours-long signal logging will be set up and watched here.</string>
     <string name="history_title">History</string>
     <string name="history_not_built">Not built yet. Saved sessions will be listed here, newest first.</string>
     <string name="settings_title">Settings</string>
@@ -280,4 +279,146 @@
     <string name="sweep_delta_up">+%1$d</string>
     <string name="sweep_delta_down">−%1$d</string>
     <string name="sweep_delta_zero">0</string>
+    <!-- Monitor: setup -->
+    <string name="monitor_setup_subtitle">Log the signal for hours to catch the dropouts you never see while watching.</string>
+    <string name="monitor_no_device">Pick a tuner on Devices first, then set up monitoring here.</string>
+    <string name="monitor_no_channels">%1$s gave no channels. Run a channel scan in the HDHomeRun app, then come back.</string>
+    <string name="monitor_setup_device">Device</string>
+    <string name="monitor_setup_mode">Mode</string>
+    <string name="monitor_setup_hold">Hold one channel</string>
+    <string name="monitor_setup_rotate">Rotate channels</string>
+    <string name="monitor_setup_channel">Channel</string>
+    <string name="monitor_setup_channels">Channels, in the order picked</string>
+    <string name="monitor_setup_channel_chip">%1$s %2$s</string>
+    <string name="monitor_setup_dwell">Time on each channel</string>
+    <string name="monitor_setup_tuner">Tuner</string>
+    <string name="monitor_setup_any_tuner">Any idle</string>
+    <string name="monitor_setup_tuner_chip">%1$d</string>
+    <string name="monitor_setup_duration">How long</string>
+    <string name="monitor_setup_poll">A reading every</string>
+    <string name="monitor_setup_poll_1s">1 s</string>
+    <string name="monitor_setup_poll_saver">%1$d s, saves battery</string>
+    <string name="monitor_setup_dip">Count a dip when quality is under</string>
+    <string name="monitor_setup_dip_lower">Lower the dip line</string>
+    <string name="monitor_setup_dip_raise">Raise the dip line</string>
+    <string name="monitor_setup_dip_note">Or when symbol quality drops below 100, for 2 readings in a row.</string>
+    <string name="monitor_setup_notify">Notify me about dips</string>
+    <string name="monitor_setup_notify_note">At most one notification every 10 minutes.</string>
+    <string name="monitor_setup_weather">Fetch weather afterwards</string>
+    <string name="monitor_setup_weather_note">Wind, rain and temperature from Open-Meteo, to set against the dips. Remembered now; fetched once Session detail is built.</string>
+    <string name="monitor_estimate">About %1$s readings, %2$s.</string>
+    <string name="monitor_estimate_hourly">About %1$s readings and %2$s an hour.</string>
+    <string name="monitor_setup_charger">Keep the phone on a charger: it reads the tuner all night.</string>
+    <string name="monitor_start">Start monitoring</string>
+    <string name="monitor_hours">%1$dh</string>
+    <string name="monitor_until_stopped">Until stopped</string>
+    <string name="monitor_until_stopped_lower">until stopped</string>
+    <string name="monitor_battery_title">Keep monitoring with the screen off</string>
+    <string name="monitor_battery_why">Android may stop a long session to save battery. Letting Sightline skip battery optimisation keeps it reading all night.</string>
+    <string name="monitor_battery_allow">Allow</string>
+    <string name="monitor_battery_later">Not now</string>
+
+    <!-- Monitor: running (mockups/Monitor.png) -->
+    <string name="monitor_title_hold">Monitoring %1$s</string>
+    <plurals name="monitor_title_rotate">
+        <item quantity="one">Monitoring %1$d channel</item>
+        <item quantity="other">Monitoring %1$d channels</item>
+    </plurals>
+    <string name="monitor_subtitle_tuner">%1$s · tuner %2$d · %3$s</string>
+    <string name="monitor_subtitle">%1$s · %2$s</string>
+    <string name="monitor_rate_1s">1 reading per second</string>
+    <string name="monitor_rate_every">1 reading every %1$d s</string>
+    <string name="monitor_phase_claiming">Finding an idle tuner…</string>
+    <string name="monitor_phase_all_busy">Every tuner is in use by another client. Sightline never takes a busy one; trying again within %1$d s.</string>
+    <string name="monitor_phase_paused_by">Paused: %1$s took the tuner. Waiting for one to free up, trying every %2$d s.</string>
+    <string name="monitor_phase_paused">Paused: another client took the tuner. Waiting for one to free up, trying every %1$d s.</string>
+    <string name="monitor_phase_unreachable">The tuner isn\'t answering. Trying again in %1$d s.</string>
+    <plurals name="monitor_phase_missed">
+        <item quantity="one">No answer to the last poll</item>
+        <item quantity="other">No answer to the last %1$d polls</item>
+    </plurals>
+    <string name="monitor_phase_rotating">Now on %1$s, %2$d s each</string>
+    <string name="monitor_of_ends">of %1$s · ends %2$s</string>
+    <string name="monitor_elapsed_hm">%1$dh %2$02dm</string>
+    <string name="monitor_elapsed_ms">%1$dm %2$02ds</string>
+    <string name="monitor_stat_dips">Dips</string>
+    <string name="monitor_stat_longest">Longest</string>
+    <string name="monitor_stat_good">Time good</string>
+    <string name="monitor_percent">%1$.1f%%</string>
+    <string name="monitor_none">–</string>
+    <string name="monitor_seconds">%1$d s</string>
+    <string name="monitor_minutes">%1$d min</string>
+    <string name="monitor_hours_minutes">%1$d h %2$d min</string>
+    <string name="monitor_chart_title">Signal quality, so far</string>
+    <string name="monitor_chart_dip">dip</string>
+    <string name="monitor_chart_no_data">no data</string>
+    <string name="monitor_chart_still_to_come">still to come</string>
+    <plurals name="monitor_chart_description">
+        <item quantity="one">Signal quality so far, %1$d dip</item>
+        <item quantity="other">Signal quality so far, %1$d dips</item>
+    </plurals>
+    <string name="monitor_recent">Recent dips</string>
+    <string name="monitor_now">Now: quality %1$d · strength %2$d · symbol %3$d</string>
+    <string name="monitor_now_no_lock">Now: no lock</string>
+    <string name="monitor_no_dips">No dips so far.</string>
+    <string name="monitor_event_when">%1$s · %2$s</string>
+    <string name="monitor_event_dip">Dip</string>
+    <string name="monitor_event_dropout">Dropout</string>
+    <string name="monitor_event_tuner_lost">Tuner lost</string>
+    <string name="monitor_event_unreachable">No answer</string>
+    <string name="monitor_event_gap">Gap</string>
+    <string name="monitor_event_dip_detail">Lowest quality %1$d, symbol %2$d</string>
+    <string name="monitor_event_dropout_detail">Lowest quality %1$d, lock lost %2$s</string>
+    <string name="monitor_event_dropout_only">Lock lost %1$s</string>
+    <string name="monitor_event_tuner_lost_detail">Another client took or retuned the tuner</string>
+    <string name="monitor_event_unreachable_detail">The tuner didn\'t answer: the network, not the signal</string>
+    <string name="monitor_event_gap_detail">The phone wasn\'t reading, so nothing is known</string>
+    <string name="monitor_footer">Runs with the screen off. Keep the phone on a charger.</string>
+    <string name="monitor_stop_button">Stop monitoring</string>
+    <string name="monitor_stop_confirm_title">Stop monitoring?</string>
+    <string name="monitor_stop_confirm_text">What has been read so far is saved.</string>
+    <string name="monitor_stop">Stop</string>
+    <string name="monitor_stop_keep">Keep monitoring</string>
+
+    <!-- Monitor: ended -->
+    <string name="monitor_ended_title">Session saved</string>
+    <plurals name="monitor_ended_time_up">
+        <item quantity="one">Finished after %2$s, with %1$d dip.</item>
+        <item quantity="other">Finished after %2$s, with %1$d dips.</item>
+    </plurals>
+    <plurals name="monitor_ended_stopped">
+        <item quantity="one">Stopped after %2$s, with %1$d dip.</item>
+        <item quantity="other">Stopped after %2$s, with %1$d dips.</item>
+    </plurals>
+    <string name="monitor_ended_refused">Ended: the tuner refused every channel.</string>
+    <string name="monitor_ended_where">History and Session detail, with the charts and diagnosis, are not built yet; the session is kept for them.</string>
+    <string name="monitor_ended_done">Done</string>
+
+    <!-- Monitor: notifications -->
+    <string name="monitor_channel_ongoing">Monitoring</string>
+    <string name="monitor_channel_alerts">Dips and pauses</string>
+    <string name="monitor_notification_starting">Starting to monitor…</string>
+    <plurals name="monitor_notification_reading">
+        <item quantity="one">Quality %1$d · %2$d dip</item>
+        <item quantity="other">Quality %1$d · %2$d dips</item>
+    </plurals>
+    <plurals name="monitor_notification_no_lock">
+        <item quantity="one">No lock · %1$d dip</item>
+        <item quantity="other">No lock · %1$d dips</item>
+    </plurals>
+    <string name="monitor_notification_all_busy">Waiting for an idle tuner</string>
+    <string name="monitor_notification_paused">Paused: the tuner was taken</string>
+    <string name="monitor_notification_unreachable">The tuner isn\'t answering</string>
+    <string name="monitor_alert_title">Signal dips</string>
+    <plurals name="monitor_alert_one_channel">
+        <item quantity="one">%1$d dip on %2$s in the last hour</item>
+        <item quantity="other">%1$d dips on %2$s in the last hour</item>
+    </plurals>
+    <plurals name="monitor_alert_channels">
+        <item quantity="one">%1$d dip on %2$d channels in the last hour</item>
+        <item quantity="other">%1$d dips on %2$d channels in the last hour</item>
+    </plurals>
+    <string name="monitor_paused_title">Monitoring paused</string>
+    <string name="monitor_paused_taken_by">%1$s took the tuner. Monitoring carries on when one is free.</string>
+    <string name="monitor_paused_taken">Another client took the tuner. Monitoring carries on when one is free.</string>
 </resources>

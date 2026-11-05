@@ -2,6 +2,7 @@ package io.cosgriff.sightline.data.settings
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -58,10 +59,26 @@ class AppStateRepository @Inject constructor(@param:StateStore private val store
         }
     }
 
+    /** Whether the first Monitor start has asked for the battery optimisation exemption (SPEC: asked once). */
+    suspend fun batteryExemptionAsked(): Boolean = store.data.first()[BATTERY_ASKED] ?: false
+
+    suspend fun markBatteryExemptionAsked() {
+        store.edit { it[BATTERY_ASKED] = true }
+    }
+
+    /** Whether Monitor has asked for permission to post notifications; asked once, then left to system settings. */
+    suspend fun notificationsAsked(): Boolean = store.data.first()[NOTIFICATIONS_ASKED] ?: false
+
+    suspend fun markNotificationsAsked() {
+        store.edit { it[NOTIFICATIONS_ASKED] = true }
+    }
+
     private companion object {
         const val LOCK_PREFIX = "lockkey"
         fun lockKeyPref(deviceId: String, tuner: Int) = longPreferencesKey("$LOCK_PREFIX/$deviceId/$tuner")
         val LIVE_DEVICE = stringPreferencesKey("live_device")
         val LIVE_CHANNEL = stringPreferencesKey("live_channel")
+        val BATTERY_ASKED = booleanPreferencesKey("monitor_battery_asked")
+        val NOTIFICATIONS_ASKED = booleanPreferencesKey("monitor_notifications_asked")
     }
 }

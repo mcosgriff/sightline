@@ -13,4 +13,6 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.truth)
+    // FakeHdhr's signal patterns, fed straight into the dip detector.
+    testImplementation(testFixtures(project(":protocol")))
 }

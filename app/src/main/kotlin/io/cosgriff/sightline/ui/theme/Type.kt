@@ -65,6 +65,12 @@ object Numbers {
     /** The value under a summary card's label (Sweep's Good / Marginal / Poor counts). */
     val count = TextStyle(fontFamily = RobotoMono, fontWeight = FontWeight.SemiBold, fontSize = 28.sp, lineHeight = 32.sp)
 
+    /** Monitor's elapsed time ("6h 12m", mockup: 30 px). */
+    val elapsed = TextStyle(fontFamily = RobotoMono, fontWeight = FontWeight.SemiBold, fontSize = 30.sp, lineHeight = 34.sp)
+
+    /** Monitor's counters (dips, longest, time good; mockup: 22 px). */
+    val stat = TextStyle(fontFamily = RobotoMono, fontWeight = FontWeight.SemiBold, fontSize = 22.sp, lineHeight = 26.sp)
+
     /** IPs, device IDs, frequencies in running text. */
     val inline = TextStyle(fontFamily = RobotoMono, fontWeight = FontWeight.Medium, fontSize = 12.sp, lineHeight = 16.sp)
 }

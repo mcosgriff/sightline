@@ -1,10 +1,12 @@
 package io.cosgriff.sightline.data.db
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import androidx.room.TypeConverter
+import io.cosgriff.sightline.analysis.EventKind
 
 /** An HDHomeRun Sightline has seen (SPEC "Data model"). Refreshed on each discovery. */
 @Entity(tableName = "device")
@@ -65,6 +67,8 @@ data class SessionEntity(
     val dwellMs: Long? = null,
     val note: String? = null,
     val weatherFetched: Boolean = false,
+    /** A monitor session asked for weather afterwards (SPEC Screens › Monitor setup). */
+    @ColumnInfo(defaultValue = "0") val fetchWeather: Boolean = false,
 )
 
 /** One poll (GLOSSARY "Reading"). [rawStatus] is kept only when the line couldn't be parsed. */
@@ -89,6 +93,44 @@ data class ReadingEntity(
     val lock: String,
     val headingDeg: Double? = null,
     val rawStatus: String? = null,
+)
+
+/**
+ * What the dip detector recorded (SPEC "Data model", `:analysis` `SignalEvent`). [guideNumber] is null for
+ * device-wide events; [minSnq] and [minSeq] are null when the tuner never locked during it; [noLockMs] is how much
+ * of it had no lock.
+ */
+@Entity(
+    tableName = "event",
+    foreignKeys = [ForeignKey(entity = SessionEntity::class, parentColumns = ["id"], childColumns = ["sessionId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("sessionId", "startTs")],
+)
+data class EventEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val sessionId: Long,
+    val startTs: Long,
+    val endTs: Long,
+    val guideNumber: String?,
+    val kind: EventKind,
+    val minSnq: Int?,
+    val minSeq: Int?,
+    val noLockMs: Long,
+)
+
+/** One hour of Open-Meteo history for a session (SPEC "Data model"), metric. Fetched after the session (milestone 5). */
+@Entity(
+    tableName = "weather_hour",
+    primaryKeys = ["sessionId", "hourTs"],
+    foreignKeys = [ForeignKey(entity = SessionEntity::class, parentColumns = ["id"], childColumns = ["sessionId"], onDelete = ForeignKey.CASCADE)],
+)
+data class WeatherHourEntity(
+    val sessionId: Long,
+    /** UTC epoch ms at the start of the hour. */
+    val hourTs: Long,
+    val tempC: Double?,
+    val windKph: Double?,
+    val gustKph: Double?,
+    val precipMm: Double?,
 )
 
 class Converters {
