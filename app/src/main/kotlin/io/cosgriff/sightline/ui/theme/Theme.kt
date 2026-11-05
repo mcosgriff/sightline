@@ -14,6 +14,7 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import io.cosgriff.sightline.data.settings.ThemeSetting
 
 // Tokens from SPEC "Color tokens". Dynamic (wallpaper) colour is off: a health colour must always mean the same
 // thing, and the chrome follows the mockups. Screens take colours from here, never a hex of their own.
@@ -44,7 +45,7 @@ data class SightlineColors(
     val heatEmpty: Color,
 )
 
-private val DarkColors = SightlineColors(
+internal val DarkColors = SightlineColors(
     bg = Color(0xFF0E1114),
     surface = Color(0xFF171B20),
     outline = Color(0xFF2A3138),
@@ -64,7 +65,7 @@ private val DarkColors = SightlineColors(
 /** True black (OLED) swaps only the backgrounds. */
 private val TrueBlackColors = DarkColors.copy(bg = Color(0xFF000000), bar = Color(0xFF000000))
 
-private val LightColors = SightlineColors(
+internal val LightColors = SightlineColors(
     bg = Color(0xFFF7F9FA),
     surface = Color(0xFFFFFFFF),
     outline = Color(0xFFD5DBE0),
@@ -81,6 +82,9 @@ private val LightColors = SightlineColors(
     heatEmpty = Color(0xFFE6EBEF),
 )
 
+/** The printed report's colours: the light theme's, on white paper whatever the app's theme. */
+val ReportColors: SightlineColors = LightColors
+
 /** The theme setting (SPEC Screens › 10). Dark is the default, whatever the phone's own setting. */
 enum class ThemeMode {
     System,
@@ -92,6 +96,14 @@ enum class ThemeMode {
     companion object {
         val Default = Dark
     }
+}
+
+/** The stored setting as a theme. */
+fun ThemeSetting.mode(): ThemeMode = when (this) {
+    ThemeSetting.SYSTEM -> ThemeMode.System
+    ThemeSetting.LIGHT -> ThemeMode.Light
+    ThemeSetting.DARK -> ThemeMode.Dark
+    ThemeSetting.TRUE_BLACK -> ThemeMode.TrueBlack
 }
 
 /** Whether [mode] draws dark, given the phone's own setting [systemDark]. */

@@ -86,6 +86,8 @@ data class SessionDetail(
     val findings: List<Finding>,
     val channels: Map<String, Channel>,
     val weather: SessionWeather,
+    /** The readings were deleted by the retention setting; the summary and events are what's left. */
+    val readingsDeleted: Boolean = false,
 )
 
 /**
@@ -161,7 +163,17 @@ class SessionRepository @Inject constructor(
             findings = Diagnosis.run(data, thresholds),
             channels = channels.filterKeys { it in s.channels },
             weather = weather,
+            readingsDeleted = data.readings.isEmpty() && (sessions.summary(id)?.readings ?: 0) > 0,
         )
+    }
+
+    /**
+     * Deletes readings older than the retention setting (SPEC "Storage"), run at app start after every finished
+     * session has its summary. Returns how many readings went.
+     */
+    suspend fun deleteOldReadings(): Int {
+        val days = settings.settings.first().retentionDays ?: return 0
+        return sessions.deleteReadingsEndedBefore(clock.millis() - days * DAY_MS)
     }
 
     private suspend fun weatherOf(s: SessionEntity): SessionWeather = when {
@@ -226,5 +238,6 @@ class SessionRepository @Inject constructor(
     private companion object {
         const val LOCK_NONE = "none"
         const val LOCK_ATSC3 = "atsc3"
+        const val DAY_MS = 86_400_000L
     }
 }

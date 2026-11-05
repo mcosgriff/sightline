@@ -8,19 +8,24 @@ import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.cosgriff.sightline.analysis.TimelineSeries
 import io.cosgriff.sightline.analysis.timelineOf
+import io.cosgriff.sightline.data.export.SessionExport
 import io.cosgriff.sightline.data.session.SessionDetail
 import io.cosgriff.sightline.data.session.SessionRepository
 import io.cosgriff.sightline.data.settings.Settings
 import io.cosgriff.sightline.data.settings.SettingsRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.time.ZoneId
 
 /** A stretch of the session the timeline shows. */
@@ -39,9 +44,14 @@ data class SessionUiState(
     val lines: List<TimelineSeries> = emptyList(),
     val weatherMetric: WeatherMetric = WeatherMetric.GUSTS,
     val fetchingWeather: Boolean = false,
+    /** A CSV or the report is being written. */
+    val exporting: Boolean = false,
 ) {
     val zoomed: Boolean get() = detail != null && window != null && (window.startMs > detail.data.startMs || window.endMs < detail.data.endMs)
 }
+
+/** Files ready for the share sheet, with their MIME type. */
+data class ShareFiles(val files: List<File>, val mimeType: String)
 
 /** Session detail: loads and analyses one saved session, and zooms its timeline. */
 @HiltViewModel(assistedFactory = SessionViewModel.Factory::class)
@@ -49,6 +59,8 @@ class SessionViewModel @AssistedInject constructor(
     @Assisted private val sessionId: Long,
     private val sessions: SessionRepository,
     private val settingsRepository: SettingsRepository,
+    private val export: SessionExport,
+    private val reportWriter: SessionReportWriter,
 ) : ViewModel() {
     @AssistedFactory
     interface Factory {
@@ -61,6 +73,11 @@ class SessionViewModel @AssistedInject constructor(
     val settings: StateFlow<Settings> = settingsRepository.settings.stateIn(viewModelScope, SharingStarted.Eagerly, Settings())
 
     private val zone: ZoneId = ZoneId.systemDefault()
+
+    private val _shares = Channel<ShareFiles>(Channel.BUFFERED)
+
+    /** Files to hand to the share sheet, once each. */
+    val shares: Flow<ShareFiles> = _shares.receiveAsFlow()
 
     init {
         viewModelScope.launch { load() }
@@ -111,12 +128,46 @@ class SessionViewModel @AssistedInject constructor(
         }
     }
 
-    private fun lines(detail: SessionDetail, window: TimeWindow): List<TimelineSeries> = detail.data.guideNumbers.map { g ->
-        timelineOf(detail.data.byChannel.getValue(g), window.startMs, window.endMs, TIMELINE_BUCKETS)
+    /** Writes the readings and events as two CSV files and offers them to share together. */
+    fun exportCsv() = exporting {
+        val readings = export.readings(sessionId, zone)
+        val events = export.events(sessionId, zone)
+        listOfNotNull(readings, events).takeIf { it.isNotEmpty() }?.let { ShareFiles(it, CSV) }
+    }
+
+    /** Writes the one-page report with [text] (worded by the screen) and offers it to share. */
+    fun shareReport(text: ReportText, footer: String) = exporting {
+        val detail = _state.value.detail ?: return@exporting null
+        val file = export.reportFile(sessionId, zone) ?: return@exporting null
+        val d = detail.data
+        val chart = ReportChart(d.startMs, d.endMs, lines(detail, TimeWindow(d.startMs, d.endMs), REPORT_BUCKETS), d.events, settings.value.thresholds.snqGood)
+        withContext(Dispatchers.IO) { reportWriter.write(file, text, chart, footer) }
+        ShareFiles(listOf(file), PDF)
+    }
+
+    private fun exporting(block: suspend () -> ShareFiles?) {
+        if (_state.value.exporting) return
+        _state.update { it.copy(exporting = true) }
+        viewModelScope.launch {
+            try {
+                block()?.let { _shares.send(it) }
+            } finally {
+                _state.update { it.copy(exporting = false) }
+            }
+        }
+    }
+
+    private fun lines(detail: SessionDetail, window: TimeWindow, buckets: Int = TIMELINE_BUCKETS): List<TimelineSeries> = detail.data.guideNumbers.map { g ->
+        timelineOf(detail.data.byChannel.getValue(g), window.startMs, window.endMs, buckets)
     }
 
     private companion object {
         /** Enough for a phone's width at two or three pixels a point. */
         const val TIMELINE_BUCKETS = 360
+
+        /** The report's chart is about 530 points wide. */
+        const val REPORT_BUCKETS = 260
+        const val CSV = "text/csv"
+        const val PDF = "application/pdf"
     }
 }

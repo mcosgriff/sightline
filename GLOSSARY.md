@@ -32,4 +32,7 @@
 - **Session summary** — what History shows of a finished session (time good, dips, median, health, sparkline),
   stored once it ends and kept when its readings are deleted.
 - **Weather hour** — one clock hour of Open-Meteo history at home (temperature, wind, gusts, precipitation), metric.
+- **Retention** — how many days readings are kept (Settings). Older ones are deleted at app start; summaries,
+  events, weather and sweeps stay.
+- **Spare tuner** — the idle tuner the Multi-tuner grid leaves alone on opening, so a DVR recording can start.
 - **Demo tuner** — the fake HDHomeRun (`FakeHdhr`) built into debug builds, with scripted signal patterns.

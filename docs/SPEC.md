@@ -260,6 +260,8 @@ Navigation is a bottom bar with four destinations: Devices, Live, Monitor, Histo
 ### 5. Multi-tuner (no mockup yet)
 
 - A 2×2 grid of compact gauges, one per tuner, each on its own channel. Shows whether a problem hits one tuner or all of them, and lets the user compare towers at once.
+- Opens from Live's top bar. On opening it starts every idle tuner **but one**: the last idle tuner is kept free so a DVR recording that starts meanwhile still finds one (the user can start it from its cell). Tuners another client holds show who holds them and offer nothing.
+- The first tuner gets Live's channel; each next one the next lineup channel on an RF channel not already shown, skipping channels known to be ATSC 3.0 (not every tuner takes them). A tap on a cell changes its channel or stops it. Leaving the screen releases every tuner; coming back starts the same cells.
 
 ### 6. Monitor setup (no mockup yet)
 
@@ -289,15 +291,19 @@ The main analysis screen, from top to bottom:
 6. `Histogram` of snq.
 7. **Event list:** each dip with time, channel, duration, minimum values and weather at the time; tapping one zooms the timeline to it.
 8. Export: CSV of readings, CSV of events, and a one-page summary report (PDF or Markdown) with the charts.
+   - Built as: **Export CSV** shares both CSVs together; **Share report** a one-page US Letter PDF (summary figures, findings, the quality timeline, as many events as fit and a count of the rest), in the light theme's colours. The header's export button offers the same two.
+   - CSV columns don't follow the units setting, so scripts can rely on them: times as local ISO 8601 with the offset plus UTC epoch ms, weather metric with the unit in the column name, RFC 4180 quoting.
 
 ### 9. History (no mockup yet)
 
 - Sessions newest first, each row with kind, date, duration, channels, a tiny sparkline and a health chip.
 - Multi-select to compare two sessions or delete.
+- Compare: the two sessions' length, time in good health, dips, dips per hour, longest dropout and median quality side by side, then each channel's median quality before and after with the sweep comparison's rule (3 points or more is a change).
 
 ### 10. Settings (no mockup yet)
 
 - Thresholds, poll interval, units, theme (system / light / dark / true black), home location for weather, data retention, keep screen on, tone range, and an About page with licenses.
+- Retention: 30 days, 90 days (default), 1 year or for ever. The tone range is inside 200–1200 Hz and at least 200 Hz wide. Thresholds stay in order (each marginal line at or below its good line, overload above good strength).
 
 ## Monitor mode
 
@@ -381,7 +387,7 @@ Each rule's exact numbers, and what makes it Likely rather than Possible, are in
 - **Old or unusual firmware:** if `status` has a key Sightline doesn't know, keep the raw line; if parsing fails, show the raw line on Live rather than crashing.
 - **Clock changes and time zones:** store UTC epoch milliseconds; display in local time.
 - **Doze:** the foreground service plus battery optimization exemption keeps polling alive; if a gap over 60 s appears anyway, record a `GAP` event and draw it as a gap in the timeline, not a dropout.
-- **Storage:** readings older than the retention setting are deleted on app start; Event rows and session summaries are kept.
+- **Storage:** readings older than the retention setting are deleted on app start, once the session has its summary; Event rows, weather and session summaries are kept. Sweeps keep their readings: they're a few hundred rows, and comparing sweeps reads them.
 - **Privacy:** no analytics, no network calls except to the HDHomeRun and, if enabled, Open-Meteo. Location is used once to save home coordinates and never stored more precisely than 2 decimal places (about 1 km).
 
 ## Build, release and testing

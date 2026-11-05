@@ -4,6 +4,13 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+    alias(libs.plugins.roborazzi)
+}
+
+// Screenshot tests: `./gradlew recordRoborazziDebug` redraws the golden images in src/test/screenshots after a
+// deliberate change; every other test run (testDebugUnitTest, so CI) compares against them (gradle.properties).
+roborazzi {
+    outputDir.set(file("src/test/screenshots"))
 }
 
 // CI passes -PversionName=1.2.0 -PversionCode=<run number>. Local builds use version.txt, which the
@@ -61,6 +68,8 @@ android {
 
     buildFeatures {
         compose = true
+        // The version on Settings › About.
+        buildConfig = true
     }
 
     // The screen tests (app/src/test) draw the screens under Robolectric, which needs the app's resources and fonts.
@@ -103,6 +112,7 @@ dependencies {
     debugImplementation(libs.compose.ui.tooling)
 
     implementation(libs.vico.compose.m3)
+    implementation(libs.glance.appwidget)
 
     implementation(libs.hilt.android)
     implementation(libs.hilt.lifecycle.viewmodel.compose)
@@ -115,6 +125,9 @@ dependencies {
     testImplementation(libs.robolectric)
     testImplementation(platform(libs.compose.bom))
     testImplementation(libs.compose.ui.test.junit4)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
+    testImplementation(libs.roborazzi.junit.rule)
     // The empty activity the Compose test rule draws into; only in the debug manifest, never the release.
     debugImplementation(libs.compose.ui.test.manifest)
 }

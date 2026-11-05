@@ -1,5 +1,16 @@
 package io.cosgriff.sightline.ui.screens.session
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
+import io.cosgriff.sightline.BuildConfig
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -88,6 +99,9 @@ data class SessionActions(
     val onWeatherMetric: (WeatherMetric) -> Unit,
     val onRetryWeather: () -> Unit,
     val onUseLocation: () -> Unit,
+    val onExportCsv: () -> Unit = {},
+    /** The report worded by the screen, and its footer line. */
+    val onShareReport: (ReportText, String) -> Unit = { _, _ -> },
 )
 
 @Composable
@@ -96,12 +110,23 @@ fun SessionScreen(sessionId: Long, onBack: () -> Unit) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val useLocation = rememberHomeFix(viewModel::saveHome)
+    val context = LocalContext.current
+    LaunchedEffect(viewModel) { viewModel.shares.collect { shareFiles(context, it) } }
     SessionContent(
         state = state,
         thresholds = settings.thresholds,
         units = settings.units,
         zone = ZoneId.systemDefault(),
-        actions = SessionActions(onBack, viewModel::zoom, viewModel::zoomOut, viewModel::showWeather, viewModel::retryWeather, useLocation),
+        actions = SessionActions(
+            onBack = onBack,
+            onZoom = viewModel::zoom,
+            onZoomOut = viewModel::zoomOut,
+            onWeatherMetric = viewModel::showWeather,
+            onRetryWeather = viewModel::retryWeather,
+            onUseLocation = useLocation,
+            onExportCsv = viewModel::exportCsv,
+            onShareReport = viewModel::shareReport,
+        ),
     )
 }
 
@@ -141,9 +166,26 @@ private fun Loaded(state: SessionUiState, detail: SessionDetail, thresholds: Thr
         actions.onZoom(start, end)
         scope.launch { list.animateScrollToItem(TIMELINE_ITEM) }
     }
-    Header(title(detail), subtitle(detail, zone), actions.onBack)
+    // The report is worded only when asked for: wording every event on each recomposition would be waste.
+    var wordingReport by remember { mutableStateOf(false) }
+    if (wordingReport) {
+        val text = reportText(detail, units, zone)
+        val footer = stringResource(R.string.session_report_footer, BuildConfig.VERSION_NAME, zone.id)
+        LaunchedEffect(Unit) {
+            actions.onShareReport(text, footer)
+            wordingReport = false
+        }
+    }
+    val canExport = data.readings.isNotEmpty() || data.events.isNotEmpty()
+    Header(
+        title(detail),
+        subtitle(detail, zone),
+        actions.onBack,
+        export = if (canExport && !state.exporting) ExportMenu(actions.onExportCsv) { wordingReport = true } else null,
+    )
     if (data.readings.isEmpty()) {
-        Message(stringResource(R.string.session_no_readings))
+        Message(stringResource(if (detail.readingsDeleted) R.string.session_readings_deleted else R.string.session_no_readings))
+        if (canExport) ExportButtons(state.exporting, actions.onExportCsv) { wordingReport = true }
         return
     }
     LazyColumn(state = list, modifier = Modifier.fillMaxSize()) {
@@ -172,7 +214,7 @@ private fun Loaded(state: SessionUiState, detail: SessionDetail, thresholds: Thr
             Section(stringResource(R.string.session_histogram_title)) { Histogram(detail.stats.histogram, thresholds) }
         }
         item(key = "events") { Events(detail, units, zone, zoomTo) }
-        item(key = "end") { Spacer(Modifier.height(24.dp)) }
+        item(key = "export") { ExportButtons(state.exporting, actions.onExportCsv) { wordingReport = true } }
     }
 }
 
@@ -185,7 +227,7 @@ private const val HEATMAP_AFTER_MS = 12 * 3_600_000L
 private const val EVENTS_SHOWN = 3
 
 @Composable
-private fun title(detail: SessionDetail): String = detail.info.note?.takeIf { it.isNotBlank() } ?: stringResource(
+internal fun title(detail: SessionDetail): String = detail.info.note?.takeIf { it.isNotBlank() } ?: stringResource(
     when (detail.info.kind) {
         SessionKind.MONITOR -> R.string.session_title_monitor
         SessionKind.SWEEP -> R.string.session_title_sweep
@@ -196,7 +238,7 @@ private fun title(detail: SessionDetail): String = detail.info.note?.takeIf { it
 
 /** "Nov 2, 6 PM – Nov 4, 6 AM · 36 h · 9.1 and 4.1". */
 @Composable
-private fun subtitle(detail: SessionDetail, zone: ZoneId): String {
+internal fun subtitle(detail: SessionDetail, zone: ZoneId): String {
     val d = detail.data
     val channels = d.guideNumbers.ifEmpty { detail.info.channels }
     val names = when (channels.size) {
@@ -207,16 +249,64 @@ private fun subtitle(detail: SessionDetail, zone: ZoneId): String {
     return stringResource(R.string.session_subtitle, dateHour(d.startMs, zone), dateHour(d.endMs, zone), sessionLength(d.endMs - d.startMs), names)
 }
 
+/** The header's export button: CSV or the report. */
+private data class ExportMenu(val onCsv: () -> Unit, val onReport: () -> Unit)
+
 @Composable
-private fun Header(title: String, subtitle: String?, onBack: () -> Unit) {
+private fun Header(title: String, subtitle: String?, onBack: () -> Unit, export: ExportMenu? = null) {
     val colors = MaterialTheme.sightlineColors
-    Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 16.dp, top = 8.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    var open by remember { mutableStateOf(false) }
+    Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 8.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onBack) {
             Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.session_back))
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
             Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
             if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+        }
+        if (export != null) {
+            Box {
+                IconButton(onClick = { open = true }) {
+                    Icon(Icons.Rounded.Download, contentDescription = stringResource(R.string.session_export))
+                }
+                DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                    DropdownMenuItem(text = { Text(stringResource(R.string.session_export_csv_menu)) }, onClick = {
+                        open = false
+                        export.onCsv()
+                    })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.session_export_report_menu)) }, onClick = {
+                        open = false
+                        export.onReport()
+                    })
+                }
+            }
+        }
+    }
+}
+
+/** Export CSV and Share report, side by side at the end of the page, as in the mockup. */
+@Composable
+private fun ExportButtons(exporting: Boolean, onCsv: () -> Unit, onReport: () -> Unit) {
+    val colors = MaterialTheme.sightlineColors
+    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 24.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(
+            onClick = onCsv,
+            enabled = !exporting,
+            modifier = Modifier.weight(1f).height(48.dp),
+            border = BorderStroke(1.dp, colors.outline),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.textPrimary),
+        ) { Text(stringResource(R.string.session_export_csv)) }
+        Button(
+            onClick = onReport,
+            enabled = !exporting,
+            modifier = Modifier.weight(1f).height(48.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = colors.accent),
+        ) {
+            if (exporting) {
+                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+            } else {
+                Text(stringResource(R.string.session_share_report), fontWeight = FontWeight.SemiBold)
+            }
         }
     }
 }
@@ -250,24 +340,29 @@ private fun Section(title: String, subtitle: String? = null, card: Boolean = tru
     }
 }
 
+/** The four summary figures, label and value, in the mockup's order. */
+@Composable
+internal fun summaryFigures(detail: SessionDetail): List<Pair<String, String>> {
+    val s = detail.stats
+    val none = stringResource(R.string.session_dash)
+    return listOf(
+        stringResource(R.string.session_card_good) to (s.goodShare?.let { stringResource(R.string.session_percent, it * 100) } ?: none),
+        stringResource(R.string.session_card_dips) to s.dips.toString(),
+        stringResource(R.string.session_card_dropout) to (s.longestDropoutMs?.let { compactDuration(it) } ?: stringResource(R.string.session_none)),
+        stringResource(R.string.session_card_median) to (s.medianSnq?.toString() ?: none),
+    )
+}
+
 @Composable
 private fun SummaryCards(detail: SessionDetail) {
     val colors = MaterialTheme.sightlineColors
-    val s = detail.stats
-    val none = stringResource(R.string.session_dash)
+    val figures = summaryFigures(detail)
+    val tints = listOf(colors.healthGood, if (detail.stats.dips > 0) colors.healthPoor else colors.textPrimary, colors.textPrimary, colors.textPrimary)
     Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Card(stringResource(R.string.session_card_good), s.goodShare?.let { stringResource(R.string.session_percent, it * 100) } ?: none, colors.healthGood, Modifier.weight(1f))
-            Card(stringResource(R.string.session_card_dips), s.dips.toString(), if (s.dips > 0) colors.healthPoor else colors.textPrimary, Modifier.weight(1f))
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Card(
-                stringResource(R.string.session_card_dropout),
-                s.longestDropoutMs?.let { compactDuration(it) } ?: stringResource(R.string.session_none),
-                colors.textPrimary,
-                Modifier.weight(1f),
-            )
-            Card(stringResource(R.string.session_card_median), s.medianSnq?.toString() ?: none, colors.textPrimary, Modifier.weight(1f))
+        for (pair in figures.indices.chunked(2)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (i in pair) Card(figures[i].first, figures[i].second, tints[i], Modifier.weight(1f))
+            }
         }
     }
 }
@@ -284,25 +379,28 @@ private fun Card(label: String, value: String, tint: Color, modifier: Modifier) 
     }
 }
 
+/** What the diagnosis says when no rule fired: "No pattern found", with the summary numbers. */
+@Composable
+internal fun noPatternText(detail: SessionDetail): FindingText {
+    val s = detail.stats
+    val dash = stringResource(R.string.session_dash)
+    return FindingText(
+        stringResource(R.string.session_no_pattern),
+        stringResource(
+            R.string.session_no_pattern_evidence,
+            s.goodShare?.let { stringResource(R.string.session_percent, it * 100) } ?: dash,
+            pluralStringResource(R.plurals.session_dips_count, s.dips, s.dips),
+            s.medianSnq?.toString() ?: dash,
+        ),
+        stringResource(R.string.session_no_pattern_fix),
+    )
+}
+
 @Composable
 private fun Diagnosis(detail: SessionDetail, units: Units, zone: ZoneId) {
     Section(stringResource(R.string.session_diagnosis), card = false) {
         if (detail.findings.isEmpty()) {
-            val s = detail.stats
-            val dash = stringResource(R.string.session_dash)
-            FindingCard(
-                FindingText(
-                    stringResource(R.string.session_no_pattern),
-                    stringResource(
-                        R.string.session_no_pattern_evidence,
-                        s.goodShare?.let { stringResource(R.string.session_percent, it * 100) } ?: dash,
-                        pluralStringResource(R.plurals.session_dips_count, s.dips, s.dips),
-                        s.medianSnq?.toString() ?: dash,
-                    ),
-                    stringResource(R.string.session_no_pattern_fix),
-                ),
-                strength = null,
-            )
+            FindingCard(noPatternText(detail), strength = null)
         } else {
             for (f in detail.findings) FindingCard(f.text(units, zone), f.strength)
         }
@@ -521,15 +619,17 @@ private fun Events(detail: SessionDetail, units: Units, zone: ZoneId, onZoom: (L
     }
 }
 
+/** An event in words: "Nov 3, 2:14 PM · 9.1 · 45 s", what happened, and its kind. */
+internal data class EventWords(val title: String, val detail: String, val kind: String)
+
 @Composable
-private fun EventRow(e: SignalEvent, detail: SessionDetail, units: Units, zone: ZoneId, onClick: () -> Unit) {
-    val colors = MaterialTheme.sightlineColors
-    val (kind, tint) = when (e.kind) {
-        EventKind.DIP -> R.string.session_event_dip to colors.healthMarginal
-        EventKind.DROPOUT -> R.string.session_event_dropout to colors.healthPoor
-        EventKind.TUNER_LOST -> R.string.session_event_tuner_lost to colors.healthNoLock
-        EventKind.DEVICE_UNREACHABLE -> R.string.session_event_unreachable to colors.healthNoLock
-        EventKind.GAP -> R.string.session_event_gap to colors.healthNoLock
+internal fun eventWords(e: SignalEvent, detail: SessionDetail, units: Units, zone: ZoneId): EventWords {
+    val kind = when (e.kind) {
+        EventKind.DIP -> R.string.session_event_dip
+        EventKind.DROPOUT -> R.string.session_event_dropout
+        EventKind.TUNER_LOST -> R.string.session_event_tuner_lost
+        EventKind.DEVICE_UNREACHABLE -> R.string.session_event_unreachable
+        EventKind.GAP -> R.string.session_event_gap
     }
     val title = e.guideNumber?.let { stringResource(R.string.session_event_title, dateTime(e.startMs, zone), it, compactDuration(e.durationMs)) }
         ?: stringResource(R.string.session_event_title_device, dateTime(e.startMs, zone), compactDuration(e.durationMs))
@@ -543,6 +643,18 @@ private fun EventRow(e: SignalEvent, detail: SessionDetail, units: Units, zone: 
     }
     val gust = detail.data.weatherAt(e.startMs)?.gustKph
     val second = gust?.let { stringResource(R.string.session_event_with_gusts, detailText, speedText(it, units)) } ?: detailText
+    return EventWords(title, second, stringResource(kind))
+}
+
+@Composable
+private fun EventRow(e: SignalEvent, detail: SessionDetail, units: Units, zone: ZoneId, onClick: () -> Unit) {
+    val colors = MaterialTheme.sightlineColors
+    val tint = when (e.kind) {
+        EventKind.DIP -> colors.healthMarginal
+        EventKind.DROPOUT -> colors.healthPoor
+        EventKind.TUNER_LOST, EventKind.DEVICE_UNREACHABLE, EventKind.GAP -> colors.healthNoLock
+    }
+    val words = eventWords(e, detail, units, zone)
     Row(
         Modifier.fillMaxWidth()
             .heightIn(min = 48.dp)
@@ -551,9 +663,9 @@ private fun EventRow(e: SignalEvent, detail: SessionDetail, units: Units, zone: 
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            Text(title, style = MaterialTheme.typography.bodyMedium)
-            Text(second, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+            Text(words.title, style = MaterialTheme.typography.bodyMedium)
+            Text(words.detail, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
         }
-        Text(stringResource(kind), style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold), color = tint)
+        Text(words.kind, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold), color = tint)
     }
 }

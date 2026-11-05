@@ -12,9 +12,11 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import io.cosgriff.sightline.R
-import io.cosgriff.sightline.ui.components.NotBuiltYet
 import io.cosgriff.sightline.ui.theme.SightlineTheme
 import org.junit.Rule
 import org.junit.Test
@@ -46,7 +48,7 @@ class SightlineNavHostTest {
                 Column {
                     if (key == Live) Button(onClick = { navigator.push(Aim) }) { Text("open aim") }
                     if (key == Aim) Button(onClick = navigator::back) { Text("close aim") }
-                    NotBuiltYet(stringResource(title), "")
+                    Text(stringResource(title), modifier = Modifier.semantics { heading() })
                 }
             }
         }

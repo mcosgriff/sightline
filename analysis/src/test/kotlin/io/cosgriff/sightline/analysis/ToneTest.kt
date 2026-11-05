@@ -12,6 +12,14 @@ class ToneTest {
     }
 
     @Test
+    fun `a narrower range keeps its ends at snq 0 and 100`() {
+        val range = ToneRange(400, 800)
+        assertThat(Tone.of(SignalSample(true, 80, 0, 100), range)!!.hz).isEqualTo(400.0)
+        assertThat(Tone.of(SignalSample(true, 80, 50, 100), range)!!.hz).isEqualTo(600.0)
+        assertThat(Tone.of(SignalSample(true, 80, 100, 100), range)!!.hz).isEqualTo(800.0)
+    }
+
+    @Test
     fun `stutters below seq 100 and is silent without lock`() {
         assertThat(Tone.of(SignalSample(true, 80, 90, 100))!!.stutter).isFalse()
         assertThat(Tone.of(SignalSample(true, 80, 90, 99))!!.stutter).isTrue()

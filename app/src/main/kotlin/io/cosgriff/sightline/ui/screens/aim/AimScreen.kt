@@ -117,7 +117,9 @@ fun AimScreen(onBack: () -> Unit, viewModel: AimViewModel = hiltViewModel()) {
     // Tone: plays while the screen is up and the toggle is on, following each reading.
     val tone = remember { TonePlayer() }
     val status = state.status
-    LaunchedEffect(status) { tone.update(status?.let { Tone.of(SignalSample(it.isLocked, it.ss, it.snq, it.seq)) }) }
+    LaunchedEffect(status, settings.toneRange) {
+        tone.update(status?.let { Tone.of(SignalSample(it.isLocked, it.ss, it.snq, it.seq), settings.toneRange) })
+    }
     if (settings.aimTone) {
         LifecycleStartEffect(tone) {
             tone.start()

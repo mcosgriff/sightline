@@ -10,22 +10,24 @@ and run overnight monitoring that turns dropouts into plain-language diagnoses.
 
 Not affiliated with SiliconDust.
 
-> **Status: in development, no release yet.** The project scaffold is in; the HDHomeRun protocol is next. The
-> design is in [`docs/SPEC.md`](docs/SPEC.md), the build order in [`docs/PLAN.md`](docs/PLAN.md), the screens in
-> [`docs/mockups/`](docs/mockups/README.md).
+> **Status: first release (0.1.0) on the way.** Every screen is built and tested against a simulated tuner; it
+> has not yet been run against real hardware, so expect rough edges. The design is in
+> [`docs/SPEC.md`](docs/SPEC.md), the screens in [`docs/mockups/`](docs/mockups/README.md).
 
 ## What it does
-
-What's planned:
 
 - **Finds your HDHomeRun** on the Wi-Fi with no setup, or by address.
 - **Live gauges** for signal quality, strength and symbol quality, once a second, big enough to read from a ladder.
 - **Aim mode:** one giant number, a compass plot of quality against heading, and an optional tone that rises with
   quality, for aiming with the phone in your pocket.
 - **Sweep** every channel and compare sweeps before and after an antenna change.
+- **All tuners at once:** a gauge per tuner, each on its own channel, to tell one bad tuner from a bad antenna.
 - **Monitor** for hours with the screen off, then see when and how the signal dropped, with findings like "Dips
-  follow the wind" and what to try.
-- **Never interrupts a recording:** Sightline only uses idle tuners.
+  follow the wind" and what to try. A home-screen widget shows a running monitor.
+- **History:** every session kept, two side by side to compare, and each one exported as CSV or a one-page PDF
+  report.
+- **Never interrupts a recording:** Sightline only uses idle tuners, and leaves one free for your DVR when it
+  watches them all.
 
 ## Privacy
 
@@ -35,10 +37,14 @@ What's planned:
 
 ## Install
 
-Sightline isn't on the Play Store. Once the first release is out, add `https://github.com/mcosgriff/sightline`
-in [Obtainium](https://github.com/ImranR98/Obtainium), which installs and updates it from GitHub Releases, or
+Sightline isn't on the Play Store. Add `https://github.com/mcosgriff/sightline` in
+[Obtainium](https://github.com/ImranR98/Obtainium), which installs and updates it from GitHub Releases, or
 download the APK from the [latest release](https://github.com/mcosgriff/sightline/releases/latest). Android 10
 or later.
+
+Each release carries the APK and two files to check it with (`.sha256`, `.intoto.jsonl`); Obtainium picks the
+`.apk` on its own. On Android 17, allow **Nearby devices** when Sightline asks: it's how Android
+lets an app reach a device on your network.
 
 ## Verify your download
 

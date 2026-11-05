@@ -85,6 +85,13 @@ interface SessionDao {
     @Query("SELECT * FROM reading WHERE sessionId = :sessionId ORDER BY ts, id")
     suspend fun readings(sessionId: Long): List<ReadingEntity>
 
+    /** The next [limit] readings after ([afterTs], [afterId]) in time order, for writing a long session out in pages. */
+    @Query(
+        """SELECT * FROM reading WHERE sessionId = :sessionId AND (ts > :afterTs OR (ts = :afterTs AND id > :afterId))
+            ORDER BY ts, id LIMIT :limit""",
+    )
+    suspend fun readingsAfter(sessionId: Long, afterTs: Long, afterId: Long, limit: Int): List<ReadingEntity>
+
     @Query("DELETE FROM session WHERE id = :id")
     suspend fun delete(id: Long)
 
@@ -125,6 +132,21 @@ interface SessionDao {
 
     @Query("DELETE FROM session WHERE id IN (:ids)")
     suspend fun deleteAll(ids: List<Long>)
+
+    @Query("SELECT * FROM session_summary WHERE sessionId = :sessionId")
+    suspend fun summary(sessionId: Long): SessionSummaryEntity?
+
+    /**
+     * Deletes the readings of sessions that ended before [cutoff] and already have their History summary; events,
+     * weather and summaries stay. Sweeps are left whole: they're a few hundred rows, and comparing sweeps reads them.
+     * Returns how many readings went.
+     */
+    @Query(
+        """DELETE FROM reading WHERE sessionId IN (
+            SELECT id FROM session WHERE endedAt IS NOT NULL AND endedAt < :cutoff AND kind != 'SWEEP'
+            AND id IN (SELECT sessionId FROM session_summary))""",
+    )
+    suspend fun deleteReadingsEndedBefore(cutoff: Long): Int
 
     @Query("SELECT * FROM weather_hour WHERE sessionId = :sessionId ORDER BY hourTs")
     suspend fun weather(sessionId: Long): List<WeatherHourEntity>
