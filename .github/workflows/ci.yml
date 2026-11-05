@@ -50,6 +50,7 @@ jobs:
           path: |
             */build/test-results/
             */build/reports/tests/
+            app/build/outputs/roborazzi/
           if-no-files-found: ignore
 
       - name: Upload lint report

@@ -29,6 +29,8 @@ turbine = "1.2.1"
 # build.gradle.kts). Each Robolectric release names its own builds of it, so these move together: on a Robolectric
 # upgrade, take the version from its `AndroidSdk` list.
 robolectric = "4.17"
+# Screenshot tests of the custom components (app/src/test/.../ui/components), drawn by Robolectric.
+roborazzi = "1.77.0"
 robolectric-androidAll-sdk35 = "15-robolectric-13954326-i7"
 
 [libraries]
@@ -76,6 +78,9 @@ turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
 # Test only: the screens drawn on the JVM (app/src/test), through Robolectric.
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 robolectric-androidAll-sdk35 = { module = "org.robolectric:android-all-instrumented", version.ref = "robolectric-androidAll-sdk35" }
+roborazzi = { module = "io.github.takahirom.roborazzi:roborazzi", version.ref = "roborazzi" }
+roborazzi-compose = { module = "io.github.takahirom.roborazzi:roborazzi-compose", version.ref = "roborazzi" }
+roborazzi-junit-rule = { module = "io.github.takahirom.roborazzi:roborazzi-junit-rule", version.ref = "roborazzi" }
 compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
 compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
 
@@ -88,3 +93,4 @@ kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", versi
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 room = { id = "androidx.room", version.ref = "room" }
+roborazzi = { id = "io.github.takahirom.roborazzi", version.ref = "roborazzi" }
