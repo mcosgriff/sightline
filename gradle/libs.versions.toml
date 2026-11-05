@@ -2,7 +2,7 @@
 # Built with Android Studio; keep AGP current via Studio's AGP Upgrade Assistant.
 agp = "9.5.0"
 kotlin = "2.4.21"
-ksp = "2.3.12"
+ksp = "2.3.13"
 coroutines = "1.11.0"
 serialization = "1.12.0"
 
