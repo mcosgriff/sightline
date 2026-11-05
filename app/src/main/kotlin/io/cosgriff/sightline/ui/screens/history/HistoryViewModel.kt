@@ -25,7 +25,7 @@ data class HistoryUiState(
     val manyDevices: Boolean get() = rows.map { it.info.deviceId }.distinct().size > 1
 }
 
-/** History (SPEC Screens › 9): saved sessions newest first; select to delete. */
+/** History (SPEC Screens › 9): saved sessions newest first; select to delete, or two to compare. */
 @HiltViewModel
 class HistoryViewModel @Inject constructor(
     private val sessions: SessionRepository,

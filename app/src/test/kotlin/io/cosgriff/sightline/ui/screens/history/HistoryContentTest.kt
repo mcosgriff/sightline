@@ -33,6 +33,7 @@ class HistoryContentTest {
         onToggle = { calls += "toggle $it" },
         onClearSelection = { calls += "clear" },
         onDelete = { calls += "delete" },
+        onCompare = { calls += "compare" },
     )
 
     private val monitor = HistoryRow(
@@ -73,6 +74,20 @@ class HistoryContentTest {
         compose.onNodeWithText("Delete this session?").assertExists()
         compose.onNodeWithText("Delete").performClick()
         assertThat(calls).containsExactly("toggle 1", "delete").inOrder()
+    }
+
+    @Test
+    fun `one selected says to pick another to compare`() {
+        show(HistoryUiState(false, listOf(monitor, sweep), selected = setOf(2)))
+        compose.onNodeWithText("Pick two to compare.").assertExists()
+        compose.onNode(hasContentDescription("Compare")).assertDoesNotExist()
+    }
+
+    @Test
+    fun `two selected can be compared`() {
+        show(HistoryUiState(false, listOf(monitor, sweep), selected = setOf(1, 2)))
+        compose.onNode(hasContentDescription("Compare")).performClick()
+        assertThat(calls).containsExactly("compare")
     }
 
     @Test

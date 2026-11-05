@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.CompareArrows
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
@@ -60,22 +61,26 @@ data class HistoryActions(
     val onToggle: (Long) -> Unit,
     val onClearSelection: () -> Unit,
     val onDelete: () -> Unit,
+    /** The two selected sessions, to compare. */
+    val onCompare: () -> Unit = {},
 )
 
 @Composable
-fun HistoryScreen(onOpen: (Long) -> Unit, viewModel: HistoryViewModel = hiltViewModel()) {
+fun HistoryScreen(onOpen: (Long) -> Unit, onCompare: (Long, Long) -> Unit, viewModel: HistoryViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     HistoryContent(
         state = state,
         zone = ZoneId.systemDefault(),
-        actions = HistoryActions(onOpen, viewModel::toggle, viewModel::clearSelection, viewModel::deleteSelected),
+        actions = HistoryActions(onOpen, viewModel::toggle, viewModel::clearSelection, viewModel::deleteSelected) {
+            state.selected.toList().takeIf { it.size == 2 }?.let { (a, b) -> onCompare(a, b) }
+        },
     )
 }
 
 /**
  * History (SPEC Screens › 9): sessions newest first, each with its kind, start, length, channels, a sparkline of
- * quality and a health chip. A tap opens it; press and hold selects, and selected sessions can be deleted.
- * Comparing two sessions comes in milestone 6.
+ * quality and a health chip. A tap opens it; press and hold selects; selected sessions can be deleted, and two
+ * can be compared.
  */
 @Composable
 fun HistoryContent(state: HistoryUiState, zone: ZoneId, actions: HistoryActions, modifier: Modifier = Modifier) {
@@ -88,11 +93,15 @@ fun HistoryContent(state: HistoryUiState, zone: ZoneId, actions: HistoryActions,
                 IconButton(onClick = actions.onClearSelection) {
                     Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.history_clear_selection))
                 }
-                Text(
-                    pluralStringResource(R.plurals.history_selected, state.selected.size, state.selected.size),
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.weight(1f),
-                )
+                Column(Modifier.weight(1f)) {
+                    Text(pluralStringResource(R.plurals.history_selected, state.selected.size, state.selected.size), style = MaterialTheme.typography.titleLarge)
+                    if (state.selected.size == 1) Text(stringResource(R.string.history_compare_hint), style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+                }
+                if (state.selected.size == 2) {
+                    IconButton(onClick = actions.onCompare) {
+                        Icon(Icons.AutoMirrored.Outlined.CompareArrows, contentDescription = stringResource(R.string.history_compare))
+                    }
+                }
                 IconButton(onClick = { confirm = true }) {
                     Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.history_delete))
                 }

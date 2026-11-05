@@ -42,3 +42,7 @@ data object Settings : NavKey
 /** Every tuner of Live's device at once, each on its own channel. Opens from Live's top bar. */
 @Serializable
 data object MultiTuner : NavKey
+
+/** Two saved sessions side by side. Opens from History with two selected. */
+@Serializable
+data class Compare(val a: Long, val b: Long) : NavKey

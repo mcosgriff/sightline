@@ -36,6 +36,7 @@ import io.cosgriff.sightline.R
 import io.cosgriff.sightline.debugtools.DebugTools
 import io.cosgriff.sightline.debugtools.ProtocolDebugEntry
 import io.cosgriff.sightline.ui.screens.aim.AimScreen
+import io.cosgriff.sightline.ui.screens.compare.CompareScreen
 import io.cosgriff.sightline.ui.screens.devices.DevicesScreen
 import io.cosgriff.sightline.ui.screens.history.HistoryScreen
 import io.cosgriff.sightline.ui.screens.live.LiveActions
@@ -94,7 +95,7 @@ fun SightlineNavHost(
     }
     val selected = TopLevel.entries.lastOrNull { tab -> backStack.lastOrNull { it in topLevelKeys } == tab.key }
     // Aim, Sweep and Session detail fill the screen, as in their mockups; their back arrow returns to where they opened.
-    val fullScreen = backStack.lastOrNull().let { it in fullScreenKeys || it is Session }
+    val fullScreen = backStack.lastOrNull().let { it in fullScreenKeys || it is Session || it is Compare }
     Scaffold(
         bottomBar = { if (!fullScreen) BottomBar(selected = selected, onSelect = { backStack.showTab(it.key) }) },
         // Full-screen pages paint their own background under the system bars and pad themselves.
@@ -118,6 +119,7 @@ fun SightlineNavHost(
                 entry<Settings> { screen(Settings, navigator) }
                 entry<MultiTuner> { screen(MultiTuner, navigator) }
                 entry<Session> { screen(it, navigator) }
+                entry<Compare> { screen(it, navigator) }
                 entry<ProtocolDebug> { screen(ProtocolDebug, navigator) }
             },
         )
@@ -143,8 +145,9 @@ private fun AppScreen(key: NavKey, navigator: Navigator) {
             ),
         )
         Monitor -> MonitorScreen(onOpenSession = { navigator.push(Session(it)) })
-        History -> HistoryScreen(onOpen = { navigator.push(Session(it)) })
+        History -> HistoryScreen(onOpen = { navigator.push(Session(it)) }, onCompare = { a, b -> navigator.push(Compare(a, b)) })
         is Session -> SessionScreen(key.id, onBack = navigator::back)
+        is Compare -> CompareScreen(key.a, key.b, onBack = navigator::back)
         Aim -> AimScreen(onBack = navigator::back)
         Sweep -> SweepScreen(onBack = navigator::back)
         Settings -> SettingsScreen(onBack = navigator::back)

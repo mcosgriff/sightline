@@ -807,4 +807,19 @@
     <string name="widget_hours_minutes">%1$d h %2$02d min</string>
     <string name="widget_detail">%1$s · %2$s</string>
     <string name="widget_stop_description">Stop monitoring</string>
+
+    <!-- History: compare two sessions (SPEC Screens › 9). -->
+    <string name="compare_title">Compare sessions</string>
+    <string name="compare_back">Back</string>
+    <string name="compare_subtitle">%1$s vs %2$s</string>
+    <string name="compare_loading">Reading both sessions…</string>
+    <string name="compare_missing">One of these sessions is gone.</string>
+    <string name="compare_figure">Figure</string>
+    <string name="compare_length">Length</string>
+    <string name="compare_dip_rate">Dips per hour</string>
+    <string name="compare_rate">%1$.1f</string>
+    <string name="compare_channels">Median quality by channel</string>
+    <string name="compare_readings_deleted">The readings of one of these were deleted by the Keep readings setting, so it has no channel figures.</string>
+    <string name="history_compare">Compare</string>
+    <string name="history_compare_hint">Pick two to compare.</string>
 </resources>
