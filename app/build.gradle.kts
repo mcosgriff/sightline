@@ -83,6 +83,8 @@ kotlin {
 
 dependencies {
     implementation(project(":data"))
+    // The Demo tuner (FakeHdhr) is in debug builds only.
+    debugImplementation(testFixtures(project(":protocol")))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

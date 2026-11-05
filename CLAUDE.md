@@ -22,10 +22,12 @@ feature works is in its code and tests. Words for things are in `GLOSSARY.md`.
 
 ## Status
 
-Milestone 0 (scaffold) is done: modules, theme with the SPEC tokens, bundled fonts, the bottom-bar shell with four
-placeholder screens, CI, release-please and the release workflow. Next is milestone 1, protocol core.
-The user's tuner is an **HDHomeRun FLEX 4K (ATSC 3.0)**; real `status` field names are still to be captured
-into `docs/protocol-captures/`.
+Milestones 0 (scaffold) and 1 (protocol core) are done: `:protocol` has the codec, discovery, control client,
+HTTP API and `TunerSessions`, tested against golden captures and `FakeHdhr`; debug builds have the Demo tuner
+and a protocol debug screen (from Devices). Next is milestone 2, Devices and Live. One M1 check is left: the
+debug screen against a real unit from a phone (the emulator can't see the LAN).
+The user has two **HDHomeRun FLEX 4K** units (`HDFX-4K`, 4 tuners, ATSC 3.0 on tuners 0 and 1 only), and a DVR
+records from them. Captures and what they showed: `docs/protocol-captures/README.md`.
 
 `./gradlew build` is green (Gradle 9.8.2, AGP 9.5.0, lint included). Keep it green; lint fails the build on a
 warning as on an error (`warningsAsErrors`, in `:app` and `:data`), and there is no baseline: fix a warning, or
@@ -33,7 +35,10 @@ suppress that one case with a comment saying why.
 
 ## Commands
 
-- `./gradlew :protocol:test :analysis:test` — fast pure-Kotlin tests. Run often.
+- `./gradlew :protocol:test :analysis:test` — fast pure-Kotlin tests. Run often. They open loopback sockets
+  (`FakeHdhr`); in a sandbox that blocks them, run outside it.
+- `SIGHTLINE_REAL_HDHR=<ip> ./gradlew :protocol:test --tests '*RealDeviceTest*'` — the client against a real
+  unit (claims an idle tuner and releases it).
 - `./gradlew testDebugUnitTest` — `:data` and `:app` tests (screens under Robolectric).
 - `./gradlew build` — everything, lint included. Run before saying a milestone is done.
 - `./gradlew :app:installDebug` — install on a phone or emulator (debug app id `io.cosgriff.sightline.debug`).
@@ -47,8 +52,10 @@ suppress that one case with a comment saying why.
 `:app` → `:data` → `:analysis` → `:protocol`.
 
 - `:protocol` — pure Kotlin/JVM, **no Android**. Packet codec, CRC, discovery, control client, status parser,
-  HTTP helpers (OkHttp + kotlinx.serialization), `TunerSession`. Android pieces (MulticastLock, broadcast
-  address) are injected from outside.
+  HTTP helpers (OkHttp + kotlinx.serialization), `TunerSessions`. Android pieces (MulticastLock, broadcast
+  address) are injected from outside (`:data`'s `AndroidDiscoveryEnvironment`). `FakeHdhr` is in its
+  `testFixtures`, used by its tests and, as the Demo tuner, by debug builds of `:app` (`src/debug`; `src/release`
+  has empty stand-ins).
 - `:analysis` — pure Kotlin/JVM, **no Android**. Health from thresholds, the dip detector, aggregations for the
   charts, the diagnosis rules. Every rule gets a test.
 - `:data` — Android library. Room (readings, sessions, events, weather), DataStore settings, repositories, CSV
@@ -62,6 +69,9 @@ suppress that one case with a comment saying why.
   `lockkey none`) on every exit path, including crashes (stale lock-key recovery on start). Monitor never offers
   the override.
 - **The monitor service is foreground type `connectedDevice`, never `dataSync`.**
+- **ATSC 3.0 is tuned with an HTTP stream** on an idle tuner, read and discarded; ATSC 1.0 and QAM with a lock
+  key ([ADR-0004](docs/adr/0004-atsc3-tuned-by-http-stream.md)). The firmware can't tune ATSC 3.0 otherwise.
+- **Never store, log or commit DeviceAuth** (UDP tag `0x2B`, `discover.json`): it is a cloud credential.
 - **No analytics or third-party network calls** besides the HDHomeRun and optional Open-Meteo. **No Google Play
   services or Google SDKs** ([ADR-0002](docs/adr/0002-no-google-play-services.md)): bundled fonts, platform
   sensors and `LocationManager`.

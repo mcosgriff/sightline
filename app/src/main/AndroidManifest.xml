@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Permissions arrive with the features that need them: the LAN ones with discovery (milestone 1), the
-         foreground service ones with Monitor (milestone 4). See SPEC "Monitor mode › Service". -->
+    <!-- The LAN permissions (discovery, the control protocol, HTTP) come from :data's manifest, beside the code
+         that uses them. The foreground service ones arrive with Monitor (milestone 4). -->
 
     <application
         android:name=".SightlineApp"
@@ -11,6 +11,7 @@
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Sightline">

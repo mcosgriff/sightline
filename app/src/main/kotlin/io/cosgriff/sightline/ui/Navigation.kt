@@ -18,3 +18,7 @@ data object Monitor : NavKey
 /** Saved sessions, newest first. */
 @Serializable
 data object History : NavKey
+
+/** Debug builds only: raw protocol output from discovered tuners and the Demo tuner (milestone 1). */
+@Serializable
+data object ProtocolDebug : NavKey

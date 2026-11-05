@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The HDHomeRun serves discover.json, lineup.json and its streams over plain HTTP only, on whatever LAN address
+     it has, which a domain-config can't list. So cleartext is allowed; Sightline makes no other HTTP calls except
+     Open-Meteo, which is HTTPS. -->
+<network-security-config xmlns:tools="http://schemas.android.com/tools">
+    <base-config cleartextTrafficPermitted="true" tools:ignore="InsecureBaseConfiguration" />
+</network-security-config>

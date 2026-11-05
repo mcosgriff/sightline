@@ -29,6 +29,8 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import io.cosgriff.sightline.R
+import io.cosgriff.sightline.debugtools.DebugTools
+import io.cosgriff.sightline.debugtools.ProtocolDebugEntry
 import io.cosgriff.sightline.ui.screens.devices.DevicesScreen
 import io.cosgriff.sightline.ui.screens.history.HistoryScreen
 import io.cosgriff.sightline.ui.screens.live.LiveScreen
@@ -64,10 +66,13 @@ fun SightlineNavHost() {
                 rememberViewModelStoreNavEntryDecorator(),
             ),
             entryProvider = entryProvider {
-                entry<Devices> { DevicesScreen() }
+                entry<Devices> {
+                    DevicesScreen(onOpenProtocolDebug = if (DebugTools.AVAILABLE) ({ backStack.add(ProtocolDebug) }) else null)
+                }
                 entry<Live> { LiveScreen() }
                 entry<Monitor> { MonitorScreen() }
                 entry<History> { HistoryScreen() }
+                entry<ProtocolDebug> { ProtocolDebugEntry() }
             },
         )
     }

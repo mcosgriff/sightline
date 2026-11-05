@@ -1,0 +1,11 @@
+{
+  "FriendlyName": "HDHomeRun FLEX 4K",
+  "ModelNumber": "HDFX-4K",
+  "FirmwareName": "hdhomerun_dvr_atsc3",
+  "FirmwareVersion": "20260326",
+  "DeviceID": "1A2B3C5E",
+  "DeviceAuth": "REDACTEDREDACTEDREDACTED",
+  "BaseURL": "http://192.168.1.32",
+  "LineupURL": "http://192.168.1.32/lineup.json",
+  "TunerCount": 4
+}
