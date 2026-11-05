@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- The tuner is on the LAN: HTTP, and its own protocol on UDP and TCP port 65001. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- The active network's subnet, for the directed broadcast address. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- MulticastLock, so broadcast discovery replies aren't dropped. -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <!-- Android 17 (API 37) blocks the local network without it. A runtime permission, in Nearby devices. -->
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
+
+</manifest>

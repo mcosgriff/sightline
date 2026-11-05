@@ -61,7 +61,7 @@ Only `protocol` talks to the tuner; Live polls through it directly, while Monito
 
 ## HDHomeRun protocol reference
 
-Use the libhdhomerun control protocol as the primary data source and the HTTP JSON endpoints as helpers. The control protocol works on every model and reports idle tuners. `status.json` only lists tuners already in use and returns percentages only. Channels DVR made the same switch for the same reason. Verify every field below against a real unit before coding (see Open questions and `docs/protocol-captures/`).
+Use the libhdhomerun control protocol as the primary data source and the HTTP JSON endpoints as helpers. The control protocol works on every model and reports idle tuners. `status.json` only lists tuners already in use and returns percentages only. Channels DVR made the same switch for the same reason. Every field below was checked against the user's FLEX 4K units; the captures and what they showed are in `docs/protocol-captures/`, which wins where this spec and the device disagree.
 
 ### Packet format (UDP and TCP, port 65001)
 
@@ -83,6 +83,8 @@ Each TLV is a 1-byte tag, a variable-length size, then the value. The size is 1 
 | `0x05` | Error message | Set when a get/set fails |
 | `0x10` | Tuner count | Discovery reply |
 | `0x15` | Lock key | uint32, sent with sets on a locked tuner |
+| `0x2B` | Device auth | Discovery reply. A cloud credential: never stored, logged or committed |
+| `0x2D` | (unnamed) | Some discovery replies carry it; ignored |
 | `0x27` | Lineup URL | Discovery reply |
 | `0x2A` | Base URL | Discovery reply, e.g. `http://192.168.1.50:80` |
 
@@ -100,43 +102,51 @@ The libhdhomerun source (github.com/Silicondust/libhdhomerun, `hdhomerun_pkt.h` 
 
 | Command | Purpose |
 | --- | --- |
-| `get /sys/model`, `get /sys/version` | Model and firmware, shown on the device card |
+| `get /sys/hwmodel`, `get /sys/version` | Model (`HDFX-4K`) and firmware, shown on the device card. `/sys/model` is the firmware name (`hdhomerun_dvr_atsc3`) |
 | `get /tunerN/status` | Idle check and RF readings (parsed below) |
-| `get /tunerN/lockkey` | `none` or the IP holding the lock |
-| `set /tunerN/lockkey <random uint32>` | Claim a tuner before tuning |
-| `set /tunerN/vchannel 7.1` | Tune by virtual channel (sent with lock key) |
-| `set /tunerN/channel auto:<rf>` | Tune by RF channel, for channels missing from the lineup |
-| `get /tunerN/vstatus` | Station name and virtual channel actually locked |
+| `get /tunerN/lockkey` | `none` or the IP holding the lock (an HTTP stream client holds one too) |
+| `get /tunerN/target` | `none`, or where a stream goes (`http://<ip>:<port>`) |
+| `set /tunerN/lockkey <random uint32>` | Claim a tuner before tuning. The reply is the holder's IP, not the key |
+| `set /tunerN/vchannel 7.1` | Tune by virtual channel (sent with lock key). ATSC 1.0 and QAM only: an ATSC 3.0 channel answers `invalid virtual channel` |
+| `set /tunerN/channel auto:<rf>` | Tune by RF channel, for channels missing from the lineup. ATSC 1.0 and QAM only; status keeps reporting `ch=auto:<rf>` |
+| `get /tunerN/channel` | The `ch=` value a tune produced, read right after tuning so each poll can check it is unchanged |
 | `get /tunerN/streaminfo` | Programs in the transport stream |
 | `set /tunerN/channel none`, then `set /tunerN/lockkey none` | Release the tuner (always, including on crash recovery) |
+
+`/tunerN/vstatus` does not exist on this firmware (`unknown getset variable`). Errors come back as tag `0x05` alone, e.g. `ERROR: resource locked by 192.168.1.21`, `ERROR: invalid channel`, `ERROR: invalid virtual channel`, `ERROR: unknown getset variable`.
+
+### ATSC 3.0 (ADR-0004)
+
+The control protocol can't tune ATSC 3.0 on this firmware. Sightline opens the HTTP stream `http://<ip>:5004/tuner<N>/v<guide>` (the lineup entry's `URL` with `/auto/` replaced by `/tuner<N>/`) on a tuner it checked is idle, reads and discards it, and polls status over the control protocol as usual. Closing the stream releases the tuner. Only some tuners do ATSC 3.0 (on a FLEX 4K, tuners 0 and 1); the others answer `806 Tune Failed`, so idle tuners are tried in order. Stream errors are in the `X-HDHomeRun-Error` header: `801 Unknown Channel`, `804 Tuner In Use`, `806 Tune Failed`.
 
 ### Status parsing
 
 `get /tunerN/status` returns one line of space-separated `key=value` pairs:
 
 ```
-ch=8vsb:563000000 lock=8vsb ss=83 snq=90 seq=100 bps=19394080 pps=0
+ch=8vsb:189000000 lock=8vsb ss=100 snq=97 seq=100 bps=7831328 pps=0
+ch=atsc3:593000000:1 lock=atsc3 ss=100 snq=100 seq=100 bps=0 pps=285
 ```
 
 | Key | Meaning | Type |
 | --- | --- | --- |
-| `ch` | Requested channel: `none`, `auto:<rf>` or `<mod>:<freq Hz>` | String |
+| `ch` | Requested channel: `none`, `auto:<rf>`, `<mod>:<freq Hz>`, or for ATSC 3.0 `atsc3:<freq Hz>:<n>` | String |
 | `lock` | Detected modulation: `none`, `8vsb`, `qam256`, `atsc3`, … | Enum, unknown values kept as raw text |
 | `ss` | Signal strength (raw RF power), 0–100 | Int |
 | `snq` | Signal-to-noise quality, 0–100. The number to aim by | Int |
 | `seq` | Symbol quality: share of data received correctly in the last second, 0–100 | Int |
-| `bps` | Raw channel bit rate | Long |
+| `bps` | Raw channel bit rate. Always 0 on ATSC 3.0 | Long |
 | `pps` | Packets per second sent to the network (0 when not streaming) | Long |
 
-Parse leniently: ignore unknown keys and keep the raw line in the log for debugging. `ch=none` means the tuner is idle. `lock=none` with a tuned channel means no lock, recorded as ss/snq/seq of 0 and flagged as a dropout.
+Parse leniently: ignore unknown keys and keep the raw line in the log for debugging. `ch=none` means the tuner is idle. `lock=none` with a tuned channel means no lock, recorded as ss/snq/seq of 0 and flagged as a dropout (the tuner may still report `ss`). The first reading after a tune can show a lock with `seq=0 bps=0`; the lock wait after a tune discards it.
 
 RF channel and frequency come from the `ch` field after tuning. Map frequency to US RF channel with a built-in table (VHF-lo 2–6, VHF-hi 7–13, UHF 14–36). Show the band, because VHF and UHF problems have different causes.
 
 ### HTTP helpers
 
-- `GET /discover.json` — FriendlyName, ModelNumber, FirmwareVersion, DeviceID, TunerCount.
-- `GET /lineup.json` — GuideNumber, GuideName, URL per channel; used for the channel picker.
-- `GET /status.json` — in-use tuners with their target IP; used to show who is using a busy tuner.
+- `GET /discover.json` — FriendlyName, ModelNumber, FirmwareName, FirmwareVersion, DeviceID, TunerCount, BaseURL, LineupURL. It also has `DeviceAuth`, a credential, which Sightline never reads.
+- `GET /lineup.json` — GuideNumber, GuideName, VideoCodec, AudioCodec, URL per channel; used for the channel picker and, for ATSC 3.0, the stream URL. Its SignalStrength and SignalQuality are from the last channel scan, not live.
+- `GET /status.json` — one entry per tuner; an idle one has only `Resource`, an in-use one adds VctNumber, VctName, Frequency, percentages and TargetIP.
 
 ## Data model
 
@@ -289,7 +299,7 @@ Monitor mode is the feature no other app has. It needs to survive many hours wit
 ### Service
 
 - Foreground service with `foregroundServiceType="connectedDevice"`. The HDHomeRun is a LAN device, and this type has no time cap. Do not use `dataSync`, which Android 15 limits to 6 hours a day.
-- Manifest permissions: `INTERNET`, `ACCESS_NETWORK_STATE`, `CHANGE_NETWORK_STATE` (the prerequisite for `connectedDevice`), `ACCESS_WIFI_STATE`, `CHANGE_WIFI_MULTICAST_STATE`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_CONNECTED_DEVICE`, `POST_NOTIFICATIONS`, `WAKE_LOCK`, `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`. Verify the `connectedDevice` prerequisites against current Android docs at build time.
+- Manifest permissions: `ACCESS_LOCAL_NETWORK` (Android 17 blocks LAN traffic for apps targeting API 37 without it; a runtime permission in Nearby devices, asked for before the first scan), `INTERNET`, `ACCESS_NETWORK_STATE`, `CHANGE_NETWORK_STATE` (the prerequisite for `connectedDevice`), `ACCESS_WIFI_STATE`, `CHANGE_WIFI_MULTICAST_STATE`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_CONNECTED_DEVICE`, `POST_NOTIFICATIONS`, `WAKE_LOCK`, `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`. Verify the `connectedDevice` prerequisites against current Android docs at build time.
 - Hold a partial wake lock and a high-performance `WifiLock` for the session, released in `onDestroy` and on Stop.
 - On first Monitor start, ask for a battery optimization exemption, with one sentence explaining why. That's acceptable for an app distributed outside Play.
 - Recommend in the setup screen that the phone stays on a charger.
@@ -356,7 +366,7 @@ Findings are sorted by strength of evidence. A session with no rule firing shows
 - **Phone leaves Wi-Fi or the network changes:** pause polling, log a Device unreachable event, resume when the device answers again.
 - **IP changes (DHCP):** look the device up again by device ID through discovery before giving up.
 - **Several HDHomeRuns:** every screen is scoped to one device; History filters by device.
-- **ATSC 3.0 (`lock=atsc3`):** log it like any other channel and show an ATSC 3.0 badge. Tag readings so analysis can separate them.
+- **ATSC 3.0 (`lock=atsc3`):** tuned by HTTP stream on a tuner that supports it (ADR-0004); log it like any other channel and show an ATSC 3.0 badge. Tag readings so analysis can separate them, and don't use `bps` for them.
 - **Old or unusual firmware:** if `status` has a key Sightline doesn't know, keep the raw line; if parsing fails, show the raw line on Live rather than crashing.
 - **Clock changes and time zones:** store UTC epoch milliseconds; display in local time.
 - **Doze:** the foreground service plus battery optimization exemption keeps polling alive; if a gap over 60 s appears anyway, record a `GAP` event and draw it as a gap in the timeline, not a dropout.
@@ -395,9 +405,9 @@ See [`PLAN.md`](PLAN.md) for the task-level breakdown.
 
 ## Open questions
 
-- [ ] Capture real output from the unit before milestone 1 (see `docs/protocol-captures/README.md`). Field names in this spec come from libhdhomerun docs, not from this firmware.
+- [x] Capture real output from the unit before milestone 1. Done 2026-11-04 from two FLEX 4K units; see `docs/protocol-captures/README.md`.
 - [x] Which HDHomeRun model is it, and does it support ATSC 3.0? HDHomeRun FLEX 4K, so yes (ATSC 1.0 and 3.0 tuners).
-- [ ] Does Plex DVR (or anything else) record from this tuner? If so, confirm whether it sets lock keys, which decides how safe idle detection is.
+- [x] Does a DVR record from these tuners? Yes. An HTTP-stream client holds the lock key with its IP, so it shows as busy; every poll still checks that `ch` is unchanged.
 - [ ] Keep the name Sightline?
 - [ ] Tower bearings in Aim: typed in by hand (current plan), or bundle a station list?
 - [ ] Later, maybe: a headless logger on the home server using the same `protocol` module, for always-on logging without a phone.

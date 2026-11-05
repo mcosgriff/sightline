@@ -10,6 +10,8 @@
     <!-- Screens not built yet. Each says so plainly, so an unfinished screen never looks like an empty result. -->
     <string name="devices_title">Devices</string>
     <string name="devices_not_built">Not built yet. HDHomeRun tuners on your Wi-Fi will be listed here.</string>
+    <!-- Debug builds only: opens the protocol debug screen. -->
+    <string name="devices_open_protocol_debug">Protocol debug</string>
     <string name="live_title">Live</string>
     <string name="live_not_built">Not built yet. Live signal gauges for one tuner and channel will be here.</string>
     <string name="monitor_title">Monitor</string>

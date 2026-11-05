@@ -5,7 +5,10 @@
   busy (used by another client).
 - **Lock key** — a random uint32 Sightline sets on a tuner to claim it. Sets on a locked tuner must carry it.
 - **Claim / release** — claim: set the lock key, then tune. Release: `channel none`, then `lockkey none`. Every
-  claim is released, on every exit path.
+  claim is released, on every exit path. ATSC 3.0 is claimed with a **stream** instead.
+- **Stream** — an HTTP stream (`/tunerN/v<guide>`) that holds a tuner for ATSC 3.0, which the control protocol
+  can't tune (ADR-0004). Read and discarded; closing it releases the tuner.
+- **Hold** — how Sightline holds a claimed tuner: a lock key or a stream.
 - **Stale lock** — a lock key Sightline saved but never released (the process was killed). Released at start.
 - **Channel** — a lineup entry by guide number (e.g. `9.1`), with its RF channel, frequency and band once tuned.
 - **Band** — VHF-lo (RF 2–6), VHF-hi (7–13), UHF (14–36).

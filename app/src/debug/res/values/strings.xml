@@ -1,0 +1,31 @@
+<resources>
+    <!-- Protocol debug screen (milestone 1, debug builds only). Raw protocol output, not a finished screen. -->
+    <string name="protocoldebug_title">Protocol debug</string>
+    <string name="protocoldebug_note">Debug builds only. Raw replies from the tuner, as it sends them. Watching is read-only; only tapping a channel claims a tuner.</string>
+    <string name="protocoldebug_permission">To reach tuners on your Wi-Fi, Sightline needs Nearby devices access. The Demo tuner works without it.</string>
+    <string name="protocoldebug_permission_allow">Allow</string>
+    <string name="protocoldebug_scan">Scan this network</string>
+    <string name="protocoldebug_scanning">Scanning…</string>
+    <string name="protocoldebug_demo">Demo tuner</string>
+    <plurals name="protocoldebug_tuners">
+        <item quantity="one">%d tuner</item>
+        <item quantity="other">%d tuners</item>
+    </plurals>
+    <string name="protocoldebug_status_heading">Status, once a second</string>
+    <string name="protocoldebug_tuner">tuner%1$d</string>
+    <string name="protocoldebug_no_answer">No answer</string>
+    <string name="protocoldebug_claim_heading">Claim an idle tuner</string>
+    <string name="protocoldebug_channel">%1$s %2$s</string>
+    <string name="protocoldebug_claim_none">No tuner claimed.</string>
+    <string name="protocoldebug_claiming">Claiming…</string>
+    <string name="protocoldebug_held_lockkey">tuner%1$d: held with a lock key.</string>
+    <string name="protocoldebug_held_stream">tuner%1$d: held with an HTTP stream (ATSC 3.0).</string>
+    <string name="protocoldebug_release">Release tuner%1$d</string>
+    <string name="protocoldebug_lost_taken_by">Lost tuner%1$d: %2$s took it.</string>
+    <string name="protocoldebug_lost_taken">Lost tuner%1$d: another client took it.</string>
+    <string name="protocoldebug_lost_retuned">Lost tuner%1$d: someone else retuned it.</string>
+    <string name="protocoldebug_lost_stream">Lost tuner%1$d: the stream ended.</string>
+    <string name="protocoldebug_failed_none_free">No idle tuner can take this channel. Busy tuners are never taken.</string>
+    <string name="protocoldebug_failed_unknown">The tuner doesn\'t know this channel.</string>
+    <string name="protocoldebug_failed_unreachable">The device didn\'t answer.</string>
+</resources>

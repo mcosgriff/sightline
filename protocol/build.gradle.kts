@@ -4,16 +4,23 @@
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
+    // FakeHdhr lives in src/testFixtures: these tests use it, and debug builds of :app use it as the Demo tuner.
+    `java-test-fixtures`
 }
 
 kotlin {
     jvmToolchain(17)
 }
 
+// The captures from a real unit (docs/protocol-captures) are the golden test data, read from where they live.
+sourceSets.test {
+    resources.srcDir(rootProject.file("docs/protocol-captures"))
+}
+
 dependencies {
     api(libs.kotlinx.coroutines.core)
+    api(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
-    implementation(libs.okhttp)
 
     testImplementation(libs.junit)
     testImplementation(libs.truth)

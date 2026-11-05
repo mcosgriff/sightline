@@ -15,24 +15,25 @@ Work milestone by milestone, in order. Each milestone ends with the app building
 
 ## Milestone 1 — Protocol core
 
-- [ ] `protocol/Packet.kt`: TLV encode/decode, varlen size, CRC32 little-endian, packet types.
-- [ ] `protocol/StatusParser.kt`: lenient `key=value` parser → `TunerStatus` (ch, lock, ss, snq, seq, bps, pps, raw). Unknown keys ignored, raw line kept.
-- [ ] `protocol/RfChannels.kt`: US frequency ↔ RF channel ↔ band table.
-- [ ] `protocol/Discovery.kt`: UDP broadcast discover (global + directed broadcast), 1.5 s collect, dedupe by device ID. Android-specific bits (MulticastLock, broadcast address) injected from outside so the package stays pure Kotlin.
-- [ ] `protocol/ControlClient.kt`: persistent TCP client, `get`/`set` with optional lock key, suspend API, timeouts, reconnect with backoff.
-- [ ] `protocol/HttpApi.kt`: `discover.json`, `lineup.json`, `status.json` models.
-- [ ] `protocol/TunerSession.kt`: claim (random lock key) → tune (vchannel or `auto:<rf>`) → poll status → release; always releases in `finally`.
-- [ ] Test fixture `FakeHdhr`: in-process UDP + TCP server that answers discovery and get/set, with scripted signal patterns (steady, slow fade, flutter, dropouts, vanish).
-- [ ] Unit tests: codec round trips, CRC vectors, varlen at 127/128, malformed packets, status lines (8vsb, atsc3, no lock, idle, unknown keys), claim/release against `FakeHdhr`.
-- [ ] If `docs/protocol-captures/` has real captures, add them as golden tests. If it doesn't, leave a TODO and use the libhdhomerun source as reference.
-- [ ] Debug-only screen that lists discovered devices and prints raw status lines once a second.
-- [ ] Debug builds include a "Demo tuner" device backed by `FakeHdhr` so all later UI works without hardware.
-- **Done when:** tests pass and the debug screen shows live raw status from the Demo tuner (and from a real unit, if one is on the network).
+- [x] `protocol/Packet.kt`: TLV encode/decode, varlen size, CRC32 little-endian, packet types.
+- [x] `protocol/StatusParser.kt`: lenient `key=value` parser → `TunerStatus` (ch, lock, ss, snq, seq, bps, pps, raw). Unknown keys ignored, raw line kept.
+- [x] `protocol/RfChannels.kt`: US frequency ↔ RF channel ↔ band table.
+- [x] `protocol/Discovery.kt`: UDP broadcast discover (global + directed broadcast), 1.5 s collect, dedupe by device ID. Android-specific bits (MulticastLock, broadcast address) injected from outside so the package stays pure Kotlin.
+- [x] `protocol/ControlClient.kt`: persistent TCP client, `get`/`set` with optional lock key, suspend API, timeouts, reconnect with backoff.
+- [x] `protocol/HttpApi.kt`: `discover.json`, `lineup.json`, `status.json` models.
+- [x] `protocol/TunerSession.kt`: claim (random lock key) → tune (vchannel or `auto:<rf>`) → poll status → release; always releases in `finally`.
+- [x] Test fixture `FakeHdhr`: in-process UDP + TCP server that answers discovery and get/set, with scripted signal patterns (steady, slow fade, flutter, dropouts, vanish).
+- [x] Unit tests: codec round trips, CRC vectors, varlen at 127/128, malformed packets, status lines (8vsb, atsc3, no lock, idle, unknown keys), claim/release against `FakeHdhr`.
+- [x] If `docs/protocol-captures/` has real captures, add them as golden tests. If it doesn't, leave a TODO and use the libhdhomerun source as reference. (Captured from the user's two FLEX 4K units; ATSC 3.0 turned out to need the HTTP stream, ADR-0004.)
+- [x] Debug-only screen that lists discovered devices and prints raw status lines once a second.
+- [x] Debug builds include a "Demo tuner" device backed by `FakeHdhr` so all later UI works without hardware.
+- **Done when:** tests pass and the debug screen shows live raw status from the Demo tuner (and from a real unit, if one is on the network). Demo tuner checked on an API 37 emulator: claim, poll and release by lock key and by HTTP stream. The emulator can't see the LAN, and Java on the dev Mac is blocked by macOS Local Network privacy, so a real unit is still to be checked from a phone on the Wi-Fi.
 
 ## Milestone 2 — Devices and Live
 
 - [ ] `data`: Room database with `Device`, `Channel` (others added in M4); repositories; DataStore settings with defaults from SPEC.
 - [ ] `ui/components`: `ArcGauge` (270° arc, spring-animated value, threshold tick, ghost peak marker), `TriGauge`, `Sparkline`, `HealthChip`, health color mapping from thresholds.
+- [ ] Ask for Nearby devices (`ACCESS_LOCAL_NETWORK`, Android 17) before the first scan, with one sentence why; handle denial and revocation. The debug screen has a bare-bones version.
 - [ ] Devices screen per `mockups/Devices.png`: cards, tuner status chips (idle / Sightline / other client + IP), rescan, manual add, empty state.
 - [ ] Live screen per `mockups/Live.png`: channel pill with prev/next and swipe, TriGauge, 60 s sparkline, info row, health banner with one-sentence explanation, Aim/Sweep/Monitor buttons.
 - [ ] Live claims the first idle tuner on enter and releases it on leave (lifecycle-aware); never touches a busy tuner.

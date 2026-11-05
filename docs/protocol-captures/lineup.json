@@ -1,0 +1,42 @@
+[
+  {
+    "GuideNumber": "9.1",
+    "GuideName": "STATION-A",
+    "VideoCodec": "MPEG2",
+    "AudioCodec": "AC3",
+    "HD": 1,
+    "SignalStrength": 100,
+    "SignalQuality": 98,
+    "URL": "http://192.168.1.18:5004/auto/v9.1"
+  },
+  {
+    "GuideNumber": "39.1",
+    "GuideName": "STATION-B",
+    "VideoCodec": "MPEG2",
+    "AudioCodec": "AC3",
+    "HD": 1,
+    "SignalStrength": 79,
+    "SignalQuality": 63,
+    "URL": "http://192.168.1.18:5004/auto/v39.1"
+  },
+  {
+    "GuideNumber": "102.1",
+    "GuideName": "STATION-A 3.0",
+    "VideoCodec": "HEVC",
+    "AudioCodec": "AC4",
+    "HD": 1,
+    "SignalStrength": 100,
+    "SignalQuality": 100,
+    "URL": "http://192.168.1.18:5004/auto/v102.1"
+  },
+  {
+    "GuideNumber": "131.1",
+    "GuideName": "STATION-C 3.0",
+    "VideoCodec": "HEVC",
+    "AudioCodec": "AC4",
+    "HD": 1,
+    "SignalStrength": 100,
+    "SignalQuality": 100,
+    "URL": "http://192.168.1.18:5004/auto/v131.1"
+  }
+]
