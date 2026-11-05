@@ -28,7 +28,7 @@ turbine = "1.2.1"
 # build.gradle.kts). Each Robolectric release names its own builds of it, so these move together: on a Robolectric
 # upgrade, take the version from its `AndroidSdk` list.
 robolectric = "4.17"
-robolectric-androidAll-sdk35 = "15-robolectric-13954326-i7"
+robolectric-androidAll-sdk35 = "17-robolectric-15733970-i7"
 
 [libraries]
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
