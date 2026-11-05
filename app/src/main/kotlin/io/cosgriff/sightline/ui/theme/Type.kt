@@ -59,6 +59,12 @@ object Numbers {
     /** Readings in a row of facts (RF channel, frequency) and the channel pill's guide number. */
     val info = TextStyle(fontFamily = RobotoMono, fontWeight = FontWeight.Medium, fontSize = 14.sp, lineHeight = 18.sp)
 
+    /** A channel's guide number heading a row (Sweep's range bars). */
+    val channel = TextStyle(fontFamily = RobotoMono, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, lineHeight = 20.sp)
+
+    /** The value under a summary card's label (Sweep's Good / Marginal / Poor counts). */
+    val count = TextStyle(fontFamily = RobotoMono, fontWeight = FontWeight.SemiBold, fontSize = 28.sp, lineHeight = 32.sp)
+
     /** IPs, device IDs, frequencies in running text. */
     val inline = TextStyle(fontFamily = RobotoMono, fontWeight = FontWeight.Medium, fontSize = 12.sp, lineHeight = 16.sp)
 }

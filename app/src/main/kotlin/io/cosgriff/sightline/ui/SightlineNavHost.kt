@@ -2,6 +2,7 @@ package io.cosgriff.sightline.ui
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.History
@@ -15,6 +16,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -32,12 +34,14 @@ import androidx.navigation3.ui.NavDisplay
 import io.cosgriff.sightline.R
 import io.cosgriff.sightline.debugtools.DebugTools
 import io.cosgriff.sightline.debugtools.ProtocolDebugEntry
+import io.cosgriff.sightline.ui.screens.aim.AimScreen
 import io.cosgriff.sightline.ui.screens.devices.DevicesScreen
 import io.cosgriff.sightline.ui.screens.history.HistoryScreen
 import io.cosgriff.sightline.ui.components.NotBuiltYet
 import io.cosgriff.sightline.ui.screens.live.LiveActions
 import io.cosgriff.sightline.ui.screens.live.LiveScreen
 import io.cosgriff.sightline.ui.screens.monitor.MonitorScreen
+import io.cosgriff.sightline.ui.screens.sweep.SweepScreen
 import io.cosgriff.sightline.ui.theme.sightlineColors
 
 /** The bottom bar's four destinations (SPEC Screens), in order. */
@@ -55,6 +59,9 @@ interface Navigator {
 
     /** Opens a screen on top of the current one (Aim and Sweep over Live). */
     fun push(key: NavKey)
+
+    /** Closes the top screen. */
+    fun back()
 }
 
 /**
@@ -71,11 +78,19 @@ fun SightlineNavHost(screen: @Composable (NavKey, Navigator) -> Unit = { key, na
             override fun push(key: NavKey) {
                 backStack.add(key)
             }
+
+            override fun back() {
+                if (backStack.size > 1) backStack.removeLastOrNull()
+            }
         }
     }
     val selected = TopLevel.entries.lastOrNull { tab -> backStack.lastOrNull { it in topLevelKeys } == tab.key }
+    // Aim and Sweep fill the screen, as in their mockups; their back arrow returns to Live.
+    val fullScreen = backStack.lastOrNull() in fullScreenKeys
     Scaffold(
-        bottomBar = { BottomBar(selected = selected, onSelect = { backStack.showTab(it.key) }) },
+        bottomBar = { if (!fullScreen) BottomBar(selected = selected, onSelect = { backStack.showTab(it.key) }) },
+        // Full-screen pages paint their own background under the system bars and pad themselves.
+        contentWindowInsets = if (fullScreen) WindowInsets(0) else ScaffoldDefaults.contentWindowInsets,
     ) { padding ->
         NavDisplay(
             backStack = backStack,
@@ -118,14 +133,15 @@ private fun AppScreen(key: NavKey, navigator: Navigator) {
         )
         Monitor -> MonitorScreen()
         History -> HistoryScreen()
-        Aim -> NotBuiltYet(stringResource(R.string.aim_title), stringResource(R.string.aim_not_built))
-        Sweep -> NotBuiltYet(stringResource(R.string.sweep_title), stringResource(R.string.sweep_not_built))
+        Aim -> AimScreen(onBack = navigator::back)
+        Sweep -> SweepScreen(onBack = navigator::back)
         Settings -> NotBuiltYet(stringResource(R.string.settings_title), stringResource(R.string.settings_not_built))
         ProtocolDebug -> ProtocolDebugEntry()
     }
 }
 
 private val topLevelKeys = TopLevel.entries.map { it.key }.toSet()
+private val fullScreenKeys = setOf<NavKey>(Aim, Sweep)
 
 private fun NavBackStack<NavKey>.showTab(key: NavKey) {
     if (lastOrNull() == key) return

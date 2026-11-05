@@ -156,7 +156,7 @@ Six Room tables. Readings are the only large table: a 12-hour, one-channel sessi
 | --- | --- | --- |
 | `Device` | deviceId (PK, hex string), friendlyName, model, firmware, baseUrl, tunerCount, lastSeen | Refreshed on each discovery |
 | `Channel` | deviceId + guideNumber (PK), guideName, rfChannel?, frequencyHz?, band?, favorite | rfChannel filled the first time the channel is tuned |
-| `Session` | id (PK), deviceId, kind (`LIVE`, `AIM`, `MONITOR`, `SWEEP`), startedAt, endedAt?, channels (list), tuner, pollIntervalMs, note, weatherFetched | One per run; live views are saved as sessions only when the user taps Save |
+| `Session` | id (PK), deviceId, kind (`LIVE`, `AIM`, `MONITOR`, `SWEEP`), startedAt, endedAt?, channels (list), tuner?, pollIntervalMs, dwellMs?, note, weatherFetched | tuner is null when a sweep moved between tuners; dwellMs is a sweep's | One per run; live views are saved as sessions only when the user taps Save |
 | `Reading` | id (PK), sessionId (FK, indexed), ts (epoch ms, indexed with sessionId), guideNumber, tuner, ss, snq, seq, bps, pps, lock, headingDeg?, rawStatus? | `rawStatus` kept only when the parse failed |
 | `Event` | id (PK), sessionId, startTs, endTs, guideNumber, kind (`DIP`, `DROPOUT`, `TUNER_LOST`, `DEVICE_UNREACHABLE`, `GAP`), minSnq, minSeq | Written by the dip detector |
 | `WeatherHour` | sessionId + hourTs (PK), tempC, windKph, gustKph, precipMm | From Open-Meteo, fetched after a session ends |
@@ -242,6 +242,9 @@ Navigation is a bottom bar with four destinations: Devices, Live, Monitor, Histo
 - `PolarAim` fills the lower half: each reading is plotted at the phone's compass heading, with the best heading marked. Hold the phone against the antenna mast while rotating.
 - Toggles: tone, haptics, reset peak, and up to 3 tower bearings the user typed in (for example from a rabbitears.info signal report).
 - A second tuner can watch a second channel, shown as a small second reading, so the user can find a heading that works for both towers.
+- **Heading:** from the rotation vector sensor, of whichever phone axis is more level: the top edge when the phone lies flat, the back (camera) when it stands against the mast. Magnetic until home is known; "use true north" takes one coarse location fix, saves home to 2 decimal places and applies the declination there (`GeomagneticField`). Tower bearings are typed as true bearings. No compass: the number still works, the plot says why it is empty.
+- **Plot and peak:** only locked readings count. The plot keeps the best snq per 5° of heading; points more than 15° apart aren't joined. The first lock sets the peak without a tick; each higher reading ticks. Reset peak clears the peak and the plot.
+- Tone is off until turned on (a phone that beeps unasked is a surprise); haptics are on. Both choices and the tower bearings are kept in settings.
 
 ### 4. Sweep — `mockups/Sweep.png`
 
@@ -249,6 +252,9 @@ Navigation is a bottom bar with four destinations: Devices, Live, Monitor, Histo
 - Progress ring while running, then summary counts (Good / Marginal / Poor) and a `ChannelRangeBars` list sorted worst first: channel, RF, band, range, median snq, health chip.
 - Results save as a `SWEEP` session, so sweeps can be compared before and after an antenna change ("vs sweep on Oct 28: 5 better · 1 worse").
 - Compare view: two sweeps side by side with the change per channel (up green, down red).
+- **Rules:** each channel is claimed and released on its own (last tuner first), so a DVR waits at most one dwell. The dwell counts from the tune; readings start after a 1 s settle (the first second reads seq 0). A channel whose RF channel was already measured in this sweep is skipped: subchannels share the signal. A channel no idle tuner can take (ATSC 3.0 with only the ATSC 1.0 tuners free) or that the device refuses is listed as not tuned. All tuners busy: wait, as Live does. The device not answering three claims in a row stops the sweep, and nothing partial is saved; leaving the screen stops it the same way.
+- **Health per channel:** never locked is No lock; losing lock during the dwell is Poor; otherwise the health of the median reading (snq and seq). The Poor card counts No lock too. Worst first: No lock, Poor, Marginal, Good, then by median snq.
+- **Comparison:** by guide number, on median snq; a change of 3 points or more counts as better or worse, and gaining or losing lock always counts. "vs sweep on" compares with the device's sweep before this one; the compare view can pick any other.
 
 ### 5. Multi-tuner (no mockup yet)
 

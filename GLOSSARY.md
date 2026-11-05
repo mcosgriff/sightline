@@ -23,5 +23,9 @@
 - **Dip** — snq below the poor threshold or seq below 100 for 2 readings in a row, until 5 good readings.
 - **Dropout** — `lock=none` on a tuned channel.
 - **Sweep** — tuning each lineup channel in turn for a **dwell** time and summarising each.
+- **Settle** — the first second after a tune, when a locked tuner still reads seq 0. Sweep doesn't read during it.
+- **Peak** — on Aim, the best snq since the last reset, with the heading it was read at.
+- **Heading** — where the phone points, degrees clockwise from north: true north once home is known, magnetic before.
+- **Tower bearing** — the direction of a transmitter from home, typed in from true north (up to 3), drawn on Aim's plot.
 - **Finding** — one diagnosis-engine result: Likely or Possible, with evidence numbers and a fix.
 - **Demo tuner** — the fake HDHomeRun (`FakeHdhr`) built into debug builds, with scripted signal patterns.

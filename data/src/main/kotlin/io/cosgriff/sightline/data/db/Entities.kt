@@ -1,7 +1,10 @@
 package io.cosgriff.sightline.data.db
 
 import androidx.room.Entity
+import androidx.room.ForeignKey
+import androidx.room.Index
 import androidx.room.PrimaryKey
+import androidx.room.TypeConverter
 
 /** An HDHomeRun Sightline has seen (SPEC "Data model"). Refreshed on each discovery. */
 @Entity(tableName = "device")
@@ -40,3 +43,63 @@ data class ChannelEntity(
     val atsc3: Boolean = false,
     val favorite: Boolean = false,
 )
+
+/** What a session was (SPEC "Data model"). Stored by name. */
+enum class SessionKind { LIVE, AIM, MONITOR, SWEEP }
+
+/**
+ * One run (SPEC "Data model"). [channels] are the guide numbers it covered, in order; for a sweep, every channel
+ * it tried, including those it couldn't tune (they have no readings). [dwellMs] is a sweep's time per channel.
+ */
+@Entity(tableName = "session", indices = [Index("deviceId", "kind", "startedAt")])
+data class SessionEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val deviceId: String,
+    val kind: SessionKind,
+    val startedAt: Long,
+    val endedAt: Long?,
+    val channels: List<String>,
+    /** The tuner, when the whole session used one. A sweep may move between tuners; each reading says which. */
+    val tuner: Int?,
+    val pollIntervalMs: Long,
+    val dwellMs: Long? = null,
+    val note: String? = null,
+    val weatherFetched: Boolean = false,
+)
+
+/** One poll (GLOSSARY "Reading"). [rawStatus] is kept only when the line couldn't be parsed. */
+@Entity(
+    tableName = "reading",
+    foreignKeys = [ForeignKey(entity = SessionEntity::class, parentColumns = ["id"], childColumns = ["sessionId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("sessionId", "ts")],
+)
+data class ReadingEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val sessionId: Long,
+    /** UTC epoch ms. */
+    val ts: Long,
+    val guideNumber: String,
+    val tuner: Int,
+    val ss: Int,
+    val snq: Int,
+    val seq: Int,
+    val bps: Long?,
+    val pps: Long?,
+    /** The `lock=` value as sent (`8vsb`, `atsc3`, `none`), so ATSC 3.0 readings can be told apart. */
+    val lock: String,
+    val headingDeg: Double? = null,
+    val rawStatus: String? = null,
+)
+
+class Converters {
+    @TypeConverter
+    fun fromList(value: List<String>): String = value.joinToString(SEPARATOR)
+
+    @TypeConverter
+    fun toList(value: String): List<String> = if (value.isEmpty()) emptyList() else value.split(SEPARATOR)
+
+    private companion object {
+        /** Guide numbers are digits and dots, so a comma never appears in one. */
+        const val SEPARATOR = ","
+    }
+}

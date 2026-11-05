@@ -23,11 +23,11 @@ data object History : NavKey
 @Serializable
 data object ProtocolDebug : NavKey
 
-/** Aiming with one giant number and the compass plot (milestone 3; not built yet). Opens from Live. */
+/** Aiming with one giant number and the compass plot. Opens from Live. */
 @Serializable
 data object Aim : NavKey
 
-/** Stepping through every channel (milestone 3; not built yet). Opens from Live. */
+/** Stepping through every channel, then the results and comparison. Opens from Live. */
 @Serializable
 data object Sweep : NavKey
 
