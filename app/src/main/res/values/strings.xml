@@ -7,15 +7,148 @@
     <string name="nav_monitor">Monitor</string>
     <string name="nav_history">History</string>
 
-    <!-- Screens not built yet. Each says so plainly, so an unfinished screen never looks like an empty result. -->
+    <!-- Health, everywhere it shows. Always beside its colour, never instead of it. -->
+    <string name="health_good">Good</string>
+    <string name="health_marginal">Marginal</string>
+    <string name="health_poor">Poor</string>
+    <string name="health_no_lock">No lock</string>
+
+    <!-- Gauges -->
+    <string name="gauge_snq">Signal quality</string>
+    <string name="gauge_strength">Strength</string>
+    <string name="gauge_seq">Symbol quality</string>
+    <string name="gauge_best">Best %1$d</string>
+    <string name="gauge_no_value">–</string>
+    <string name="gauge_snq_description">Signal quality %1$d of 100</string>
+    <string name="gauge_snq_description_best">Signal quality %1$d of 100, best %2$d</string>
+    <string name="gauge_snq_none">Signal quality, no reading</string>
+    <string name="gauge_strength_description">Signal strength %1$d of 100</string>
+    <string name="gauge_strength_none">Signal strength, no reading</string>
+    <string name="gauge_seq_description">Symbol quality %1$d of 100</string>
+    <string name="gauge_seq_none">Symbol quality, no reading</string>
+
+    <!-- Bands -->
+    <string name="band_vhf_lo">VHF-lo</string>
+    <string name="band_vhf_hi">VHF-hi</string>
+    <string name="band_uhf">UHF</string>
+
+    <!-- Local network permission (Android 17) -->
+    <string name="network_permission_title">Allow access to your network</string>
+    <string name="network_permission_why">Sightline talks to your HDHomeRun on your Wi-Fi. Android asks you to allow Nearby devices for that. Nothing leaves your network.</string>
+    <string name="network_permission_refused">Sightline can\'t reach your tuner without Nearby devices. Turn it on in the app\'s settings, under Permissions.</string>
+    <string name="network_permission_allow">Allow</string>
+    <string name="network_permission_settings">Open settings</string>
+
+    <!-- Devices -->
     <string name="devices_title">Devices</string>
-    <string name="devices_not_built">Not built yet. HDHomeRun tuners on your Wi-Fi will be listed here.</string>
+    <string name="devices_rescan">Scan again</string>
+    <string name="devices_scanning">Looking on your Wi-Fi…</string>
+    <string name="devices_not_scanned">Not scanned yet</string>
+    <plurals name="devices_found">
+        <item quantity="one">%d found on Wi-Fi</item>
+        <item quantity="other">%d found on Wi-Fi</item>
+    </plurals>
+    <string name="devices_scanned_now">%1$s · scanned just now</string>
+    <plurals name="devices_scanned_ago">
+        <item quantity="one">%1$s · scanned %2$d min ago</item>
+        <item quantity="other">%1$s · scanned %2$d min ago</item>
+    </plurals>
+    <string name="devices_open_live">Open Live</string>
+    <string name="devices_model_firmware">%1$s · firmware %2$s</string>
+    <string name="devices_address_id">%1$s · ID %2$s</string>
+    <string name="devices_online">Online</string>
+    <string name="devices_offline">Not answering</string>
+    <string name="devices_demo">Demo</string>
+    <string name="devices_offline_note">It didn\'t answer the last check. Is it on, and on this network?</string>
+    <string name="devices_tuner">Tuner %1$d</string>
+    <string name="devices_tuner_idle">Idle</string>
+    <string name="devices_tuner_sightline">Sightline</string>
+    <string name="devices_tuner_in_use">In use</string>
+    <string name="devices_tuner_unknown">No answer</string>
+    <string name="devices_tuner_held_by">Tuner %1$d is in use by %2$s. Sightline won\'t touch it.</string>
+    <string name="devices_tuner_held_unknown">Tuner %1$d is in use by another client. Sightline won\'t touch it.</string>
+    <string name="devices_empty_title">No tuners found</string>
+    <string name="devices_empty_body">Your phone and the HDHomeRun must be on the same Wi-Fi. Guest networks often keep devices apart.</string>
+    <string name="devices_retry">Retry</string>
+    <string name="devices_add_title">Not listed? Add by address</string>
+    <string name="devices_add_hint">hdhomerun.local or 192.168.1.x</string>
+    <string name="devices_add">Add</string>
+    <string name="devices_adding">Adding…</string>
+    <string name="devices_add_note">Phone and tuner must be on the same network.</string>
+    <string name="devices_add_bad_address">That address doesn\'t lead anywhere. Check it and try again.</string>
+    <string name="devices_add_not_found">No HDHomeRun answered at that address.</string>
+    <string name="devices_legend_idle">Idle</string>
+    <string name="devices_legend_sightline">Used by Sightline</string>
+    <string name="devices_legend_other">Another client</string>
     <!-- Debug builds only: opens the protocol debug screen. -->
     <string name="devices_open_protocol_debug">Protocol debug</string>
+
+    <!-- Live -->
     <string name="live_title">Live</string>
-    <string name="live_not_built">Not built yet. Live signal gauges for one tuner and channel will be here.</string>
+    <string name="live_settings">Settings</string>
+    <string name="live_device_tuner">%1$s · Tuner %2$d</string>
+    <string name="live_no_device">Pick a tuner on Devices to watch its signal here.</string>
+    <string name="live_open_devices">Go to Devices</string>
+    <string name="live_no_channels">This tuner gave no channels. Run a channel scan in the HDHomeRun app, then reload.</string>
+    <string name="live_reload">Reload</string>
+    <string name="live_previous_channel">Previous channel</string>
+    <string name="live_next_channel">Next channel</string>
+    <string name="live_atsc3">3.0</string>
+    <string name="live_trace_title">Signal quality · last 60 s</string>
+    <string name="live_trace_threshold">threshold %1$d</string>
+    <string name="live_trace_description">Signal quality over the last minute</string>
+    <string name="live_rf">RF</string>
+    <string name="live_band">Band</string>
+    <string name="live_freq">Freq</string>
+    <string name="live_lock">Lock</string>
+    <string name="live_mhz">%1$d MHz</string>
+    <string name="live_no_value">–</string>
+    <string name="live_lock_8vsb">8VSB</string>
+    <string name="live_lock_atsc3">ATSC 3.0</string>
+    <string name="live_lock_qam256">QAM256</string>
+    <string name="live_lock_qam64">QAM64</string>
+    <string name="live_lock_none">None</string>
+    <string name="live_claiming">Finding an idle tuner…</string>
+    <string name="live_tuning">Tuning…</string>
+    <string name="live_reason_clean">Clean signal, no symbol errors.</string>
+    <string name="live_reason_near_overload">Strong and clean, but strength is at the overload line. Don\'t add an amplifier.</string>
+    <string name="live_reason_overload">Strong signal but low quality: likely overload or multipath.</string>
+    <string name="live_reason_weak">Weak signal: not enough reaches the tuner. Aim, raise the antenna, or check the cable.</string>
+    <string name="live_reason_symbol_errors">Quality is fine but symbols are being lost: expect glitches.</string>
+    <string name="live_reason_low_quality">Enough strength but poor quality: noise or multipath. Try aiming.</string>
+    <string name="live_reason_no_lock">The tuner can\'t decode this channel.</string>
+    <string name="live_not_answering">Tuner not answering</string>
+    <string name="live_not_answering_body">Still trying. Is the phone on the same Wi-Fi?</string>
+    <string name="live_unreadable">Unexpected reply from the tuner</string>
+    <string name="live_all_busy">Every tuner that can take this channel is busy</string>
+    <string name="live_all_busy_retry">Sightline never takes a busy tuner. Trying again every %1$d s.</string>
+    <string name="live_busy_idle_cant">Tuner %1$d is idle but can\'t tune this channel.</string>
+    <string name="live_busy_held_by">Tuner %1$d: in use by %2$s.</string>
+    <string name="live_busy_held">Tuner %1$d: in use by another client.</string>
+    <string name="live_busy_unknown">Tuner %1$d: no answer.</string>
+    <string name="live_lost">Lost tuner %1$d</string>
+    <string name="live_lost_taken_by">%1$s is using it now.</string>
+    <string name="live_lost_taken">Another client is using it now.</string>
+    <string name="live_lost_retuned">Someone else changed its channel.</string>
+    <string name="live_lost_stream">The stream holding it ended.</string>
+    <string name="live_lost_released">It was released.</string>
+    <string name="live_unknown_channel">The tuner doesn\'t know this channel any more</string>
+    <string name="live_unreachable">The tuner isn\'t answering</string>
+    <string name="live_unreachable_body">Trying again in a few seconds.</string>
+    <string name="live_retry">Try again</string>
+    <string name="live_aim">Aim</string>
+    <string name="live_sweep">Sweep</string>
+    <string name="live_monitor">Monitor</string>
+
+    <!-- Screens not built yet. Each says so plainly, so an unfinished screen never looks like an empty result. -->
     <string name="monitor_title">Monitor</string>
     <string name="monitor_not_built">Not built yet. Hours-long signal logging will be set up and watched here.</string>
     <string name="history_title">History</string>
     <string name="history_not_built">Not built yet. Saved sessions will be listed here, newest first.</string>
+    <string name="aim_title">Aim</string>
+    <string name="aim_not_built">Not built yet. One giant signal quality number and a compass plot, for aiming the antenna.</string>
+    <string name="sweep_title">Sweep</string>
+    <string name="sweep_not_built">Not built yet. Every channel tuned in turn and compared.</string>
+    <string name="settings_title">Settings</string>
+    <string name="settings_not_built">Not built yet. Thresholds, units, theme and data retention will be set here.</string>
 </resources>

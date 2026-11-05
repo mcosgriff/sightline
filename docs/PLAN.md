@@ -31,15 +31,16 @@ Work milestone by milestone, in order. Each milestone ends with the app building
 
 ## Milestone 2 — Devices and Live
 
-- [ ] `data`: Room database with `Device`, `Channel` (others added in M4); repositories; DataStore settings with defaults from SPEC.
-- [ ] `ui/components`: `ArcGauge` (270° arc, spring-animated value, threshold tick, ghost peak marker), `TriGauge`, `Sparkline`, `HealthChip`, health color mapping from thresholds.
-- [ ] Ask for Nearby devices (`ACCESS_LOCAL_NETWORK`, Android 17) before the first scan, with one sentence why; handle denial and revocation. The debug screen has a bare-bones version.
-- [ ] Devices screen per `mockups/Devices.png`: cards, tuner status chips (idle / Sightline / other client + IP), rescan, manual add, empty state.
-- [ ] Live screen per `mockups/Live.png`: channel pill with prev/next and swipe, TriGauge, 60 s sparkline, info row, health banner with one-sentence explanation, Aim/Sweep/Monitor buttons.
-- [ ] Live claims the first idle tuner on enter and releases it on leave (lifecycle-aware); never touches a busy tuner.
-- [ ] Stale lock-key recovery on app start.
-- [ ] Keep screen on while Live is visible.
-- **Done when:** Live shows animated gauges from the Demo tuner and a real unit, and the tuner is released when navigating away or killing the app.
+- [x] `data`: Room database with `Device`, `Channel` (others added in M4); repositories; DataStore settings with defaults from SPEC.
+- [x] `ui/components`: `ArcGauge` (270° arc, spring-animated value, threshold tick, ghost peak marker), `TriGauge`, `Sparkline`, `HealthChip`, health color mapping from thresholds.
+- [x] Ask for Nearby devices (`ACCESS_LOCAL_NETWORK`, Android 17) before the first scan, with one sentence why; handle denial and revocation. The debug screen has a bare-bones version.
+- [x] Devices screen per `mockups/Devices.png`: cards, tuner status chips (idle / Sightline / other client + IP), rescan, manual add, empty state.
+- [x] Live screen per `mockups/Live.png`: channel pill with prev/next and swipe, TriGauge, 60 s sparkline, info row, health banner with one-sentence explanation, Aim/Sweep/Monitor buttons.
+- [x] Live claims the first idle tuner on enter and releases it on leave (lifecycle-aware); never touches a busy tuner.
+- [x] Stale lock-key recovery on app start.
+- [x] Keep screen on while Live is visible.
+- **Done when:** Live shows animated gauges from the Demo tuner and a real unit, and the tuner is released when navigating away or killing the app. Demo tuner checked on an API 37 emulator (ATSC 1.0 and 3.0, channel changes keep the tuner, leaving Live releases it); a killed process's lock is released at the next start (unit-tested). A real unit waits for the first release build: the user tests releases, not debug builds.
+- Deferred: Live's overflow "Save as session" needs sessions (milestone 4).
 
 ## Milestone 3 — Aim and Sweep
 

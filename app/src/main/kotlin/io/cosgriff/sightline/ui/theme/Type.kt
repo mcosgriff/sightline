@@ -50,8 +50,14 @@ object Numbers {
     /** The big gauge value on Live (SPEC: 56 sp). */
     val gaugeLive = TextStyle(fontFamily = RobotoMono, fontWeight = FontWeight.SemiBold, fontSize = 56.sp, lineHeight = 60.sp)
 
+    /** The value inside the small gauges on Live (strength, symbol quality). */
+    val gaugeSmall = TextStyle(fontFamily = RobotoMono, fontWeight = FontWeight.SemiBold, fontSize = 24.sp, lineHeight = 28.sp)
+
     /** The one giant snq on Aim (SPEC: 120+ sp). */
     val aim = TextStyle(fontFamily = RobotoMono, fontWeight = FontWeight.SemiBold, fontSize = 128.sp, lineHeight = 132.sp)
+
+    /** Readings in a row of facts (RF channel, frequency) and the channel pill's guide number. */
+    val info = TextStyle(fontFamily = RobotoMono, fontWeight = FontWeight.Medium, fontSize = 14.sp, lineHeight = 18.sp)
 
     /** IPs, device IDs, frequencies in running text. */
     val inline = TextStyle(fontFamily = RobotoMono, fontWeight = FontWeight.Medium, fontSize = 12.sp, lineHeight = 16.sp)

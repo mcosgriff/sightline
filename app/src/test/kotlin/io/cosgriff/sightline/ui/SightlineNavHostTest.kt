@@ -8,7 +8,9 @@ import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.isSelectable
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.res.stringResource
 import io.cosgriff.sightline.R
+import io.cosgriff.sightline.ui.components.NotBuiltYet
 import io.cosgriff.sightline.ui.theme.SightlineTheme
 import org.junit.Rule
 import org.junit.Test
@@ -25,7 +27,21 @@ class SightlineNavHostTest {
 
     private fun text(id: Int) = RuntimeEnvironment.getApplication().getString(id)
 
-    private fun show() = compose.setContent { SightlineTheme { SightlineNavHost() } }
+    /** Each destination as just its title: this tests navigation, not the screens (they have their own tests). */
+    private fun show() = compose.setContent {
+        SightlineTheme {
+            SightlineNavHost { key, _ ->
+                val title = when (key) {
+                    Devices -> R.string.devices_title
+                    Live -> R.string.live_title
+                    Monitor -> R.string.monitor_title
+                    History -> R.string.history_title
+                    else -> R.string.app_name
+                }
+                NotBuiltYet(stringResource(title), "")
+            }
+        }
+    }
 
     private fun tab(label: Int) = compose.onNode(isSelectable() and hasText(text(label)))
 

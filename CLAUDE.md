@@ -22,10 +22,10 @@ feature works is in its code and tests. Words for things are in `GLOSSARY.md`.
 
 ## Status
 
-Milestones 0 (scaffold) and 1 (protocol core) are done: `:protocol` has the codec, discovery, control client,
-HTTP API and `TunerSessions`, tested against golden captures and `FakeHdhr`; debug builds have the Demo tuner
-and a protocol debug screen (from Devices). Next is milestone 2, Devices and Live. One M1 check is left: the
-debug screen against a real unit from a phone (the emulator can't see the LAN).
+Milestones 0–2 are done: the protocol core (`:protocol`, golden captures, `FakeHdhr`), health and the live trace
+(`:analysis`), Room/DataStore/repositories and `LiveSession` (`:data`), and the Devices and Live screens with
+`ArcGauge`, `TriGauge`, `Sparkline` and `HealthChip`. Next is milestone 3, Aim and Sweep. Nothing has run against a
+real unit yet: the user tests release builds only (not debug), so real-hardware checks wait for the first release.
 The user has two **HDHomeRun FLEX 4K** units (`HDFX-4K`, 4 tuners, ATSC 3.0 on tuners 0 and 1 only), and a DVR
 records from them. Captures and what they showed: `docs/protocol-captures/README.md`.
 

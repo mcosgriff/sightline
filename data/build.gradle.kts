@@ -59,4 +59,8 @@ dependencies {
     testImplementation(libs.truth)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.turbine)
+    // FakeHdhr, for LiveSession and stale lock recovery against a tuner.
+    testImplementation(testFixtures(project(":protocol")))
+    // Room and DataStore on the JVM.
+    testImplementation(libs.robolectric)
 }

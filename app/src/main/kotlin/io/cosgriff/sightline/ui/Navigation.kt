@@ -22,3 +22,15 @@ data object History : NavKey
 /** Debug builds only: raw protocol output from discovered tuners and the Demo tuner (milestone 1). */
 @Serializable
 data object ProtocolDebug : NavKey
+
+/** Aiming with one giant number and the compass plot (milestone 3; not built yet). Opens from Live. */
+@Serializable
+data object Aim : NavKey
+
+/** Stepping through every channel (milestone 3; not built yet). Opens from Live. */
+@Serializable
+data object Sweep : NavKey
+
+/** Thresholds, units, theme and the rest (milestone 6; not built yet). Opens from Live's top bar. */
+@Serializable
+data object Settings : NavKey

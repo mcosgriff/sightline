@@ -100,7 +100,8 @@ class Discovery(
                     continue
                 }
                 val bytes = datagram.data.copyOfRange(datagram.offset, datagram.offset + datagram.length)
-                val device = parseReply(bytes, datagram.address) ?: continue
+                // A unit answers discovery and control on the same port (65001 on real units).
+                val device = parseReply(bytes, datagram.address)?.copy(controlPort = port) ?: continue
                 found.putIfAbsent(device.deviceId, device)
             }
         }

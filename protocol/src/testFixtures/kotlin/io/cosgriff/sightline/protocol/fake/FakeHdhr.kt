@@ -48,11 +48,14 @@ class FakeHdhr(
     private val clock: () -> Long = System::currentTimeMillis,
     // IPv4 loopback by name: getLoopbackAddress() is ::1 on Android, which would need brackets in every URL.
     private val bindAddress: InetAddress = InetAddress.getByName("127.0.0.1"),
-    /** 0 picks a free port. Tests discovering by broadcast need a fixed one. */
+    /** 0 uses the control port's number, as a real unit does. */
     discoveryPort: Int = 0,
 ) : Closeable {
-    private val udp = DatagramSocket(InetSocketAddress(bindAddress, discoveryPort))
     private val control = ServerSocket(0, 50, bindAddress)
+
+    // Like a real unit, discovery (UDP) and control (TCP) share one port number, so a discovered device's
+    // control port is the port discovery used.
+    private val udp = DatagramSocket(InetSocketAddress(bindAddress, if (discoveryPort == 0) control.localPort else discoveryPort))
     private val http = ServerSocket(0, 50, bindAddress)
     private val connections = CopyOnWriteArrayList<Socket>()
 
@@ -319,7 +322,10 @@ class FakeHdhr(
     private fun serveHttp(socket: Socket) {
         val reader = BufferedReader(InputStreamReader(socket.getInputStream(), Charsets.US_ASCII))
         val requestLine = reader.readLine() ?: return
-        while (reader.readLine()?.isNotEmpty() == true) Unit
+        // Skip the headers, up to the blank line.
+        while (true) {
+            if (reader.readLine().isNullOrEmpty()) break
+        }
         val path = requestLine.split(' ').getOrNull(1)?.substringBefore('?') ?: return
         val out = socket.getOutputStream()
         when {
