@@ -32,6 +32,7 @@ class DiscoveryTest {
             assertThat(baseUrl).isEqualTo(fake.baseUrl)
             assertThat(lineupUrl).isEqualTo("${fake.baseUrl}/lineup.json")
             assertThat(address).isEqualTo(loopback)
+            assertThat(controlPort).isEqualTo(fake.controlPort) // discovery and control share a port, as on a real unit
         }
     }
 

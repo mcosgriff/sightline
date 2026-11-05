@@ -17,6 +17,7 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -33,6 +34,8 @@ import io.cosgriff.sightline.debugtools.DebugTools
 import io.cosgriff.sightline.debugtools.ProtocolDebugEntry
 import io.cosgriff.sightline.ui.screens.devices.DevicesScreen
 import io.cosgriff.sightline.ui.screens.history.HistoryScreen
+import io.cosgriff.sightline.ui.components.NotBuiltYet
+import io.cosgriff.sightline.ui.screens.live.LiveActions
 import io.cosgriff.sightline.ui.screens.live.LiveScreen
 import io.cosgriff.sightline.ui.screens.monitor.MonitorScreen
 import io.cosgriff.sightline.ui.theme.sightlineColors
@@ -45,14 +48,31 @@ private enum class TopLevel(val key: NavKey, @param:StringRes val label: Int, va
     HistoryTab(History, R.string.nav_history, Icons.Outlined.History),
 }
 
+/** What a screen can do to navigation. */
+interface Navigator {
+    /** Shows a bottom-bar destination, over Devices. */
+    fun showTab(key: NavKey)
+
+    /** Opens a screen on top of the current one (Aim and Sweep over Live). */
+    fun push(key: NavKey)
+}
+
 /**
  * The app's screens under the bottom bar. Devices is home: picking another tab puts it over Devices, so Back from
  * any tab returns there, and Back on Devices leaves the app. Screens opened from a tab (Aim, Sweep) go on top of
  * it, and the bar keeps that tab selected.
  */
 @Composable
-fun SightlineNavHost() {
+fun SightlineNavHost(screen: @Composable (NavKey, Navigator) -> Unit = { key, navigator -> AppScreen(key, navigator) }) {
     val backStack = rememberNavBackStack(Devices)
+    val navigator = remember(backStack) {
+        object : Navigator {
+            override fun showTab(key: NavKey) = backStack.showTab(key)
+            override fun push(key: NavKey) {
+                backStack.add(key)
+            }
+        }
+    }
     val selected = TopLevel.entries.lastOrNull { tab -> backStack.lastOrNull { it in topLevelKeys } == tab.key }
     Scaffold(
         bottomBar = { BottomBar(selected = selected, onSelect = { backStack.showTab(it.key) }) },
@@ -66,15 +86,42 @@ fun SightlineNavHost() {
                 rememberViewModelStoreNavEntryDecorator(),
             ),
             entryProvider = entryProvider {
-                entry<Devices> {
-                    DevicesScreen(onOpenProtocolDebug = if (DebugTools.AVAILABLE) ({ backStack.add(ProtocolDebug) }) else null)
-                }
-                entry<Live> { LiveScreen() }
-                entry<Monitor> { MonitorScreen() }
-                entry<History> { HistoryScreen() }
-                entry<ProtocolDebug> { ProtocolDebugEntry() }
+                entry<Devices> { screen(Devices, navigator) }
+                entry<Live> { screen(Live, navigator) }
+                entry<Monitor> { screen(Monitor, navigator) }
+                entry<History> { screen(History, navigator) }
+                entry<Aim> { screen(Aim, navigator) }
+                entry<Sweep> { screen(Sweep, navigator) }
+                entry<Settings> { screen(Settings, navigator) }
+                entry<ProtocolDebug> { screen(ProtocolDebug, navigator) }
             },
         )
+    }
+}
+
+/** The real screens, each wired to navigation. */
+@Composable
+private fun AppScreen(key: NavKey, navigator: Navigator) {
+    when (key) {
+        Devices -> DevicesScreen(
+            onOpenLive = { navigator.showTab(Live) },
+            onOpenProtocolDebug = if (DebugTools.AVAILABLE) ({ navigator.push(ProtocolDebug) }) else null,
+        )
+        Live -> LiveScreen(
+            LiveActions(
+                onAim = { navigator.push(Aim) },
+                onSweep = { navigator.push(Sweep) },
+                onMonitor = { navigator.showTab(Monitor) },
+                onSettings = { navigator.push(Settings) },
+                onDevices = { navigator.showTab(Devices) },
+            ),
+        )
+        Monitor -> MonitorScreen()
+        History -> HistoryScreen()
+        Aim -> NotBuiltYet(stringResource(R.string.aim_title), stringResource(R.string.aim_not_built))
+        Sweep -> NotBuiltYet(stringResource(R.string.sweep_title), stringResource(R.string.sweep_not_built))
+        Settings -> NotBuiltYet(stringResource(R.string.settings_title), stringResource(R.string.settings_not_built))
+        ProtocolDebug -> ProtocolDebugEntry()
     }
 }
 

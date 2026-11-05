@@ -19,8 +19,8 @@ subprojects {
 
 // Robolectric's Android jar. Left to itself, Robolectric fetches android-all-instrumented from Maven Central at test
 // time, outside Gradle: no cache holds it, and a Maven Central hiccup fails every screen test in CI. Here Gradle
-// resolves the jar (version in libs.versions.toml beside `robolectric`), copies it to build/robolectric, and :app's
-// unit tests read it from there with Robolectric kept offline.
+// resolves the jar (version in libs.versions.toml beside `robolectric`), copies it to build/robolectric, and the unit
+// tests of :app and :data read it from there with Robolectric kept offline.
 abstract class RobolectricOffline : CommandLineArgumentProvider {
     @get:InputDirectory
     @get:PathSensitive(PathSensitivity.NAME_ONLY)
@@ -32,7 +32,7 @@ abstract class RobolectricOffline : CommandLineArgumentProvider {
     )
 }
 
-project(":app") {
+for (path in listOf(":app", ":data")) project(path) {
     val androidAll = configurations.create("robolectricAndroidAllSdk35") {
         isCanBeConsumed = false
         isTransitive = false
