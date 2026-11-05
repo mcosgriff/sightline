@@ -29,8 +29,11 @@ Milestones 0–3 are done: the protocol core (`:protocol`, golden captures, `Fak
 and Room v3 events in `:data`, `MonitorService`/`MonitorController` in `:app/monitor`, the Vico `SignalTimeline`),
 and Analysis (`SessionStats` and the diagnosis rules in `:analysis`, rules in `docs/rules/diagnosis.md`;
 `SessionRepository`, `OpenMeteo` and Room v4 session summaries in `:data`; Session detail and History).
-Next is milestone 6, Polish and release. Nothing has run against a real unit yet: the user
-tests release builds only (not debug), so real-hardware checks wait for the first release.
+Milestone 6 is built: Settings (theme, units, thresholds, tone range, retention), CSV and PDF export
+(`SessionExport`, `session/Report.kt`), the Multi-tuner grid (`MultiTunerPlan`), the Glance widget
+(`widget/`), History compare, and Roborazzi screenshots (`app/src/test/screenshots`). What's left is merging
+the release PR for `v0.1.0`. Nothing has run against a real unit yet: the user tests release builds only (not
+debug), so real-hardware checks wait for the first release.
 The user has two **HDHomeRun FLEX 4K** units (`HDFX-4K`, 4 tuners, ATSC 3.0 on tuners 0 and 1 only), and a DVR
 records from them. Captures and what they showed: `docs/protocol-captures/README.md`.
 
@@ -44,7 +47,10 @@ suppress that one case with a comment saying why.
   (`FakeHdhr`); in a sandbox that blocks them, run outside it.
 - `SIGHTLINE_REAL_HDHR=<ip> ./gradlew :protocol:test --tests '*RealDeviceTest*'` — the client against a real
   unit (claims an idle tuner and releases it).
-- `./gradlew testDebugUnitTest` — `:data` and `:app` tests (screens under Robolectric).
+- `./gradlew testDebugUnitTest` — `:data` and `:app` tests (screens under Robolectric). Also compares the
+  Roborazzi screenshots with `app/src/test/screenshots`.
+- `./gradlew recordRoborazziDebug` — re-record the screenshots after a deliberate change to a component; look
+  at the new images before committing them.
 - `./gradlew build` — everything, lint included. Run before saying a milestone is done.
 - `./gradlew :app:installDebug` — install on a phone or emulator (debug app id `io.cosgriff.sightline.debug`).
 - Release: merge the PR `release-please` keeps open (version and changelog come from Conventional Commits);
@@ -66,7 +72,7 @@ suppress that one case with a comment saying why.
 - `:data` — Android library. Room (readings, sessions, events, weather), DataStore settings, repositories, CSV
   export, the Hilt module. The one `Clock` and the `@ApplicationScope` scope come from here.
 - `:app` — Compose UI (`ui/theme`, `ui/components`, `ui/screens/<screen>`), Navigation 3, ViewModels, the
-  monitor foreground service (`monitor/`), later the Glance widget.
+  monitor foreground service (`monitor/`), the Glance widget (`widget/`).
 
 ## Decisions — don't change without asking
 

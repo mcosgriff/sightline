@@ -90,10 +90,18 @@ Work milestone by milestone, in order. Each milestone ends with the app building
 
 ## Milestone 6 — Polish and release
 
-- [ ] CSV export (readings, events) via the share sheet; one-page report (PDF via `PdfDocument`, or Markdown).
-- [ ] Multi-tuner grid (spec section 5).
-- [ ] Settings screen (spec section 10) including theme, units and retention cleanup.
-- [ ] Glance widget for an active monitor.
-- [ ] Roborazzi screenshot tests for the custom components in all three themes.
-- [ ] Release: set up the keystore and the `release` environment secrets (README › Releasing); the workflows already exist from M0. Check the Obtainium notes in README.
+- [x] CSV export (readings, events) via the share sheet; one-page report (PDF via `PdfDocument`, or Markdown).
+  - `SessionExport` in `:data` (readings paged, so a 72 h session never loads at once); the PDF in
+    `session/Report.kt`, worded by the screen with Session detail's own words. Shared through a FileProvider
+    that serves `cache/exports/` only.
+- [x] Multi-tuner grid (spec section 5).
+  - Leaves one idle tuner free for a DVR (`MultiTunerPlan`); the user's choice, asked 2026-11-04.
+- [x] Settings screen (spec section 10) including theme, units and retention cleanup.
+- [x] Glance widget for an active monitor.
+- [x] Roborazzi screenshot tests for the custom components in all three themes.
+  - `ComponentScreenshotTest`: ArcGauge, TriGauge, Sparkline, ChannelRangeBars, PolarAim, HourHeatmap. Unit
+    test runs verify against `app/src/test/screenshots`; `./gradlew recordRoborazziDebug` re-records.
+- [x] History compare (SPEC milestone 6, Screens › 9): two selected sessions side by side.
+- [x] Release: set up the keystore and the `release` environment secrets (README › Releasing); the workflows already exist from M0. Check the Obtainium notes in README.
+  - Keystore and the four secrets in the `release` environment (v* tags only, reviewer required), done by the user.
 - **Done when:** merging the release-please PR for `v0.1.0` produces a signed APK on the GitHub release page.
