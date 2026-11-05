@@ -48,6 +48,19 @@
             </intent-filter>
         </activity>
 
+        <!-- The home-screen widget for a running monitor. -->
+        <receiver
+            android:name=".widget.MonitorWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/monitor_widget_info" />
+        </receiver>
+
         <!-- Shares exported CSVs and reports with the app the user picks. -->
         <provider
             android:name="androidx.core.content.FileProvider"

@@ -792,4 +792,19 @@
     <string name="tuners_numbers">SS %1$d · SEQ %2$d</string>
     <string name="tuners_gauge_description">Tuner %1$d signal quality %2$d</string>
     <string name="tuners_gauge_none">Tuner %1$d: no reading yet</string>
+
+    <!-- Home-screen widget (SPEC Screens › 7). -->
+    <string name="widget_label">Sightline monitor</string>
+    <string name="widget_description">The running monitor\'s signal quality and dips, with Stop.</string>
+    <string name="widget_idle_title">No monitor running</string>
+    <string name="widget_idle_body">Tap to set one up.</string>
+    <string name="widget_ended_title">Monitor ended</string>
+    <plurals name="widget_dips">
+        <item quantity="one">%1$d dip</item>
+        <item quantity="other">%1$d dips</item>
+    </plurals>
+    <string name="widget_minutes">%1$d min</string>
+    <string name="widget_hours_minutes">%1$d h %2$02d min</string>
+    <string name="widget_detail">%1$s · %2$s</string>
+    <string name="widget_stop_description">Stop monitoring</string>
 </resources>

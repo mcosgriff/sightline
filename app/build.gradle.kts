@@ -105,6 +105,7 @@ dependencies {
     debugImplementation(libs.compose.ui.tooling)
 
     implementation(libs.vico.compose.m3)
+    implementation(libs.glance.appwidget)
 
     implementation(libs.hilt.android)
     implementation(libs.hilt.lifecycle.viewmodel.compose)

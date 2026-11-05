@@ -45,7 +45,7 @@ data class SightlineColors(
     val heatEmpty: Color,
 )
 
-private val DarkColors = SightlineColors(
+internal val DarkColors = SightlineColors(
     bg = Color(0xFF0E1114),
     surface = Color(0xFF171B20),
     outline = Color(0xFF2A3138),
@@ -65,7 +65,7 @@ private val DarkColors = SightlineColors(
 /** True black (OLED) swaps only the backgrounds. */
 private val TrueBlackColors = DarkColors.copy(bg = Color(0xFF000000), bar = Color(0xFF000000))
 
-private val LightColors = SightlineColors(
+internal val LightColors = SightlineColors(
     bg = Color(0xFFF7F9FA),
     surface = Color(0xFFFFFFFF),
     outline = Color(0xFFD5DBE0),
