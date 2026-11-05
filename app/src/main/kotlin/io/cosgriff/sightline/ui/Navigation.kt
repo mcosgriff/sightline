@@ -35,6 +35,6 @@ data object Sweep : NavKey
 @Serializable
 data class Session(val id: Long) : NavKey
 
-/** Thresholds, units, theme and the rest (milestone 6; not built yet). Opens from Live's top bar. */
+/** Thresholds, units, theme and the rest. Opens from Live's top bar. */
 @Serializable
 data object Settings : NavKey

@@ -38,11 +38,11 @@ import io.cosgriff.sightline.debugtools.ProtocolDebugEntry
 import io.cosgriff.sightline.ui.screens.aim.AimScreen
 import io.cosgriff.sightline.ui.screens.devices.DevicesScreen
 import io.cosgriff.sightline.ui.screens.history.HistoryScreen
-import io.cosgriff.sightline.ui.components.NotBuiltYet
 import io.cosgriff.sightline.ui.screens.live.LiveActions
 import io.cosgriff.sightline.ui.screens.live.LiveScreen
 import io.cosgriff.sightline.ui.screens.monitor.MonitorScreen
 import io.cosgriff.sightline.ui.screens.session.SessionScreen
+import io.cosgriff.sightline.ui.screens.settings.SettingsScreen
 import io.cosgriff.sightline.ui.screens.sweep.SweepScreen
 import io.cosgriff.sightline.ui.theme.sightlineColors
 
@@ -144,7 +144,7 @@ private fun AppScreen(key: NavKey, navigator: Navigator) {
         is Session -> SessionScreen(key.id, onBack = navigator::back)
         Aim -> AimScreen(onBack = navigator::back)
         Sweep -> SweepScreen(onBack = navigator::back)
-        Settings -> NotBuiltYet(stringResource(R.string.settings_title), stringResource(R.string.settings_not_built))
+        Settings -> SettingsScreen(onBack = navigator::back)
         ProtocolDebug -> ProtocolDebugEntry()
     }
 }

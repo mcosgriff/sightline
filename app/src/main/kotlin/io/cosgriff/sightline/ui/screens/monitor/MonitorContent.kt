@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,8 +25,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -56,6 +53,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import io.cosgriff.sightline.R
+import io.cosgriff.sightline.ui.components.Choice
+import io.cosgriff.sightline.ui.components.Choices
 import io.cosgriff.sightline.analysis.EventKind
 import io.cosgriff.sightline.analysis.MonitorEstimate
 import io.cosgriff.sightline.analysis.SignalEvent
@@ -233,34 +232,6 @@ private fun Field(label: String, content: @Composable () -> Unit) {
         Text(label, style = MaterialTheme.typography.titleSmall)
         content()
     }
-}
-
-@Composable
-private fun Choices(content: @Composable () -> Unit) {
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { content() }
-}
-
-@Composable
-private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
-    val colors = MaterialTheme.sightlineColors
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = { Text(label) },
-        shape = MaterialTheme.shapes.small,
-        colors = FilterChipDefaults.filterChipColors(
-            containerColor = colors.surface,
-            labelColor = colors.textPrimary,
-            selectedContainerColor = colors.accent.copy(alpha = 0.18f),
-            selectedLabelColor = colors.accent,
-        ),
-        border = FilterChipDefaults.filterChipBorder(
-            enabled = true,
-            selected = selected,
-            borderColor = colors.outline,
-            selectedBorderColor = colors.accent,
-        ),
-    )
 }
 
 @Composable

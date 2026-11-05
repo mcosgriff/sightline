@@ -95,7 +95,8 @@ class MonitorViewModel @Inject constructor(
         viewModelScope.launch { setup.collect { s -> _state.update { it.copy(setup = s) } } }
         viewModelScope.launch { controller.status.collect { s -> _state.update { it.copy(status = s) } } }
         viewModelScope.launch {
-            val thresholds = settingsRepository.settings.first().thresholds
+            val saved = settingsRepository.settings.first()
+            val thresholds = saved.thresholds
             _state.update { it.copy(thresholds = thresholds) }
             setup.value = when (val selection = loadSelection(devices, appState)) {
                 Selection.NoDevice -> SetupState.NoDevice
@@ -107,6 +108,7 @@ class MonitorViewModel @Inject constructor(
                         channels = selection.channels,
                         selected = listOf(selection.channel.guideNumber),
                         dipSnq = thresholds.snqMarginal,
+                        pollMs = saved.pollIntervalMs,
                     ),
                 )
             }

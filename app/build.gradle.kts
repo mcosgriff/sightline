@@ -61,6 +61,8 @@ android {
 
     buildFeatures {
         compose = true
+        // The version on Settings › About.
+        buildConfig = true
     }
 
     // The screen tests (app/src/test) draw the screens under Robolectric, which needs the app's resources and fonts.

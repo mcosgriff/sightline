@@ -75,9 +75,9 @@ class SessionRepositoryTest {
     @After
     fun tearDown() = db.close()
 
-    private suspend fun session(fetchWeather: Boolean = true, endedAt: Long? = START + 2 * HOUR): Long {
+    private suspend fun session(fetchWeather: Boolean = true, endedAt: Long? = START + 2 * HOUR, kind: SessionKind = SessionKind.MONITOR): Long {
         val id = db.sessions().insert(
-            SessionEntity(deviceId = "D", kind = SessionKind.MONITOR, startedAt = START, endedAt = endedAt, channels = listOf("9.1"), tuner = 0, pollIntervalMs = 60_000, fetchWeather = fetchWeather),
+            SessionEntity(deviceId = "D", kind = kind, startedAt = START, endedAt = endedAt, channels = listOf("9.1"), tuner = 0, pollIntervalMs = 60_000, fetchWeather = fetchWeather),
         )
         // Two hours a minute apart: good, except 10 minutes poor and one reading without lock.
         val readings = (0 until 120).map { m ->
@@ -158,6 +158,36 @@ class SessionRepositoryTest {
         repository.delete(listOf(a))
         assertThat(repository.history.first().map { it.info.id }).containsExactly(b)
         assertThat(db.sessions().readings(a)).isEmpty()
+    }
+
+    @Test
+    fun `readings past retention go once summarised, events summaries and sweeps stay`() = runBlocking<Unit> {
+        val old = session()
+        val sweep = session(kind = SessionKind.SWEEP)
+        repository.summariseMissing()
+        val unsummarised = session()
+        // The clock is 30 h after the start: the default 90 days keeps everything.
+        assertThat(repository.deleteOldReadings()).isEqualTo(0)
+
+        settings.setRetentionDays(1)
+        assertThat(repository.deleteOldReadings()).isEqualTo(120)
+        assertThat(db.sessions().readings(old)).isEmpty()
+        assertThat(db.sessions().events(old)).hasSize(1)
+        assertThat(db.sessions().readings(sweep)).hasSize(120)
+        assertThat(db.sessions().readings(unsummarised)).hasSize(120)
+        assertThat(repository.history.first().first { it.info.id == old }.summary!!.readings).isEqualTo(120)
+        assertThat(repository.load(old, ZoneId.of("UTC"))!!.readingsDeleted).isTrue()
+        assertThat(repository.load(sweep, ZoneId.of("UTC"))!!.readingsDeleted).isFalse()
+    }
+
+    @Test
+    fun `keep for ever deletes nothing`() = runBlocking<Unit> {
+        val id = session()
+        repository.summariseMissing()
+        settings.setRetentionDays(null)
+        assertThat(settings.settings.first().retentionDays).isNull()
+        assertThat(repository.deleteOldReadings()).isEqualTo(0)
+        assertThat(db.sessions().readings(id)).hasSize(120)
     }
 
     @Test

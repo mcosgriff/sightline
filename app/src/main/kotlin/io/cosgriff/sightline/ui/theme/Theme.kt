@@ -14,6 +14,7 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import io.cosgriff.sightline.data.settings.ThemeSetting
 
 // Tokens from SPEC "Color tokens". Dynamic (wallpaper) colour is off: a health colour must always mean the same
 // thing, and the chrome follows the mockups. Screens take colours from here, never a hex of their own.
@@ -92,6 +93,14 @@ enum class ThemeMode {
     companion object {
         val Default = Dark
     }
+}
+
+/** The stored setting as a theme. */
+fun ThemeSetting.mode(): ThemeMode = when (this) {
+    ThemeSetting.SYSTEM -> ThemeMode.System
+    ThemeSetting.LIGHT -> ThemeMode.Light
+    ThemeSetting.DARK -> ThemeMode.Dark
+    ThemeSetting.TRUE_BLACK -> ThemeMode.TrueBlack
 }
 
 /** Whether [mode] draws dark, given the phone's own setting [systemDark]. */

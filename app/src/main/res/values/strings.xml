@@ -140,11 +140,9 @@
     <string name="live_sweep">Sweep</string>
     <string name="live_monitor">Monitor</string>
 
-    <!-- Screens not built yet. Each says so plainly, so an unfinished screen never looks like an empty result. -->
+    <!-- Tab titles. -->
     <string name="monitor_title">Monitor</string>
     <string name="history_title">History</string>
-    <string name="settings_title">Settings</string>
-    <string name="settings_not_built">Not built yet. Thresholds, units, theme and data retention will be set here.</string>
 
     <!-- Compass points on the Aim plot. -->
     <string name="compass_n">N</string>
@@ -679,4 +677,75 @@
     <string name="session_event_gap_detail">The phone wasn\'t reading</string>
     <string name="session_event_with_gusts">%1$s · gusts %2$s</string>
     <string name="session_event_zoom">Show on the chart</string>
+
+    <!-- Settings (SPEC Screens › 10). -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_back">Back</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_system">Phone\'s setting</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_theme_true_black">True black</string>
+    <string name="settings_units">Units</string>
+    <string name="settings_units_imperial">°F and mph</string>
+    <string name="settings_units_metric">°C and km/h</string>
+    <string name="settings_thresholds">Signal thresholds</string>
+    <string name="settings_thresholds_subtitle">Where Good ends and Marginal and Poor begin. Changing them re-reads every saved session too.</string>
+    <string name="settings_snq_good">Quality: good from</string>
+    <string name="settings_snq_marginal">Quality: marginal from</string>
+    <string name="settings_seq_good">Symbols: good from</string>
+    <string name="settings_seq_marginal">Symbols: marginal from</string>
+    <string name="settings_ss_good">Strength: good from</string>
+    <string name="settings_ss_marginal">Strength: weak below</string>
+    <string name="settings_ss_overload">Strength: overload from</string>
+    <string name="settings_thresholds_reset">Reset to defaults</string>
+    <string name="settings_decrease">Lower %1$s</string>
+    <string name="settings_increase">Raise %1$s</string>
+    <string name="settings_readings">Reading</string>
+    <string name="settings_poll">How often to read</string>
+    <string name="settings_poll_hint">For Live, Aim and Sweep, and the starting choice for Monitor.</string>
+    <string name="settings_poll_1s">Every second</string>
+    <string name="settings_poll_every">Every %1$d s, saves battery</string>
+    <string name="settings_keep_screen_on">Keep the screen on</string>
+    <string name="settings_keep_screen_on_hint">While Live, Aim or a sweep is showing.</string>
+    <string name="settings_on">On</string>
+    <string name="settings_off">Off</string>
+    <string name="settings_tone">Aiming tone</string>
+    <string name="settings_tone_subtitle">The tone on Aim rises from the low pitch at quality 0 to the high pitch at 100.</string>
+    <string name="settings_tone_low">Low pitch</string>
+    <string name="settings_tone_high">High pitch</string>
+    <string name="settings_hz">%1$d Hz</string>
+    <string name="settings_home">Home</string>
+    <string name="settings_home_subtitle">Where weather is fetched for, and how Aim finds true north. Kept to about 1 km.</string>
+    <string name="settings_home_unset">Not set.</string>
+    <string name="settings_home_set">%1$.2f, %2$.2f</string>
+    <string name="settings_home_use_location">Use my location once</string>
+    <string name="settings_home_update">Update from my location</string>
+    <string name="settings_home_forget">Forget home</string>
+    <string name="settings_retention">Keep readings</string>
+    <string name="settings_retention_subtitle">Older readings are deleted when the app starts. Dips, summaries, weather and sweeps are kept.</string>
+    <plurals name="settings_retention_days">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
+    <string name="settings_retention_forever">For ever</string>
+    <string name="settings_about">About</string>
+    <string name="settings_about_version">Sightline %1$s</string>
+    <string name="settings_about_body">Reads HDHomeRun signal on your network. Nothing leaves it except weather from Open-Meteo, when asked for. No analytics.</string>
+    <string name="settings_about_source">Free software under the GPL 3.0. Source: github.com/mcosgriff/sightline</string>
+    <string name="settings_licences">Licences</string>
+    <string name="settings_licence_read">Read the licence</string>
+    <string name="settings_licence_close">Close</string>
+    <string name="settings_licence_sightline">Sightline</string>
+    <string name="settings_licence_inter">Inter font</string>
+    <string name="settings_licence_roboto_mono">Roboto Mono font</string>
+    <string name="settings_licence_androidx">AndroidX and Jetpack Compose</string>
+    <string name="settings_licence_kotlin">Kotlin and kotlinx</string>
+    <string name="settings_licence_dagger">Dagger and Hilt</string>
+    <string name="settings_licence_okhttp">OkHttp</string>
+    <string name="settings_licence_vico">Vico</string>
+    <string name="settings_licence_gpl">GPL 3.0</string>
+    <string name="settings_licence_ofl">SIL OFL 1.1</string>
+    <string name="settings_licence_apache">Apache 2.0</string>
 </resources>
