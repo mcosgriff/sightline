@@ -49,6 +49,17 @@ fun interface SignalPattern {
         fun dropouts(everyMs: Long = 120_000L, lengthMs: Long = 6_000L, good: SignalPattern = steady(85, 80)) =
             SignalPattern { t -> if (t % everyMs >= everyMs - lengthMs) Signal.NONE else good.at(t) }
 
+        /**
+         * Wind on the mast: [flutter] while [Wind.gustKphAt] is over [Wind.GUSTY_KPH], [steady] otherwise. A Demo
+         * monitor held on this channel, with the Demo weather built from the same [Wind] schedule, shows dips
+         * following the wind.
+         */
+        fun windy(): SignalPattern {
+            val calm = steady(ss = 80, snq = 84)
+            val gusty = flutter(base = 70, depth = 30, periodMs = 40_000L)
+            return SignalPattern { t -> if (Wind.gustKphAt(t) > Wind.GUSTY_KPH) gusty.at(t) else calm.at(t) }
+        }
+
         /** Never locks: a channel the antenna can't see. */
         val noSignal: SignalPattern = SignalPattern { Signal(false, 30, 0, 0) }
 
@@ -58,5 +69,18 @@ fun interface SignalPattern {
             x = (x xor (x ushr 31)) * 0xBF58476D1CE4E5B9uL.toLong()
             return ((x ushr 33) % (2 * amp + 1)).toInt() - amp
         }
+    }
+}
+
+/** The gust schedule behind [SignalPattern.windy]: calm, then a 2-hour blow, repeating every 6 hours from tuning. */
+object Wind {
+    const val GUSTY_KPH = 30.0
+    private const val HOUR_MS = 3_600_000L
+
+    /** Gusts in km/h, [elapsedMs] after tuning: 8 for the first 2 hours of each 6, then 45 for 2, then 22. */
+    fun gustKphAt(elapsedMs: Long): Double = when ((elapsedMs.coerceAtLeast(0) / HOUR_MS) % 6) {
+        0L, 1L -> 8.0
+        2L, 3L -> 45.0
+        else -> 22.0
     }
 }

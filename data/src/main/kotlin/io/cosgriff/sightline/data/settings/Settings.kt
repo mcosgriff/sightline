@@ -30,8 +30,10 @@ data class Settings(
     val aimHaptics: Boolean = true,
     /** Up to [MAX_TOWERS] tower bearings in whole degrees from true north, typed in on Aim. */
     val towerBearings: List<Int> = emptyList(),
-    /** Home, to 2 decimal places (about 1 km, SPEC "Privacy"): true north on Aim now, weather later. */
+    /** Home, to 2 decimal places (about 1 km, SPEC "Privacy"): true north on Aim, and where weather is fetched for. */
     val home: Home? = null,
+    /** How temperatures and speeds are shown. Everything is stored metric. */
+    val units: Units = Units.IMPERIAL,
 ) {
     companion object {
         const val MAX_TOWERS = 3
@@ -39,6 +41,9 @@ data class Settings(
 }
 
 data class Home(val latitude: Double, val longitude: Double)
+
+/** °F and mph (the default), or °C and km/h. */
+enum class Units { IMPERIAL, METRIC }
 
 @Singleton
 class SettingsRepository @Inject constructor(@param:SettingsStore private val store: DataStore<Preferences>) {
@@ -61,6 +66,7 @@ class SettingsRepository @Inject constructor(@param:SettingsStore private val st
             aimHaptics = p[AIM_HAPTICS] ?: true,
             towerBearings = p[TOWER_BEARINGS]?.split(',')?.mapNotNull { it.toIntOrNull() }.orEmpty(),
             home = p[HOME_LAT]?.let { lat -> p[HOME_LON]?.let { lon -> Home(lat, lon) } },
+            units = p[UNITS]?.let { name -> Units.entries.firstOrNull { it.name == name } } ?: Units.IMPERIAL,
         )
     }
 
@@ -102,6 +108,7 @@ class SettingsRepository @Inject constructor(@param:SettingsStore private val st
         val TOWER_BEARINGS = stringPreferencesKey("tower_bearings")
         val HOME_LAT = doublePreferencesKey("home_lat")
         val HOME_LON = doublePreferencesKey("home_lon")
+        val UNITS = stringPreferencesKey("units")
 
         fun roundTo2(v: Double) = Math.round(v * 100) / 100.0
     }

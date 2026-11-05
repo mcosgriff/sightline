@@ -110,4 +110,35 @@ interface SessionDao {
 
     @Query("SELECT * FROM event WHERE sessionId = :sessionId ORDER BY startTs, id")
     suspend fun events(sessionId: Long): List<EventEntity>
+
+    /** Every finished session with its summary, newest first, for History. */
+    @Transaction
+    @Query("SELECT * FROM session WHERE endedAt IS NOT NULL ORDER BY startedAt DESC")
+    fun observeHistory(): Flow<List<SessionWithSummary>>
+
+    /** Finished sessions History has no summary for yet. */
+    @Query("SELECT * FROM session WHERE endedAt IS NOT NULL AND id NOT IN (SELECT sessionId FROM session_summary)")
+    suspend fun unsummarised(): List<SessionEntity>
+
+    @Upsert
+    suspend fun upsertSummary(summary: SessionSummaryEntity)
+
+    @Query("DELETE FROM session WHERE id IN (:ids)")
+    suspend fun deleteAll(ids: List<Long>)
+
+    @Query("SELECT * FROM weather_hour WHERE sessionId = :sessionId ORDER BY hourTs")
+    suspend fun weather(sessionId: Long): List<WeatherHourEntity>
+
+    @Insert(onConflict = androidx.room.OnConflictStrategy.REPLACE)
+    suspend fun insertWeather(hours: List<WeatherHourEntity>)
+
+    @Query("UPDATE session SET weatherFetched = 1 WHERE id = :id")
+    suspend fun markWeatherFetched(id: Long)
+
+    /** A session's weather and the flag saying it's there, together. */
+    @Transaction
+    suspend fun saveWeather(id: Long, hours: List<WeatherHourEntity>) {
+        insertWeather(hours)
+        markWeatherFetched(id)
+    }
 }

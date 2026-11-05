@@ -150,7 +150,7 @@ RF channel and frequency come from the `ch` field after tuning. Map frequency to
 
 ## Data model
 
-Six Room tables. Readings are the only large table: a 12-hour, one-channel session at 1 Hz is about 43,000 rows, roughly 3 MB.
+Seven Room tables. Readings are the only large table: a 12-hour, one-channel session at 1 Hz is about 43,000 rows, roughly 3 MB.
 
 | Entity | Key fields | Notes |
 | --- | --- | --- |
@@ -160,6 +160,7 @@ Six Room tables. Readings are the only large table: a 12-hour, one-channel sessi
 | `Reading` | id (PK), sessionId (FK, indexed), ts (epoch ms, indexed with sessionId), guideNumber, tuner, ss, snq, seq, bps, pps, lock, headingDeg?, rawStatus? | `rawStatus` kept only when the parse failed |
 | `Event` | id (PK), sessionId, startTs, endTs, guideNumber?, kind (`DIP`, `DROPOUT`, `TUNER_LOST`, `DEVICE_UNREACHABLE`, `GAP`), minSnq?, minSeq?, noLockMs | Written by the dip detector. guideNumber is null for device-wide events; minSnq/minSeq are the lowest locked values among the bad readings, null if it never locked; noLockMs is how long of it had no lock ("lock lost 4 s") |
 | `WeatherHour` | sessionId + hourTs (PK), tempC, windKph, gustKph, precipMm | From Open-Meteo, fetched after a session ends |
+| `SessionSummary` | sessionId (PK, FK), readings, goodShare?, dips, medianSnq?, health?, sparkline | What History shows; written when a session ends (or at the next app start), kept when old readings are deleted |
 
 Settings in DataStore: thresholds, poll interval, units (°F / mph default, metric option), theme, home coordinates for weather (entered manually or from one location fix), retention (default 90 days). Store metric internally; convert only for display.
 
@@ -341,8 +342,9 @@ Optional dip notifications, at most one per 10 minutes, with a summary ("3 dips 
 
 ### After the session
 
-- If weather is enabled, fetch hourly temperature, wind, gusts and precipitation from Open-Meteo for the session window and home coordinates.
-- Run the diagnosis engine and store its findings with the session.
+- If weather is enabled, fetch hourly temperature, wind, gusts and precipitation from Open-Meteo for the session window and home coordinates (the forecast API for the last ~80 days, the archive before that). A fetch that fails is tried again at the next app start or from Session detail; with no home set, Session detail offers one location fix.
+- Write the session's summary for History.
+- The diagnosis engine runs when Session detail opens, on the stored readings, events and weather, so findings follow the current thresholds and rules. Findings aren't stored; a session whose readings are deleted keeps its summary only.
 
 ## Diagnosis engine
 
@@ -365,7 +367,7 @@ The engine turns a session into plain-language findings, each with evidence and 
 | Flutter | snq swings 20+ points within 10 s, repeatedly | Multipath or aircraft flutter | Re-aim for a cleaner path; try a more directional antenna |
 | Not RF | Device-unreachable events, or seq at 100 during reported glitches | The tuner is fine; the network or player is not | Wire the tuner and player; check the switch and Wi-Fi |
 
-Findings are sorted by strength of evidence. A session with no rule firing shows "No pattern found" with the summary numbers, never an empty card.
+Each rule's exact numbers, and what makes it Likely rather than Possible, are in [`docs/rules/diagnosis.md`](rules/diagnosis.md). Findings are sorted by strength of evidence. A session with no rule firing shows "No pattern found" with the summary numbers, never an empty card.
 
 ## Edge cases and constraints
 

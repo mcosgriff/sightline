@@ -46,16 +46,17 @@ import io.cosgriff.sightline.ui.theme.Numbers
 import io.cosgriff.sightline.ui.theme.sightlineColors
 
 /**
- * snq over a session (SPEC `SignalTimeline`): the lowest snq per stretch of time as a line, dips as red bands and
- * outages (no answer, gaps) as grey ones, [threshold] dashed. With a planned [endMs] the chart spans the whole
- * plan and the part not yet run is shaded and labelled [stillToCome]; otherwise it ends at [nowMs]. [timeLabels]
- * sit evenly under it, first at the start and last at the end. [description] is what a screen reader says.
- *
- * Zoom, the range selector and the weather panel come with Session detail (milestone 5).
+ * snq over a session (SPEC `SignalTimeline`): the lowest snq per stretch of time as a line per channel, dips as red
+ * bands and outages (no answer, gaps) as grey ones, [threshold] dashed. [lines] must share their start and bucket
+ * width (`timelineOf` with one window does that); the first is drawn in the accent colour, the rest in the chart
+ * line colours, which the caller names in a legend. With a planned [endMs] the chart spans the whole plan and the
+ * part not yet run is shaded and labelled [stillToCome]; otherwise it ends at [nowMs]. [markLatest] dots the last
+ * point, for a session still running. [timeLabels] sit evenly under it, first at the start and last at the end.
+ * [description] is what a screen reader says.
  */
 @Composable
 fun SignalTimeline(
-    series: TimelineSeries,
+    lines: List<TimelineSeries>,
     events: List<SignalEvent>,
     nowMs: Long,
     endMs: Long?,
@@ -65,33 +66,39 @@ fun SignalTimeline(
     description: String,
     modifier: Modifier = Modifier,
     chartHeight: Dp = 120.dp,
+    markLatest: Boolean = true,
 ) {
     val colors = MaterialTheme.sightlineColors
-    val lastX = series.lows.keys.maxOrNull()?.toDouble() ?: 0.0
+    val series = lines.first()
+    val lastX = lines.mapNotNull { l -> l.lows.keys.maxOrNull() }.maxOrNull()?.toDouble() ?: 0.0
     val nowX = series.position(nowMs).coerceAtLeast(lastX)
     val maxX = maxOf(endMs?.let { series.position(it) } ?: nowX, nowX, 1.0)
     val nowFraction = (nowX / maxX).toFloat().coerceIn(0f, 1f)
 
-    val bands = events.map { e ->
-        TimelineDecoration.Band(series.position(e.startMs), series.position(e.endMs).coerceAtLeast(series.position(e.startMs) + 0.5), e.isDip)
+    val bands = events.mapNotNull { e ->
+        val from = series.position(e.startMs).coerceIn(0.0, maxX)
+        val to = series.position(e.endMs).coerceAtLeast(series.position(e.startMs) + 0.5).coerceIn(0.0, maxX)
+        if (to <= from) null else TimelineDecoration.Band(from, to, e.isDip)
     }
+    val drawn = lines.withIndex().filter { it.value.lows.isNotEmpty() }
+    val lineColors = drawn.map { (i, _) -> if (i == 0) colors.accent else colors.chartLines[(i - 1) % colors.chartLines.size] }
     val decoration = TimelineDecoration(
         bands = bands,
         threshold = threshold,
         futureFrom = if (endMs != null && nowX < maxX) nowX else null,
-        lastPoint = series.lows.maxByOrNull { it.key }?.let { (x, y) -> x.toDouble() to y },
+        lastPoint = if (markLatest) series.lows.maxByOrNull { it.key }?.let { (x, y) -> x.toDouble() to y } else null,
         dipColor = colors.healthPoor.copy(alpha = 0.35f),
         outageColor = colors.healthNoLock.copy(alpha = 0.35f),
         thresholdColor = colors.textSecondary.copy(alpha = 0.6f),
         futureColor = colors.bg.copy(alpha = 0.55f),
         pointColor = colors.accent,
     )
-    val line = LineCartesianLayer.rememberLine(
-        fill = LineCartesianLayer.LineFill.single(Fill(colors.accent)),
-        areaFill = null,
-    )
+    // Before the first reading nothing is drawn, but the layer still wants a line.
+    val vicoLines = lineColors.ifEmpty { listOf(colors.accent) }.map { c ->
+        LineCartesianLayer.rememberLine(fill = LineCartesianLayer.LineFill.single(Fill(c)), areaFill = null)
+    }
     val layer = rememberLineCartesianLayer(
-        lineProvider = LineCartesianLayer.LineProvider.series(line),
+        lineProvider = LineCartesianLayer.LineProvider.series(vicoLines),
         rangeProvider = CartesianLayerRangeProvider.fixed(minX = 0.0, maxX = maxX, minY = 0.0, maxY = 100.0),
     )
     val chart = rememberCartesianChart(
@@ -99,17 +106,20 @@ fun SignalTimeline(
         layerPadding = { CartesianLayerPadding(0.dp, 0.dp, 0.dp, 0.dp) },
         decorations = listOf(decoration),
     )
-    val model = remember(series) {
-        val points = series.lows.toSortedMap()
-        // Vico needs at least one point; before the first reading the chart is the threshold and the plan.
-        val xs = points.keys.ifEmpty { listOf(0) }.toList()
-        val ys = points.values.ifEmpty { listOf(0) }.toList()
-        CartesianChartModel(LineCartesianLayerModel.build { series(xs, ys) })
+    val model = remember(lines) {
+        CartesianChartModel(
+            LineCartesianLayerModel.build {
+                for ((_, l) in drawn) {
+                    val points = l.lows.toSortedMap()
+                    series(points.keys.toList(), points.values.toList())
+                }
+            },
+        )
     }
 
     Column(modifier.semantics(mergeDescendants = true) { contentDescription = description }) {
         BoxWithConstraints(Modifier.fillMaxWidth().height(chartHeight)) {
-            if (series.lows.isNotEmpty()) {
+            if (drawn.isNotEmpty()) {
                 CartesianChartHost(
                     chart = chart,
                     model = model,
@@ -131,20 +141,27 @@ fun SignalTimeline(
                 }
             }
         }
-        Row(Modifier.fillMaxWidth().padding(top = 6.dp)) {
-            timeLabels.forEachIndexed { i, label ->
-                Text(
-                    label,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = colors.textSecondary,
-                    textAlign = when (i) {
-                        0 -> TextAlign.Start
-                        timeLabels.lastIndex -> TextAlign.End
-                        else -> TextAlign.Center
-                    },
-                    modifier = Modifier.weight(1f),
-                )
-            }
+        TimeLabels(timeLabels, Modifier.padding(top = 6.dp))
+    }
+}
+
+/** Labels spread evenly under a chart: the first flush left, the last flush right. */
+@Composable
+fun TimeLabels(labels: List<String>, modifier: Modifier = Modifier) {
+    val colors = MaterialTheme.sightlineColors
+    Row(modifier.fillMaxWidth()) {
+        labels.forEachIndexed { i, label ->
+            Text(
+                label,
+                style = MaterialTheme.typography.labelMedium,
+                color = colors.textSecondary,
+                textAlign = when (i) {
+                    0 -> TextAlign.Start
+                    labels.lastIndex -> TextAlign.End
+                    else -> TextAlign.Center
+                },
+                modifier = Modifier.weight(1f),
+            )
         }
     }
 }

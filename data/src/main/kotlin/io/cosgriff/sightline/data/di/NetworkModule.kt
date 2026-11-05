@@ -6,6 +6,8 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import io.cosgriff.sightline.data.net.AndroidDiscoveryEnvironment
+import io.cosgriff.sightline.data.weather.OpenMeteo
+import io.cosgriff.sightline.data.weather.WeatherSource
 import io.cosgriff.sightline.protocol.Discovery
 import io.cosgriff.sightline.protocol.DiscoveryEnvironment
 import io.cosgriff.sightline.protocol.HttpApi
@@ -19,6 +21,9 @@ import javax.inject.Singleton
 abstract class NetworkModule {
     @Binds
     abstract fun discoveryEnvironment(impl: AndroidDiscoveryEnvironment): DiscoveryEnvironment
+
+    @Binds
+    abstract fun weatherSource(impl: OpenMeteo): WeatherSource
 
     companion object {
         @Provides

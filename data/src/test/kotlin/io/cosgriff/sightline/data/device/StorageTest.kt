@@ -103,7 +103,7 @@ class StorageTest {
         val device = repository.all.first().single()
         assertThat(repository.refreshLineup(device)).isTrue()
         val first = repository.channelList(device.deviceId)
-        assertThat(first.map { it.guideNumber }).containsExactly("2.1", "4.1", "7.1", "9.1", "14.1", "102.1").inOrder()
+        assertThat(first.map { it.guideNumber }).containsExactly("2.1", "4.1", "5.1", "7.1", "9.1", "14.1", "102.1").inOrder()
         repository.recordTuned(first[0], 7, 177_000_000, "VHF_HI", false)
         repository.refreshLineup(device)
         val again = repository.channelList(device.deviceId).first()

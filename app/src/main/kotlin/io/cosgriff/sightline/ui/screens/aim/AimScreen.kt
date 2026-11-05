@@ -75,6 +75,7 @@ import io.cosgriff.sightline.data.settings.Settings
 import io.cosgriff.sightline.protocol.RfChannels
 import io.cosgriff.sightline.ui.components.HealthChip
 import io.cosgriff.sightline.ui.components.KeepScreenOn
+import io.cosgriff.sightline.ui.components.rememberHomeFix
 import io.cosgriff.sightline.ui.components.LocalNetworkCard
 import io.cosgriff.sightline.ui.components.PolarAim
 import io.cosgriff.sightline.ui.components.bandLabel

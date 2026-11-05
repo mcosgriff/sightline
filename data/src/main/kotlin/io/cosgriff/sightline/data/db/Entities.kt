@@ -133,6 +133,31 @@ data class WeatherHourEntity(
     val precipMm: Double?,
 )
 
+/**
+ * What History shows of a session, computed once it ends (SPEC Screens › History) and kept when old readings are
+ * deleted (SPEC "Storage"). [goodShare] is 0..1, null with no readings; [health] a `Health` name; [sparkline] the
+ * lowest snq of each of a few stretches, comma-separated, empty where nothing was read.
+ */
+@Entity(
+    tableName = "session_summary",
+    foreignKeys = [ForeignKey(entity = SessionEntity::class, parentColumns = ["id"], childColumns = ["sessionId"], onDelete = ForeignKey.CASCADE)],
+)
+data class SessionSummaryEntity(
+    @PrimaryKey val sessionId: Long,
+    val readings: Int,
+    val goodShare: Double?,
+    val dips: Int,
+    val medianSnq: Int?,
+    val health: String?,
+    val sparkline: String,
+)
+
+/** A session with its summary, if made yet. */
+data class SessionWithSummary(
+    @androidx.room.Embedded val session: SessionEntity,
+    @androidx.room.Relation(parentColumn = "id", entityColumn = "sessionId") val summary: SessionSummaryEntity?,
+)
+
 class Converters {
     @TypeConverter
     fun fromList(value: List<String>): String = value.joinToString(SEPARATOR)
