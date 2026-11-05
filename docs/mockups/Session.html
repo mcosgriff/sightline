@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sightline Session detail</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Roboto+Mono:wght@500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#7DB8FF}a:hover{color:#A9D0FF}
+</style>
+</head>
+<body>
+<div style="width: 390px; height: 1560px; box-sizing: border-box; background: #0E1114; color: #E8ECEF; font-family: Inter, system-ui, sans-serif; display: flex; flex-direction: column; overflow: hidden">
+  <header style="display: flex; align-items: center; gap: 8px; padding: 12px 16px 0 8px">
+    <a href="Monitor.html" aria-label="Back" style="width: 44px; height: 44px; border-radius: 22px; color: #C5CDD4; display: flex; align-items: center; justify-content: center; text-decoration: none">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg>
+    </a>
+    <div style="display: flex; flex-direction: column; gap: 1px; flex: 1">
+      <span style="font-size: 20px; font-weight: 600">Weekend monitor</span>
+      <span style="font-size: 12px; color: #9AA4AE">Nov 2, 6 PM – Nov 4, 6 AM · 36 h · 9.1 and 4.1</span>
+    </div>
+    <button aria-label="Export" style="width: 44px; height: 44px; border-radius: 22px; border: none; background: transparent; color: #C5CDD4; display: flex; align-items: center; justify-content: center">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 4v11"></path><path d="M7 10l5 5 5-5"></path><path d="M5 20h14"></path></svg>
+    </button>
+  </header>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 14px 16px 0">
+    <div style="background: #171B20; border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; color: #9AA4AE">Time in good health</span><span style="font-family: 'Roboto Mono', monospace; font-size: 26px; font-weight: 600; color: #4CC38A">97.2%</span></div>
+    <div style="background: #171B20; border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; color: #9AA4AE">Dips</span><span style="font-family: 'Roboto Mono', monospace; font-size: 26px; font-weight: 600; color: #F2685C">23</span></div>
+    <div style="background: #171B20; border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; color: #9AA4AE">Longest dropout</span><span style="font-family: 'Roboto Mono', monospace; font-size: 26px; font-weight: 600">1m 04s</span></div>
+    <div style="background: #171B20; border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; color: #9AA4AE">Median quality</span><span style="font-family: 'Roboto Mono', monospace; font-size: 26px; font-weight: 600">85</span></div>
+  </div>
+
+  <h2 style="margin: 22px 20px 8px; font-size: 15px; font-weight: 600">Diagnosis</h2>
+  <div style="display: flex; flex-direction: column; gap: 10px; padding: 0 16px">
+    <div style="background: #171B20; border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 6px; border: 1px solid #2A3138">
+      <div style="display: flex; justify-content: space-between; align-items: center">
+        <span style="font-size: 16px; font-weight: 600">Dips follow the wind</span>
+        <span style="font-size: 11px; font-weight: 600; color: #0E1114; background: #F2B33D; border-radius: 8px; padding: 3px 8px">Likely</span>
+      </div>
+      <span style="font-size: 13px; color: #C5CDD4">Dip rate was 4.2× higher with gusts over 20 mph. 19 of 23 dips fell on Nov 3 between noon and 6 PM.</span>
+      <span style="font-size: 13px; color: #7DB8FF">Fix: secure the mast and antenna; check outdoor connectors.</span>
+    </div>
+    <div style="background: #171B20; border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 6px; border: 1px solid #2A3138">
+      <div style="display: flex; justify-content: space-between; align-items: center">
+        <span style="font-size: 16px; font-weight: 600">4.1 is weaker overall</span>
+        <span style="font-size: 11px; font-weight: 600; color: #E8ECEF; background: #2A3138; border-radius: 8px; padding: 3px 8px">Possible</span>
+      </div>
+      <span style="font-size: 13px; color: #C5CDD4">Median quality 71 on 4.1 vs 87 on 9.1, at every hour.</span>
+      <span style="font-size: 13px; color: #7DB8FF">Fix: check that tower's direction in a signal report.</span>
+    </div>
+  </div>
+
+  <h2 style="margin: 22px 20px 8px; font-size: 15px; font-weight: 600">Signal quality and wind</h2>
+  <div style="margin: 0 16px; padding: 12px; background: #171B20; border-radius: 16px; display: flex; flex-direction: column; gap: 8px">
+    <div style="display: flex; gap: 14px; font-size: 12px; color: #9AA4AE">
+      <span style="display: flex; align-items: center; gap: 5px"><span style="width: 14px; height: 2px; background: #7DB8FF"></span>9.1 quality</span>
+      <span style="display: flex; align-items: center; gap: 5px"><span style="width: 14px; height: 2px; background: #C99BFF"></span>4.1 quality</span>
+      <span style="display: flex; align-items: center; gap: 5px"><span style="width: 10px; height: 10px; border-radius: 2px; background: #3A434C"></span>Gusts</span>
+    </div>
+    <svg width="334" height="210" viewBox="0 0 358 224" role="img" aria-label="Two-day timeline: signal quality dips cluster on the afternoon of Nov 3, when wind gusts peak">
+      <rect x="179" y="10" width="60" height="112" fill="rgba(242,104,92,0.12)"></rect>
+      <line x1="0" y1="32" x2="358" y2="32" stroke="#3A434C" stroke-dasharray="3 3"></line>
+      <text x="354" y="28" text-anchor="end" font-family="Inter, sans-serif" font-size="10" fill="#6B7580">80</text>
+      <path d="M0 26L30 25L60 26L90 25L120 26L150 25L178 27L185 70L189 28L196 88L200 29L204 62L208 27L213 96L217 30L222 74L226 28L230 66L234 27L245 26L275 25L305 26L335 25L358 26" fill="none" stroke="#7DB8FF" stroke-width="2" stroke-linejoin="round"></path>
+      <path d="M0 42L30 43L60 42L90 44L120 43L150 42L178 44L186 82L191 45L198 104L203 46L210 78L215 44L222 110L227 45L233 86L238 44L245 43L275 42L305 44L335 43L358 42" fill="none" stroke="#C99BFF" stroke-width="2" stroke-linejoin="round"></path>
+      <line x1="0" y1="122" x2="358" y2="122" stroke="#2A3138"></line>
+      <rect x="1" y="192.8" width="17" height="7.2" fill="#3A434C"></rect>
+      <rect x="21" y="194" width="17" height="6" fill="#3A434C"></rect>
+      <rect x="41" y="195.2" width="17" height="4.8" fill="#3A434C"></rect>
+      <rect x="61" y="195.2" width="17" height="4.8" fill="#3A434C"></rect>
+      <rect x="80" y="194" width="17" height="6" fill="#3A434C"></rect>
+      <rect x="100" y="192.8" width="17" height="7.2" fill="#3A434C"></rect>
+      <rect x="120" y="190.4" width="17" height="9.6" fill="#3A434C"></rect>
+      <rect x="140" y="188" width="17" height="12" fill="#3A434C"></rect>
+      <rect x="160" y="183.2" width="17" height="16.8" fill="#3A434C"></rect>
+      <rect x="180" y="173.6" width="17" height="26.4" fill="#F2B33D" fill-opacity="0.7"></rect>
+      <rect x="199" y="166.4" width="17" height="33.6" fill="#F2B33D" fill-opacity="0.7"></rect>
+      <rect x="219" y="162.8" width="17" height="37.2" fill="#F2B33D" fill-opacity="0.7"></rect>
+      <rect x="239" y="171.2" width="17" height="28.8" fill="#3A434C"></rect>
+      <rect x="259" y="180.8" width="17" height="19.2" fill="#3A434C"></rect>
+      <rect x="279" y="188" width="17" height="12" fill="#3A434C"></rect>
+      <rect x="299" y="190.4" width="17" height="9.6" fill="#3A434C"></rect>
+      <rect x="318" y="191.6" width="17" height="8.4" fill="#3A434C"></rect>
+      <rect x="338" y="192.8" width="17" height="7.2" fill="#3A434C"></rect>
+      <line x1="0" y1="200" x2="358" y2="200" stroke="#2A3138"></line>
+      <text x="0" y="140" font-family="Inter, sans-serif" font-size="10" fill="#6B7580">quality</text>
+      <text x="0" y="156" font-family="Inter, sans-serif" font-size="10" fill="#6B7580">gusts, mph</text>
+      <text x="0" y="218" font-family="Inter, sans-serif" font-size="11" fill="#9AA4AE">Nov 2 6 PM</text>
+      <text x="120" y="218" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="#9AA4AE">Nov 3 6 AM</text>
+      <text x="239" y="218" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="#9AA4AE">6 PM</text>
+      <text x="358" y="218" text-anchor="end" font-family="Inter, sans-serif" font-size="11" fill="#9AA4AE">Nov 4 6 AM</text>
+      <text x="209" y="22" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" font-weight="600" fill="#F2685C">19 dips</text>
+    </svg>
+  </div>
+
+  <h2 style="margin: 22px 20px 4px; font-size: 15px; font-weight: 600">When dips happen</h2>
+  <span style="margin: 0 20px 8px; font-size: 12px; color: #9AA4AE">Share of each hour below quality 80</span>
+  <div style="margin: 0 16px; padding: 12px; background: #171B20; border-radius: 16px; display: flex; flex-direction: column; gap: 6px">
+    
+      <div style="display: flex; align-items: center; gap: 8px">
+        <span style="width: 30px; font-family: 'Roboto Mono', monospace; font-size: 12px">9.1</span>
+        <div style="flex: 1; display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); gap: 2px">
+          
+            <div style="height: 22px; border-radius: 3px; background: #232A31"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: #232A31"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: #232A31"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: #232A31"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: #232A31"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: #232A31"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: #232A31"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: #232A31"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: #232A31"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,0.26)"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,0.26)"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,0.35)"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,0.43)"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,0.60)"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,0.76)"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,0.85)"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,0.68)"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,0.51)"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,0.35)"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,0.26)"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: #232A31"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: #232A31"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: #232A31"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: #232A31"></div>
+          
+        </div>
+      </div>
+    
+      <div style="display: flex; align-items: center; gap: 8px">
+        <span style="width: 30px; font-family: 'Roboto Mono', monospace; font-size: 12px">4.1</span>
+        <div style="flex: 1; display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); gap: 2px">
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,0.26)"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,0.26)"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,0.26)"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,0.26)"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,0.26)"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,0.26)"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,0.35)"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,0.35)"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,0.35)"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,0.43)"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,0.43)"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,0.51)"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,0.68)"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,0.93)"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,1.00)"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,1.00)"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,1.00)"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,0.76)"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,0.51)"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,0.43)"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,0.35)"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,0.26)"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,0.26)"></div>
+          
+            <div style="height: 22px; border-radius: 3px; background: rgba(242,104,92,0.26)"></div>
+          
+        </div>
+      </div>
+    
+    <div style="display: flex; justify-content: space-between; padding-left: 38px; font-size: 10px; color: #9AA4AE"><span>12 AM</span><span>6 AM</span><span>12 PM</span><span>6 PM</span><span>11 PM</span></div>
+    <div style="display: flex; align-items: center; gap: 6px; padding-left: 38px; font-size: 10px; color: #9AA4AE">
+      <span>0%</span>
+      <span style="width: 80px; height: 8px; border-radius: 2px; background: linear-gradient(90deg, #232A31, #F2685C)"></span>
+      <span>12%+</span>
+    </div>
+  </div>
+
+  <h2 style="margin: 22px 20px 8px; font-size: 15px; font-weight: 600">Quality distribution</h2>
+  <div style="margin: 0 16px; padding: 12px; background: #171B20; border-radius: 16px; display: flex; flex-direction: column; gap: 6px">
+    <div style="height: 96px; display: flex; align-items: flex-end; gap: 3px">
+      
+        <div style="flex: 1; border-radius: 2px 2px 0 0; min-height: 1px; height: 0px; background: #F2685C"></div>
+      
+        <div style="flex: 1; border-radius: 2px 2px 0 0; min-height: 1px; height: 0px; background: #F2685C"></div>
+      
+        <div style="flex: 1; border-radius: 2px 2px 0 0; min-height: 1px; height: 1px; background: #F2685C"></div>
+      
+        <div style="flex: 1; border-radius: 2px 2px 0 0; min-height: 1px; height: 1px; background: #F2685C"></div>
+      
+        <div style="flex: 1; border-radius: 2px 2px 0 0; min-height: 1px; height: 1px; background: #F2685C"></div>
+      
+        <div style="flex: 1; border-radius: 2px 2px 0 0; min-height: 1px; height: 1px; background: #F2685C"></div>
+      
+        <div style="flex: 1; border-radius: 2px 2px 0 0; min-height: 1px; height: 1px; background: #F2685C"></div>
+      
+        <div style="flex: 1; border-radius: 2px 2px 0 0; min-height: 1px; height: 2px; background: #F2685C"></div>
+      
+        <div style="flex: 1; border-radius: 2px 2px 0 0; min-height: 1px; height: 2px; background: #F2685C"></div>
+      
+        <div style="flex: 1; border-radius: 2px 2px 0 0; min-height: 1px; height: 3px; background: #F2685C"></div>
+      
+        <div style="flex: 1; border-radius: 2px 2px 0 0; min-height: 1px; height: 4px; background: #F2685C"></div>
+      
+        <div style="flex: 1; border-radius: 2px 2px 0 0; min-height: 1px; height: 5px; background: #F2685C"></div>
+      
+        <div style="flex: 1; border-radius: 2px 2px 0 0; min-height: 1px; height: 7px; background: #F2B33D"></div>
+      
+        <div style="flex: 1; border-radius: 2px 2px 0 0; min-height: 1px; height: 12px; background: #F2B33D"></div>
+      
+        <div style="flex: 1; border-radius: 2px 2px 0 0; min-height: 1px; height: 24px; background: #F2B33D"></div>
+      
+        <div style="flex: 1; border-radius: 2px 2px 0 0; min-height: 1px; height: 54px; background: #F2B33D"></div>
+      
+        <div style="flex: 1; border-radius: 2px 2px 0 0; min-height: 1px; height: 96px; background: #4CC38A"></div>
+      
+        <div style="flex: 1; border-radius: 2px 2px 0 0; min-height: 1px; height: 72px; background: #4CC38A"></div>
+      
+        <div style="flex: 1; border-radius: 2px 2px 0 0; min-height: 1px; height: 24px; background: #4CC38A"></div>
+      
+        <div style="flex: 1; border-radius: 2px 2px 0 0; min-height: 1px; height: 5px; background: #4CC38A"></div>
+      
+    </div>
+    <div style="display: flex; justify-content: space-between; font-size: 10px; color: #9AA4AE"><span>0</span><span>50</span><span>80</span><span>100</span></div>
+  </div>
+
+  <div style="display: flex; justify-content: space-between; align-items: baseline; margin: 22px 20px 4px">
+    <h2 style="margin: 0; font-size: 15px; font-weight: 600">Events</h2>
+    <a href="#" style="font-size: 13px">All 23</a>
+  </div>
+  <div style="display: flex; flex-direction: column; padding: 0 16px">
+    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 4px; border-bottom: 1px solid #1C2227">
+      <div style="display: flex; flex-direction: column; gap: 1px"><span style="font-size: 14px">Nov 3, 3:52 PM · 4.1 · 1m 04s</span><span style="font-size: 12px; color: #9AA4AE">Lock lost · gusts 31 mph</span></div>
+      <span style="font-size: 11px; font-weight: 600; color: #F2685C">Dropout</span>
+    </div>
+    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 4px; border-bottom: 1px solid #1C2227">
+      <div style="display: flex; flex-direction: column; gap: 1px"><span style="font-size: 14px">Nov 3, 3:49 PM · 9.1 · 12 s</span><span style="font-size: 12px; color: #9AA4AE">Lowest quality 36 · gusts 31 mph</span></div>
+      <span style="font-size: 11px; font-weight: 600; color: #F2685C">Dip</span>
+    </div>
+    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 4px; border-bottom: 1px solid #1C2227">
+      <div style="display: flex; flex-direction: column; gap: 1px"><span style="font-size: 14px">Nov 3, 2:15 PM · 9.1 · 6 s</span><span style="font-size: 12px; color: #9AA4AE">Lowest quality 58 · gusts 26 mph</span></div>
+      <span style="font-size: 11px; font-weight: 600; color: #F2B33D">Dip</span>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 18px 16px 24px">
+    <button style="height: 48px; border-radius: 24px; border: 1px solid #2A3138; background: transparent; color: #E8ECEF; font-size: 14px; font-weight: 500">Export CSV</button>
+    <button style="height: 48px; border-radius: 24px; border: none; background: #5AA9FF; color: #0E1114; font-size: 14px; font-weight: 600">Share report</button>
+  </div>
+</div>
+</body>
+</html>

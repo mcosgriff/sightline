@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sightline Monitor running</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Roboto+Mono:wght@500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#7DB8FF}a:hover{color:#A9D0FF}
+</style>
+</head>
+<body>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #0E1114; color: #E8ECEF; font-family: Inter, system-ui, sans-serif; display: flex; flex-direction: column; overflow: hidden">
+  <header style="display: flex; flex-direction: column; gap: 2px; padding: 16px 20px 0">
+    <div style="display: flex; align-items: center; gap: 8px">
+      <span style="width: 10px; height: 10px; border-radius: 5px; background: #F2685C; box-shadow: 0 0 0 4px rgba(242,104,92,0.2)"></span>
+      <span style="font-size: 20px; font-weight: 600">Monitoring 9.1</span>
+    </div>
+    <span style="font-size: 12px; color: #9AA4AE">Living room HDHomeRun · tuner 1 · 1 reading per second</span>
+  </header>
+
+  <div style="padding: 14px 20px 0; display: flex; flex-direction: column; gap: 6px">
+    <div style="display: flex; justify-content: space-between; align-items: baseline">
+      <span style="font-family: 'Roboto Mono', monospace; font-size: 30px; font-weight: 600">6h 12m</span>
+      <span style="font-size: 13px; color: #9AA4AE">of 12h · ends 9:00 AM</span>
+    </div>
+    <div style="height: 6px; border-radius: 3px; background: #232A31"><div style="width: 52%; height: 6px; border-radius: 3px; background: #5AA9FF"></div></div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 14px 16px 0">
+    <div style="background: #171B20; border-radius: 14px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 11px; color: #9AA4AE">Dips</span><span style="font-family: 'Roboto Mono', monospace; font-size: 22px; font-weight: 600; color: #F2685C">4</span></div>
+    <div style="background: #171B20; border-radius: 14px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 11px; color: #9AA4AE">Longest</span><span style="font-family: 'Roboto Mono', monospace; font-size: 22px; font-weight: 600">38 s</span></div>
+    <div style="background: #171B20; border-radius: 14px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 11px; color: #9AA4AE">Time good</span><span style="font-family: 'Roboto Mono', monospace; font-size: 22px; font-weight: 600; color: #4CC38A">98.9%</span></div>
+  </div>
+
+  <div style="margin: 14px 16px 0; padding: 12px; background: #171B20; border-radius: 16px; display: flex; flex-direction: column; gap: 6px">
+    <div style="display: flex; justify-content: space-between; font-size: 12px; color: #9AA4AE"><span>Signal quality, so far</span><span><span style="display: inline-block; width: 10px; height: 10px; border-radius: 2px; background: rgba(242,104,92,0.35); vertical-align: -1px"></span> dip</span></div>
+    <svg width="334" height="160" viewBox="0 0 358 172" role="img" aria-label="Signal quality over the first six hours, steady near 86 with four short dips">
+      <rect x="39" y="10" width="8" height="130" fill="rgba(242,104,92,0.18)"></rect>
+      <rect x="93" y="10" width="11" height="130" fill="rgba(242,104,92,0.18)"></rect>
+      <rect x="149" y="10" width="8" height="130" fill="rgba(242,104,92,0.18)"></rect>
+      <rect x="171" y="10" width="5" height="130" fill="rgba(242,104,92,0.18)"></rect>
+      <line x1="0" y1="36" x2="358" y2="36" stroke="#3A434C" stroke-dasharray="3 3"></line>
+      <line x1="0" y1="140" x2="358" y2="140" stroke="#2A3138"></line>
+      <rect x="186" y="10" width="172" height="130" fill="#12161A"></rect>
+      <path d="M0 30L20 28L38 31L42 70L46 32L70 29L92 30L95 88L99 60L103 31L130 28L148 30L151 112L156 34L170 29L172 66L175 30L186 28" fill="none" stroke="#7DB8FF" stroke-width="2" stroke-linejoin="round"></path>
+      <circle cx="186" cy="28" r="4" fill="#7DB8FF"></circle>
+      <text x="272" y="80" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="#6B7580">still to come</text>
+      <text x="0" y="160" font-family="Inter, sans-serif" font-size="11" fill="#9AA4AE">9 PM</text>
+      <text x="89" y="160" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="#9AA4AE">12 AM</text>
+      <text x="179" y="160" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="#9AA4AE">3 AM</text>
+      <text x="268" y="160" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="#9AA4AE">6 AM</text>
+      <text x="358" y="160" text-anchor="end" font-family="Inter, sans-serif" font-size="11" fill="#9AA4AE">9 AM</text>
+      <text x="354" y="32" text-anchor="end" font-family="Inter, sans-serif" font-size="10" fill="#6B7580">80</text>
+    </svg>
+  </div>
+
+  <div style="display: flex; justify-content: space-between; padding: 14px 20px 6px; font-size: 13px; font-weight: 600"><span>Recent dips</span><span style="font-weight: 400; color: #9AA4AE">Now: quality 87 · strength 88 · symbol 100</span></div>
+  <div style="display: flex; flex-direction: column; padding: 0 16px">
+    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 4px; border-bottom: 1px solid #1C2227">
+      <div style="display: flex; flex-direction: column; gap: 1px"><span style="font-size: 14px">2:41 AM · 5 s</span><span style="font-size: 12px; color: #9AA4AE">Lowest quality 63, symbol 92</span></div>
+      <span style="font-size: 11px; font-weight: 600; color: #F2B33D">Dip</span>
+    </div>
+    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 4px; border-bottom: 1px solid #1C2227">
+      <div style="display: flex; flex-direction: column; gap: 1px"><span style="font-size: 14px">2:17 AM · 38 s</span><span style="font-size: 12px; color: #9AA4AE">Lowest quality 22, lock lost 4 s</span></div>
+      <span style="font-size: 11px; font-weight: 600; color: #F2685C">Dropout</span>
+    </div>
+    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 4px; border-bottom: 1px solid #1C2227">
+      <div style="display: flex; flex-direction: column; gap: 1px"><span style="font-size: 14px">12:41 AM · 21 s</span><span style="font-size: 12px; color: #9AA4AE">Lowest quality 40, symbol 61</span></div>
+      <span style="font-size: 11px; font-weight: 600; color: #F2685C">Dip</span>
+    </div>
+  </div>
+
+  <div style="margin-top: auto; padding: 0 16px 12px; display: flex; flex-direction: column; gap: 8px">
+    <span style="font-size: 12px; color: #9AA4AE; text-align: center">Runs with the screen off. Keep the phone on a charger.</span>
+    <button style="height: 48px; border-radius: 24px; border: 1px solid #F2685C; background: transparent; color: #F2685C; font-size: 15px; font-weight: 600">Stop monitoring</button>
+  </div>
+
+  <nav style="height: 72px; border-top: 1px solid #1F252B; background: #12161A; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: center">
+    <a href="Devices.html" style="display: flex; flex-direction: column; align-items: center; gap: 4px; color: #9AA4AE; font-size: 12px; text-decoration: none"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="7" width="18" height="10" rx="2"></rect><path d="M7 17v2M17 17v2"></path></svg>Devices</a>
+    <a href="Live.html" style="display: flex; flex-direction: column; align-items: center; gap: 4px; color: #9AA4AE; font-size: 12px; text-decoration: none"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 16a8 8 0 1 1 16 0"></path><path d="M12 16l4-5"></path></svg>Live</a>
+    <a href="Monitor.html" style="display: flex; flex-direction: column; align-items: center; gap: 4px; color: #7DB8FF; font-size: 12px; font-weight: 600; text-decoration: none"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4"></path></svg>Monitor</a>
+    <a href="Session.html" style="display: flex; flex-direction: column; align-items: center; gap: 4px; color: #9AA4AE; font-size: 12px; text-decoration: none"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><path d="M12 8v4l3 2"></path></svg>History</a>
+  </nav>
+</div>
+</body>
+</html>

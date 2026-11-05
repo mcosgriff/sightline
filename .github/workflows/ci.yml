@@ -1,0 +1,63 @@
+# Runs on every pull request and push to main.
+# Action versions are pinned to commit SHAs; Dependabot keeps them current.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # Also validates the Gradle wrapper jar.
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+
+      - name: Unit tests
+        run: ./gradlew :protocol:test :analysis:test testDebugUnitTest
+
+      - name: Android lint
+        run: ./gradlew :app:lintDebug :data:lintDebug
+
+      # Release builds run R8; catches shrinking problems with Hilt and serialization before a tag does.
+      # No signing secrets here, so the APK is unsigned.
+      - name: Debug + release builds
+        run: ./gradlew :app:assembleDebug :app:assembleRelease
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: test-results
+          path: |
+            */build/test-results/
+            */build/reports/tests/
+          if-no-files-found: ignore
+
+      - name: Upload lint report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lint-report
+          path: |
+            app/build/reports/lint-results-debug.html
+            data/build/reports/lint-results-debug.html
+          if-no-files-found: ignore

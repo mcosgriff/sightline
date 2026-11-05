@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark by default, whatever the phone's own setting (SPEC "Color tokens"). -->
+    <style name="Theme.Sightline" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/background</item>
+    </style>
+</resources>

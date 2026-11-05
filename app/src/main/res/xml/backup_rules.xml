@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+   Backup rules for Android 11 and lower; Android 12 and up read data_extraction_rules.xml. Keep the two in step.
+   Only the settings are backed up. The readings database can pass Auto Backup's 25 MB cap, and the active tuner
+   lock (kept apart from the settings) means nothing on another phone.
+   See https://developer.android.com/guide/topics/data/autobackup
+-->
+<full-backup-content>
+    <include domain="file" path="datastore/settings.preferences_pb" />
+</full-backup-content>

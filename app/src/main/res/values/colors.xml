@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The window behind Compose, seen for a moment at launch: the dark theme's `bg` token (SPEC "Color tokens"). -->
+    <color name="background">#FF0E1114</color>
+    <!-- The launcher icon: `bg` behind, `accent` arc. -->
+    <color name="ic_launcher_background">#FF0E1114</color>
+</resources>

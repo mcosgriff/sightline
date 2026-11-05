@@ -1,0 +1,19 @@
+<resources>
+    <string name="app_name">Sightline</string>
+
+    <!-- Bottom bar -->
+    <string name="nav_devices">Devices</string>
+    <string name="nav_live">Live</string>
+    <string name="nav_monitor">Monitor</string>
+    <string name="nav_history">History</string>
+
+    <!-- Screens not built yet. Each says so plainly, so an unfinished screen never looks like an empty result. -->
+    <string name="devices_title">Devices</string>
+    <string name="devices_not_built">Not built yet. HDHomeRun tuners on your Wi-Fi will be listed here.</string>
+    <string name="live_title">Live</string>
+    <string name="live_not_built">Not built yet. Live signal gauges for one tuner and channel will be here.</string>
+    <string name="monitor_title">Monitor</string>
+    <string name="monitor_not_built">Not built yet. Hours-long signal logging will be set up and watched here.</string>
+    <string name="history_title">History</string>
+    <string name="history_not_built">Not built yet. Saved sessions will be listed here, newest first.</string>
+</resources>

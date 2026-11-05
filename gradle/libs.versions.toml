@@ -1,0 +1,86 @@
+[versions]
+# Built with Android Studio; keep AGP current via Studio's AGP Upgrade Assistant.
+agp = "9.5.0"
+kotlin = "2.4.21"
+ksp = "2.3.12"
+coroutines = "1.11.0"
+serialization = "1.12.0"
+
+core-ktx = "1.19.1"
+activity-compose = "1.13.0"
+lifecycle = "2.11.0"
+navigation3 = "1.2.1"
+compose-bom = "2026.09.00"
+
+hilt = "2.60.1"
+hilt-androidx = "1.4.0"
+
+room = "2.8.5"
+datastore = "1.3.0"
+okhttp = "5.5.1"
+vico = "3.3.1"
+
+junit = "4.13.2"
+truth = "1.4.5"
+turbine = "1.2.1"
+# Robolectric (test only) and the Android framework jar it runs the screen tests on (`@Config(sdk = [35])`).
+# Robolectric would fetch that jar itself at test time; Gradle resolves and caches it instead (root
+# build.gradle.kts). Each Robolectric release names its own builds of it, so these move together: on a Robolectric
+# upgrade, take the version from its `AndroidSdk` list.
+robolectric = "4.17"
+robolectric-androidAll-sdk35 = "15-robolectric-13954326-i7"
+
+[libraries]
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
+kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
+
+androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "core-ktx" }
+androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activity-compose" }
+androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
+androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
+androidx-navigation3-runtime = { module = "androidx.navigation3:navigation3-runtime", version.ref = "navigation3" }
+androidx-navigation3-ui = { module = "androidx.navigation3:navigation3-ui", version.ref = "navigation3" }
+androidx-lifecycle-viewmodel-navigation3 = { module = "androidx.lifecycle:lifecycle-viewmodel-navigation3", version.ref = "lifecycle" }
+
+compose-bom = { module = "androidx.compose:compose-bom", version.ref = "compose-bom" }
+compose-ui = { module = "androidx.compose.ui:ui" }
+compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
+compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
+compose-material3 = { module = "androidx.compose.material3:material3" }
+compose-material-icons = { module = "androidx.compose.material:material-icons-extended" }
+
+hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hilt" }
+hilt-compiler = { module = "com.google.dagger:hilt-android-compiler", version.ref = "hilt" }
+hilt-lifecycle-viewmodel-compose = { module = "androidx.hilt:hilt-lifecycle-viewmodel-compose", version.ref = "hilt-androidx" }
+
+room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
+room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
+room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
+androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
+
+# The JSON endpoints on the tuner (discover.json, lineup.json, status.json) and Open-Meteo.
+okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
+
+# Timeline and histogram charts. Gauges, heatmap, range bars and the polar plot are our own Canvas code.
+vico-compose-m3 = { module = "com.patrykandpatrick.vico:compose-m3", version.ref = "vico" }
+
+junit = { module = "junit:junit", version.ref = "junit" }
+truth = { module = "com.google.truth:truth", version.ref = "truth" }
+turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
+# Test only: the screens drawn on the JVM (app/src/test), through Robolectric.
+robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
+robolectric-androidAll-sdk35 = { module = "org.robolectric:android-all-instrumented", version.ref = "robolectric-androidAll-sdk35" }
+compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
+compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
+room = { id = "androidx.room", version.ref = "room" }

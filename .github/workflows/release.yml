@@ -1,0 +1,135 @@
+# Builds a signed release APK for a tag like v0.1.0 and attaches it to that tag's GitHub Release,
+# with a SHA-256 checksum and a build-provenance attestation.
+# Normally started by release-please.yml when its release PR is merged; pushing a v* tag by hand
+# also works.
+# Obtainium watches the Releases page of this repo.
+# This workflow sees the signing key, so every action is pinned to a commit SHA
+# (Dependabot keeps the pins current).
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch: # run against a v* tag (release-please.yml does this)
+
+# Read-only unless a job says otherwise.
+permissions:
+  contents: read
+
+jobs:
+  # The tests are CI's (ci.yml), not this workflow's: the tag's commit is the one CI ran on main, so the
+  # release waits for that run instead of repeating it after approval. This job is outside the `release`
+  # environment, so a red CI stops the release before anyone is asked to approve it. release-please.yml
+  # starts this workflow as the release PR merges, while CI on the same commit is still running, so it
+  # waits for CI to finish. A failed or cancelled CI run: re-run it, then re-run this workflow.
+  ci-green:
+    # Only ever build a release from a version tag (`build` needs this job, so it is skipped too).
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    permissions:
+      actions: read  # read ci.yml's runs
+    steps:
+      - name: Wait for CI to pass on this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+        run: |
+          started=$(date +%s)
+          while :; do
+            runs=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$SHA" \
+              --json status,conclusion,url)
+            if [ "$(jq 'any(.[]; .conclusion == "success")' <<<"$runs")" = true ]; then
+              echo "CI passed on $SHA: $(jq -r '.[] | select(.conclusion == "success") | .url' <<<"$runs" | head -1)"
+              exit 0
+            fi
+            if [ "$(jq 'length > 0 and all(.[]; .status == "completed")' <<<"$runs")" = true ]; then
+              echo "::error::CI did not pass on $SHA. Re-run it, then re-run this workflow."
+              jq -r '.[] | "\(.conclusion): \(.url)"' <<<"$runs"
+              exit 1
+            fi
+            if [ "$(jq 'length' <<<"$runs")" = 0 ] && [ $(( $(date +%s) - started )) -gt 600 ]; then
+              echo "::error::No CI run for $SHA after 10 minutes. Run ci.yml on this commit, then re-run this workflow."
+              exit 1
+            fi
+            sleep 30
+          done
+
+  build:
+    needs: ci-green
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write      # create the GitHub Release
+      id-token: write      # sign the provenance attestation
+      attestations: write  # store the attestation
+    # The signing secrets live in this environment, which requires approval and only accepts v* tags.
+    environment: release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # No cache: the signed APK is built from what dependency verification checks, never from compiled
+      # outputs another workflow left in main's cache.
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          cache-disabled: true
+
+      - name: Decode signing keystore
+        run: printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+
+      - name: Build signed APK
+        run: ./gradlew :app:assembleRelease -PversionName=${GITHUB_REF_NAME#v} -PversionCode=${{ github.run_number }}
+        env:
+          SIGHTLINE_KEYSTORE: ${{ runner.temp }}/release.jks
+          SIGHTLINE_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          SIGHTLINE_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          SIGHTLINE_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Remove keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.jks"
+
+      - name: Rename APK and write checksum
+        run: |
+          apk="sightline-${GITHUB_REF_NAME}.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$apk"
+          sha256sum "$apk" > "$apk.sha256"
+          cat "$apk.sha256"
+
+      # Lets anyone verify the APK came from this workflow and tag:
+      #   gh attestation verify sightline-vX.Y.Z.apk --repo <owner>/sightline
+      # The same signed provenance is attached to the release as sightline-vX.Y.Z.apk.intoto.jsonl, for
+      # verifying without GitHub's API and for OpenSSF Scorecard's Signed-Releases check.
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        id: attest
+        with:
+          subject-path: sightline-${{ github.ref_name }}.apk
+
+      - name: Keep the provenance bundle
+        env:
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        run: cp "$BUNDLE" "sightline-${GITHUB_REF_NAME}.apk.intoto.jsonl"
+
+      # Attach the files to the release release-please wrote. Done with gh
+      # rather than softprops/action-gh-release: from 0.11.0 GitHub refused that action's "update a release"
+      # call (403, "Resource not accessible by integration"), which also sends the tag name and commit.
+      # `gh release upload` sends only the assets.
+      - name: Attach to the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="$GITHUB_REF_NAME"
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            # A tag pushed by hand has no release yet.
+            gh release create "$tag" --verify-tag --title "$tag" --notes ""
+          fi
+          gh release upload "$tag" --clobber \
+            "sightline-$tag.apk" "sightline-$tag.apk.sha256" "sightline-$tag.apk.intoto.jsonl"
