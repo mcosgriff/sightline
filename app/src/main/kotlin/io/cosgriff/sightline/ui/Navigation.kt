@@ -38,3 +38,7 @@ data class Session(val id: Long) : NavKey
 /** Thresholds, units, theme and the rest. Opens from Live's top bar. */
 @Serializable
 data object Settings : NavKey
+
+/** Every tuner of Live's device at once, each on its own channel. Opens from Live's top bar. */
+@Serializable
+data object MultiTuner : NavKey

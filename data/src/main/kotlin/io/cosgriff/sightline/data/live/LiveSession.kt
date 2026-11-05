@@ -85,12 +85,15 @@ class LiveSession(
     var lastTuner: Int? = null
         private set
 
-    /** Runs until cancelled or the tuner is lost. Always releases what it claimed. */
-    suspend fun run(channel: Channel, tunerCount: Int) {
+    /**
+     * Runs until cancelled or the tuner is lost. Always releases what it claimed. With [only], uses that tuner
+     * and no other (the Multi-tuner grid's cells): when it's busy, waits for it as for all busy.
+     */
+    suspend fun run(channel: Channel, tunerCount: Int, only: Int? = null) {
         var waitedForOwn = false
         while (true) {
             _state.value = LiveState.Claiming(channel)
-            val order = (0 until tunerCount).sortedBy { if (it == lastTuner) -1 else it }
+            val order = only?.let { listOf(it) } ?: (0 until tunerCount).sortedBy { if (it == lastTuner) -1 else it }
             val stop = coroutineScope {
                 when (val claim = sessions.claim(this, channel.target, order)) {
                     is ClaimResult.Claimed -> {

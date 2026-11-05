@@ -41,6 +41,7 @@ import io.cosgriff.sightline.ui.screens.history.HistoryScreen
 import io.cosgriff.sightline.ui.screens.live.LiveActions
 import io.cosgriff.sightline.ui.screens.live.LiveScreen
 import io.cosgriff.sightline.ui.screens.monitor.MonitorScreen
+import io.cosgriff.sightline.ui.screens.multituner.MultiTunerScreen
 import io.cosgriff.sightline.ui.screens.session.SessionScreen
 import io.cosgriff.sightline.ui.screens.settings.SettingsScreen
 import io.cosgriff.sightline.ui.screens.sweep.SweepScreen
@@ -115,6 +116,7 @@ fun SightlineNavHost(
                 entry<Aim> { screen(Aim, navigator) }
                 entry<Sweep> { screen(Sweep, navigator) }
                 entry<Settings> { screen(Settings, navigator) }
+                entry<MultiTuner> { screen(MultiTuner, navigator) }
                 entry<Session> { screen(it, navigator) }
                 entry<ProtocolDebug> { screen(ProtocolDebug, navigator) }
             },
@@ -136,6 +138,7 @@ private fun AppScreen(key: NavKey, navigator: Navigator) {
                 onSweep = { navigator.push(Sweep) },
                 onMonitor = { navigator.showTab(Monitor) },
                 onSettings = { navigator.push(Settings) },
+                onTuners = { navigator.push(MultiTuner) },
                 onDevices = { navigator.showTab(Devices) },
             ),
         )
@@ -145,6 +148,7 @@ private fun AppScreen(key: NavKey, navigator: Navigator) {
         Aim -> AimScreen(onBack = navigator::back)
         Sweep -> SweepScreen(onBack = navigator::back)
         Settings -> SettingsScreen(onBack = navigator::back)
+        MultiTuner -> MultiTunerScreen(onBack = navigator::back)
         ProtocolDebug -> ProtocolDebugEntry()
     }
 }

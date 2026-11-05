@@ -763,4 +763,33 @@
         <item quantity="other">And %1$d more events in the events CSV.</item>
     </plurals>
     <string name="session_report_footer">Made with Sightline %1$s. Times are local (%2$s).</string>
+
+    <!-- Multi-tuner (SPEC Screens › 5). -->
+    <string name="tuners_title">All tuners</string>
+    <string name="tuners_back">Back</string>
+    <string name="tuners_open">All tuners</string>
+    <string name="tuners_hint">Each tuner on its own channel: a problem on one tuner or on all of them shows here. One idle tuner is kept free so a recording can still start. Tap a tuner to change its channel.</string>
+    <string name="tuners_no_device">Pick a tuner on Devices first.</string>
+    <string name="tuners_no_channels">This tuner has no channels yet. Scan for channels in the HDHomeRun app, then come back.</string>
+    <string name="tuners_tuner">Tuner %1$d</string>
+    <string name="tuners_channel">%1$s %2$s</string>
+    <string name="tuners_cell_action">Change channel</string>
+    <string name="tuners_stop">Stop this tuner</string>
+    <string name="tuners_off_idle">Idle</string>
+    <string name="tuners_off_spare">Kept free for recordings. Tap to use it anyway.</string>
+    <string name="tuners_off_tap">Tap to pick a channel.</string>
+    <string name="tuners_off_busy">In use</string>
+    <string name="tuners_off_busy_by">In use by %1$s.</string>
+    <string name="tuners_off_busy_other">In use by another client.</string>
+    <string name="tuners_off_unknown">No answer</string>
+    <string name="tuners_off_unknown_body">The tuner didn\'t say who has it.</string>
+    <string name="tuners_claiming">Tuning…</string>
+    <string name="tuners_cant_tune">Idle, but it can\'t tune this channel.</string>
+    <string name="tuners_waiting">Trying again every %1$d s.</string>
+    <string name="tuners_lost">Another client took it or changed its channel. Tap to try again.</string>
+    <string name="tuners_unknown_channel">The tuner doesn\'t know this channel any more. Tap to try again.</string>
+    <string name="tuners_unreachable">The tuner isn\'t answering. Trying again in a few seconds.</string>
+    <string name="tuners_numbers">SS %1$d · SEQ %2$d</string>
+    <string name="tuners_gauge_description">Tuner %1$d signal quality %2$d</string>
+    <string name="tuners_gauge_none">Tuner %1$d: no reading yet</string>
 </resources>

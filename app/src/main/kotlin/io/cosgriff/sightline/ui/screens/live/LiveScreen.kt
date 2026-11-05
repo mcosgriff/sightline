@@ -17,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -75,6 +76,7 @@ data class LiveActions(
     val onMonitor: () -> Unit,
     val onSettings: () -> Unit,
     val onDevices: () -> Unit,
+    val onTuners: () -> Unit = {},
 )
 
 @Composable
@@ -126,6 +128,11 @@ fun LiveContent(
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(stringResource(R.string.live_title), style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
                 if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+            }
+            if (setup is LiveSetup.Ready) {
+                IconButton(onClick = actions.onTuners) {
+                    Icon(Icons.Outlined.GridView, contentDescription = stringResource(R.string.tuners_open))
+                }
             }
             IconButton(onClick = actions.onSettings) {
                 Icon(Icons.Outlined.Settings, contentDescription = stringResource(R.string.live_settings))
