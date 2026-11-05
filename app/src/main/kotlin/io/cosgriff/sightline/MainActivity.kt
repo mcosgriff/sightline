@@ -12,6 +12,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -38,7 +39,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge(statusBarStyle = barStyle(ThemeMode.Default), navigationBarStyle = barStyle(ThemeMode.Default))
         setContent {
             // Nothing is drawn until the setting is read (a moment), so a light theme never flashes dark first.
-            val setting by settings.settings.map { it.theme }.collectAsStateWithLifecycle(initialValue = null)
+            val themes = remember { settings.settings.map { it.theme } }
+            val setting by themes.collectAsStateWithLifecycle(initialValue = null)
             val mode = setting?.mode() ?: return@setContent
             val systemDark = isSystemInDarkTheme()
             LaunchedEffect(mode, systemDark) {

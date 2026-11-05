@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.res.ResourcesCompat
+import androidx.core.graphics.withTranslation
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.cosgriff.sightline.R
 import io.cosgriff.sightline.analysis.SignalEvent
@@ -173,10 +174,7 @@ class SessionReportWriter @Inject constructor(@param:ApplicationContext private 
 
         fun paragraph(text: String, size: Float, color: Color, bold: Boolean = false, x: Float = MARGIN, w: Float = width) {
             val l = layout(text, paint(size, color, bold), w)
-            canvas.save()
-            canvas.translate(x, y)
-            l.draw(canvas)
-            canvas.restore()
+            canvas.withTranslation(x, y) { l.draw(this) }
             y += l.height + 2f
         }
 
@@ -194,10 +192,7 @@ class SessionReportWriter @Inject constructor(@param:ApplicationContext private 
                 val x = MARGIN + i * (w + gap)
                 canvas.drawRoundRect(RectF(x, y, x + w, y + h), 8f, 8f, box)
                 val l = layout(label, paint(8f, colors.textSecondary), w - 16f)
-                canvas.save()
-                canvas.translate(x + 8f, y + 7f)
-                l.draw(canvas)
-                canvas.restore()
+                canvas.withTranslation(x + 8f, y + 7f) { l.draw(this) }
                 canvas.drawText(value, x + 8f, y + h - 9f, paint(16f, colors.textPrimary, bold = true, numbers = true))
             }
             y += h

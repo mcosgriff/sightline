@@ -790,7 +790,7 @@
     <string name="tuners_unknown_channel">The tuner doesn\'t know this channel any more. Tap to try again.</string>
     <string name="tuners_unreachable">The tuner isn\'t answering. Trying again in a few seconds.</string>
     <string name="tuners_numbers">SS %1$d · SEQ %2$d</string>
-    <string name="tuners_gauge_description">Tuner %1$d signal quality %2$d</string>
+    <string name="tuners_gauge_description">Signal quality on tuner %1$d: %2$d</string>
     <string name="tuners_gauge_none">Tuner %1$d: no reading yet</string>
 
     <!-- Home-screen widget (SPEC Screens › 7). -->

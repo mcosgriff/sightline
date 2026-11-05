@@ -63,7 +63,7 @@ class MultiTunerContentTest {
         show(grid)
         compose.onNodeWithText("Tuner 0").assertExists()
         compose.onNodeWithText("9.1 KUSA-HD").assertExists()
-        compose.onNode(hasContentDescription("Tuner 0 signal quality 86")).assertExists()
+        compose.onNode(hasContentDescription("Signal quality on tuner 0: 86")).assertExists()
         compose.onNodeWithText("SS 88 · SEQ 100").assertExists()
         compose.onNodeWithText("Good").assertExists()
         compose.onNodeWithText("Idle, but it can't tune this channel.\nTrying again every 30 s.").assertExists()
