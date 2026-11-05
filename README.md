@@ -40,9 +40,23 @@ in [Obtainium](https://github.com/ImranR98/Obtainium), which installs and update
 download the APK from the [latest release](https://github.com/mcosgriff/sightline/releases/latest). Android 10
 or later.
 
+## Verify your download
+
+Every release APK is signed with the same key. Its SHA-256 certificate fingerprint is:
+
+```
+84:9C:00:D3:6A:48:F3:03:2C:59:28:8B:15:DA:FE:67:1D:32:DE:C9:7A:7F:D3:E3:DC:D3:4F:39:78:99:5A:89
+```
+
+Check an APK before installing it with `apksigner verify --print-certs sightline-vX.Y.Z.apk` (the
+"SHA-256 digest" line, without colons), or the installed app with
+[AppVerifier](https://github.com/soupslurpr/AppVerifier). Android also refuses an update signed with a
+different key.
+
 To check that an APK was built by this repo's release workflow from its tag:
 `gh attestation verify sightline-vX.Y.Z.apk --repo mcosgriff/sightline`. Each release also carries the signed
-provenance as `sightline-vX.Y.Z.apk.intoto.jsonl` and a SHA-256 checksum.
+provenance as `sightline-vX.Y.Z.apk.intoto.jsonl`, which `gh attestation verify` takes with `--bundle`, and a
+SHA-256 checksum of the APK.
 
 ## Building
 
