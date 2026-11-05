@@ -1,6 +1,7 @@
 package io.cosgriff.sightline.data.db
 
 import androidx.room.Dao
+import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
@@ -57,4 +58,33 @@ interface ChannelDao {
             "WHERE deviceId = :deviceId AND guideNumber = :guideNumber",
     )
     suspend fun recordTuned(deviceId: String, guideNumber: String, rf: Int?, hz: Long?, band: String?, atsc3: Boolean)
+}
+
+@Dao
+interface SessionDao {
+    @Insert
+    suspend fun insert(session: SessionEntity): Long
+
+    @Insert
+    suspend fun insertReadings(readings: List<ReadingEntity>)
+
+    /** A finished session and its readings, written together so a half-saved sweep never shows. */
+    @Transaction
+    suspend fun insertWithReadings(session: SessionEntity, readings: List<ReadingEntity>): Long {
+        val id = insert(session)
+        insertReadings(readings.map { it.copy(sessionId = id) })
+        return id
+    }
+
+    @Query("SELECT * FROM session WHERE id = :id")
+    suspend fun get(id: Long): SessionEntity?
+
+    @Query("SELECT * FROM session WHERE deviceId = :deviceId AND kind = :kind ORDER BY startedAt DESC")
+    fun observe(deviceId: String, kind: SessionKind): Flow<List<SessionEntity>>
+
+    @Query("SELECT * FROM reading WHERE sessionId = :sessionId ORDER BY ts, id")
+    suspend fun readings(sessionId: Long): List<ReadingEntity>
+
+    @Query("DELETE FROM session WHERE id = :id")
+    suspend fun delete(id: Long)
 }

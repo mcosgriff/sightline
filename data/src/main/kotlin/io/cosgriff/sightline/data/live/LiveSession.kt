@@ -87,6 +87,7 @@ class LiveSession(
 
     /** Runs until cancelled or the tuner is lost. Always releases what it claimed. */
     suspend fun run(channel: Channel, tunerCount: Int) {
+        var waitedForOwn = false
         while (true) {
             _state.value = LiveState.Claiming(channel)
             val order = (0 until tunerCount).sortedBy { if (it == lastTuner) -1 else it }
@@ -105,8 +106,15 @@ class LiveSession(
                         true
                     }
                     is ClaimResult.NoneFree -> {
-                        _state.value = LiveState.AllBusy(channel, claim.occupancy, busyRetry)
-                        delay(busyRetry)
+                        val held = leases.held.value
+                        if (leases.holdsAny(deviceId) && !waitedForOwn) {
+                            // Probably another screen of ours letting go: wait for that before saying all busy.
+                            waitedForOwn = true
+                            leases.awaitChange(held, OWN_RELEASE_WAIT)
+                        } else {
+                            _state.value = LiveState.AllBusy(channel, claim.occupancy, busyRetry)
+                            leases.awaitChange(held, busyRetry)
+                        }
                         false
                     }
                     ClaimResult.UnknownChannel -> {
@@ -151,5 +159,9 @@ class LiveSession(
             _state.value = watching
             delay(pollInterval)
         }
+    }
+
+    private companion object {
+        val OWN_RELEASE_WAIT = 3.seconds
     }
 }

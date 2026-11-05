@@ -4,6 +4,13 @@
     <!-- The LAN permissions (discovery, the control protocol, HTTP) come from :data's manifest, beside the code
          that uses them. The foreground service ones arrive with Monitor (milestone 4). -->
 
+    <!-- Aim: the tick on a new peak and the double buzz on lock loss. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Aim's "use true north": one coarse fix for home, stored to 2 decimal places (SPEC Privacy). -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- The compass is optional: without it Aim still reads the tuner, it just can't plot. -->
+    <uses-feature android:name="android.hardware.sensor.compass" android:required="false" />
+
     <application
         android:name=".SightlineApp"
         android:allowBackup="true"

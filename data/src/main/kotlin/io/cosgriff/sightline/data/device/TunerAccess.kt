@@ -7,10 +7,13 @@ import io.cosgriff.sightline.protocol.TunerSessions
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.withTimeoutOrNull
 import java.net.InetAddress
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.time.Duration
 
 /** The tuners this app holds right now, by device ID and tuner number. */
 @Singleton
@@ -20,6 +23,18 @@ class TunerLeases @Inject constructor() {
 
     fun add(deviceId: String, tuner: Int) = _held.update { it + (deviceId to tuner) }
     fun remove(deviceId: String, tuner: Int) = _held.update { it - (deviceId to tuner) }
+
+    /** Whether this app holds any tuner on [deviceId]. */
+    fun holdsAny(deviceId: String) = _held.value.any { it.first == deviceId }
+
+    /**
+     * Waits up to [timeout] for the set of held tuners to change from [since]. When every tuner looks busy and some
+     * are this app's own, one of them is usually being released (Live closing as Aim opens), so a claim retried on
+     * the change gets it at once instead of a retry period later.
+     */
+    suspend fun awaitChange(since: Set<Pair<String, Int>>, timeout: Duration) {
+        withTimeoutOrNull(timeout) { _held.first { it != since } }
+    }
 }
 
 /**

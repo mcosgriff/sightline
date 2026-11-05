@@ -44,12 +44,12 @@ Work milestone by milestone, in order. Each milestone ends with the app building
 
 ## Milestone 3 — Aim and Sweep
 
-- [ ] Heading provider from the rotation vector sensor (true north via `GeomagneticField` when a location is known).
-- [ ] `PolarAim` component; Aim screen per `mockups/Aim.png` (true black, giant number, seq bar, best heading, polar plot, tower bearing ticks, optional second tuner reading).
-- [ ] Tone mode (`AudioTrack` sine, 200–1200 Hz mapped to snq, stutter when seq < 100) and haptics (tick on new peak, double buzz on lock loss).
-- [ ] Sweep: iterate lineup with dwell time, progress ring, results per `mockups/Sweep.png` with `ChannelRangeBars`, saved as a `SWEEP` session.
-- [ ] Sweep compare view (per-channel delta vs a previous sweep).
-- **Done when:** a sweep over the Demo tuner's lineup produces the results screen and comparison works across two sweeps.
+- [x] Heading provider from the rotation vector sensor (true north via `GeomagneticField` when a location is known).
+- [x] `PolarAim` component; Aim screen per `mockups/Aim.png` (true black, giant number, seq bar, best heading, polar plot, tower bearing ticks, optional second tuner reading).
+- [x] Tone mode (`AudioTrack` sine, 200–1200 Hz mapped to snq, stutter when seq < 100) and haptics (tick on new peak, double buzz on lock loss).
+- [x] Sweep: iterate lineup with dwell time, progress ring, results per `mockups/Sweep.png` with `ChannelRangeBars`, saved as a `SWEEP` session.
+- [x] Sweep compare view (per-channel delta vs a previous sweep).
+- **Done when:** a sweep over the Demo tuner's lineup produces the results screen and comparison works across two sweeps. Checked on an API 37 emulator: two sweeps of the Demo tuner, results, the "vs sweep on" line and the compare view; Aim with the peak, plot, toggles and a second tuner. The emulator's compass is fixed, so turning, tone and haptics wait for a real phone (and a release build).
 
 ## Milestone 4 — Monitor
 

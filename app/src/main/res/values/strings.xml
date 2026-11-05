@@ -145,10 +145,139 @@
     <string name="monitor_not_built">Not built yet. Hours-long signal logging will be set up and watched here.</string>
     <string name="history_title">History</string>
     <string name="history_not_built">Not built yet. Saved sessions will be listed here, newest first.</string>
-    <string name="aim_title">Aim</string>
-    <string name="aim_not_built">Not built yet. One giant signal quality number and a compass plot, for aiming the antenna.</string>
-    <string name="sweep_title">Sweep</string>
-    <string name="sweep_not_built">Not built yet. Every channel tuned in turn and compared.</string>
     <string name="settings_title">Settings</string>
     <string name="settings_not_built">Not built yet. Thresholds, units, theme and data retention will be set here.</string>
+
+    <!-- Compass points on the Aim plot. -->
+    <string name="compass_n">N</string>
+    <string name="compass_e">E</string>
+    <string name="compass_s">S</string>
+    <string name="compass_w">W</string>
+
+    <!-- Channel range bars (Sweep). -->
+    <string name="range_row_description">%1$s: signal quality %2$d to %4$d, median %3$d</string>
+    <string name="range_no_value">—</string>
+    <string name="range_not_tuned">Not tuned</string>
+
+    <!-- Aim -->
+    <string name="aim_title">Aim</string>
+    <string name="aim_title_channel">Aim · %1$s %2$s</string>
+    <string name="aim_back">Back to Live</string>
+    <string name="aim_subtitle">Hold the phone to the mast</string>
+    <string name="aim_subtitle_tuner">Tuner %1$d · hold the phone to the mast</string>
+    <string name="aim_subtitle_rf">RF %1$d %2$s · hold the phone to the mast</string>
+    <string name="aim_subtitle_rf_tuner">RF %1$d %2$s · tuner %3$d · hold the phone to the mast</string>
+    <string name="aim_no_channel">Pick a device and channel on Live first.</string>
+    <string name="aim_signal_quality">SIGNAL QUALITY</string>
+    <string name="aim_no_value">—</string>
+    <string name="aim_waiting">Waiting for the first reading</string>
+    <string name="aim_value_description">Signal quality %1$d, %2$s</string>
+    <string name="aim_no_peak">No peak yet</string>
+    <string name="aim_best">Best %1$d</string>
+    <string name="aim_best_at">Best %1$d at %2$d°</string>
+    <string name="aim_now">· now %1$d°</string>
+    <string name="aim_claiming">Finding an idle tuner…</string>
+    <string name="aim_not_answering">The tuner isn’t answering. Still trying.</string>
+    <string name="aim_all_busy">Every tuner is in use by another client. Trying again within %1$d s.</string>
+    <string name="aim_lost">Another client took or retuned tuner %1$d. Aim stopped.</string>
+    <string name="aim_unknown_channel">The tuner refused this channel.</string>
+    <string name="aim_unreachable">The device isn’t answering. Trying again shortly.</string>
+    <string name="aim_retry">Retry</string>
+    <string name="aim_symbol_quality">Symbol quality</string>
+    <string name="aim_seq_description">Symbol quality %1$d, %2$s</string>
+    <string name="aim_seq_none">Symbol quality: no reading</string>
+    <string name="aim_add_second">Watch a second channel on another tuner</string>
+    <string name="aim_second">Second tuner · %1$s</string>
+    <string name="aim_second_value">%1$d %2$s</string>
+    <string name="aim_second_busy">No idle tuner</string>
+    <string name="aim_second_stopped">Stopped</string>
+    <string name="aim_second_tuning">Tuning…</string>
+    <string name="aim_second_none">No second channel</string>
+    <string name="aim_second_option">%1$s %2$s</string>
+    <string name="aim_plot_description">Polar plot of signal quality by compass heading</string>
+    <string name="aim_plot_description_peak">Polar plot of signal quality by compass heading. Best: %1$d, at %2$d°.</string>
+    <string name="aim_plot_no_compass">Polar plot, empty: this phone has no compass</string>
+    <string name="aim_legend_heading">Phone heading</string>
+    <string name="aim_legend_best">Best</string>
+    <string name="aim_legend_tower">Tower %1$s %2$d°</string>
+    <string name="aim_tower_a">A</string>
+    <string name="aim_tower_b">B</string>
+    <string name="aim_tower_c">C</string>
+    <string name="aim_towers_add">Add tower bearings</string>
+    <string name="aim_towers_edit">Edit towers</string>
+    <string name="aim_towers_title">Tower bearings</string>
+    <string name="aim_towers_body">Degrees from true north, 0 to 359, for example from a rabbitears.info signal report. Leave a field empty to drop it.</string>
+    <string name="aim_towers_field">Tower %1$s</string>
+    <string name="aim_towers_save">Save</string>
+    <string name="aim_towers_cancel">Cancel</string>
+    <string name="aim_no_compass">This phone has no compass, so nothing is plotted.</string>
+    <string name="aim_hold_level">Hold the phone flat or upright to read a heading.</string>
+    <string name="aim_use_true_north">Magnetic north · use true north</string>
+    <string name="aim_true_north">True north</string>
+    <string name="aim_tone_on">Tone on</string>
+    <string name="aim_tone_off">Tone off</string>
+    <string name="aim_haptics_on">Haptics on</string>
+    <string name="aim_haptics_off">Haptics off</string>
+    <string name="aim_reset_peak">Reset peak</string>
+
+    <!-- Sweep -->
+    <string name="sweep_title">Sweep</string>
+    <string name="sweep_back">Back to Live</string>
+    <string name="sweep_no_channels">Pick a device on Live first. Sweep needs its channel lineup.</string>
+    <string name="sweep_running_title">Sweeping</string>
+    <plurals name="sweep_running_subtitle">
+        <item quantity="one">%1$d channel · %2$d s each</item>
+        <item quantity="other">%1$d channels · %2$d s each</item>
+    </plurals>
+    <string name="sweep_progress_count">%1$d/%2$d</string>
+    <string name="sweep_progress_channel">%1$s %2$s</string>
+    <string name="sweep_phase_claiming">Finding an idle tuner…</string>
+    <string name="sweep_phase_tuned">Tuner %1$d · waiting for lock</string>
+    <string name="sweep_phase_reading">Tuner %1$d · signal quality %2$d</string>
+    <string name="sweep_phase_all_busy">Every tuner is in use by another client. Waiting, and trying again within %1$d s.</string>
+    <string name="sweep_phase_unreachable">The device isn’t answering. Trying again shortly.</string>
+    <string name="sweep_cancel">Cancel sweep</string>
+    <string name="sweep_failed">The device stopped answering, so the sweep stopped. Nothing was saved.</string>
+    <string name="sweep_again">Sweep again</string>
+    <string name="sweep_results_title">Sweep results</string>
+    <plurals name="sweep_results_subtitle">
+        <item quantity="one">%1$d channel · %2$d s each · finished %3$s</item>
+        <item quantity="other">%1$d channels · %2$d s each · finished %3$s</item>
+    </plurals>
+    <string name="sweep_count_good">Good</string>
+    <string name="sweep_count_marginal">Marginal</string>
+    <string name="sweep_count_poor">Poor</string>
+    <string name="sweep_vs">vs sweep on %1$s</string>
+    <plurals name="sweep_better">
+        <item quantity="one">%1$d better</item>
+        <item quantity="other">%1$d better</item>
+    </plurals>
+    <plurals name="sweep_worse">
+        <item quantity="one">%1$d worse</item>
+        <item quantity="other">%1$d worse</item>
+    </plurals>
+    <string name="sweep_separator">" · "</string>
+    <string name="sweep_list_left">Channel, worst first</string>
+    <string name="sweep_list_right">Signal quality range · median</string>
+    <string name="sweep_rf_band">RF %1$d · %2$s</string>
+    <string name="sweep_rf">RF %1$d</string>
+    <string name="sweep_threshold_note">The tick marks the threshold, %1$d. Poor counts channels with no lock too.</string>
+    <string name="sweep_compare">Compare sweeps</string>
+    <string name="sweep_compare_title">Compare sweeps</string>
+    <string name="sweep_compare_subtitle">This sweep vs %1$s, %2$s</string>
+    <string name="sweep_compare_pick">Compare with another sweep</string>
+    <string name="sweep_compare_option">%1$s, %2$s</string>
+    <string name="sweep_compare_channel">Channel</string>
+    <string name="sweep_compare_before">Before</string>
+    <string name="sweep_compare_after">Now</string>
+    <string name="sweep_compare_change">Change</string>
+    <string name="sweep_change_locks">Locks now</string>
+    <string name="sweep_change_lost">Lost lock</string>
+    <string name="sweep_change_same">Same</string>
+    <string name="sweep_change_new">New</string>
+    <string name="sweep_change_gone">Not swept</string>
+    <string name="sweep_change_not_comparable">Not tuned</string>
+    <string name="sweep_delta_up">+%1$d</string>
+    <string name="sweep_delta_down">−%1$d</string>
+    <string name="sweep_delta_zero">0</string>
 </resources>
