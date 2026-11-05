@@ -53,13 +53,15 @@ Work milestone by milestone, in order. Each milestone ends with the app building
 
 ## Milestone 4 — Monitor
 
-- [ ] Room: `Session`, `Reading`, `Event`, `WeatherHour` with the indexes from SPEC.
-- [ ] `MonitorService`: foreground service type `connectedDevice`, ongoing notification with live snq, dip count and Stop action; wake lock + Wi-Fi lock; battery-optimization exemption prompt on first use.
-- [ ] Polling loop per SPEC: hold or rotate mode, 10 s batched writes, lock wait after tune, reconnect with backoff, release on every exit path.
-- [ ] `DipDetector` state machine (enter/exit/merge rules, dropout, device unreachable, tuner lost, gap > 60 s) with unit tests driven by `FakeHdhr` patterns.
-- [ ] Monitor setup screen (spec section 6) and running screen per `mockups/Monitor.png` with a live-growing `SignalTimeline`.
-- [ ] Optional rate-limited dip notifications.
+- [x] Room: `Session`, `Reading`, `Event`, `WeatherHour` with the indexes from SPEC.
+- [x] `MonitorService`: foreground service type `connectedDevice`, ongoing notification with live snq, dip count and Stop action; wake lock + Wi-Fi lock; battery-optimization exemption prompt on first use.
+- [x] Polling loop per SPEC: hold or rotate mode, 10 s batched writes, lock wait after tune, reconnect with backoff, release on every exit path.
+- [x] `DipDetector` state machine (enter/exit/merge rules, dropout, device unreachable, tuner lost, gap > 60 s) with unit tests driven by `FakeHdhr` patterns.
+- [x] Monitor setup screen (spec section 6) and running screen per `mockups/Monitor.png` with a live-growing `SignalTimeline`.
+- [x] Optional rate-limited dip notifications.
 - **Done when:** a 1-hour Demo run with the flutter and dropout patterns records the expected events, survives screen off, and stops cleanly.
+  - Events: checked by `DipDetectorTest` (an hour of each pattern) and `MonitorRunnerTest` (the loop against
+    `FakeHdhr`, sped up). Screen off and battery drain need a phone: still to check on the first release build.
 
 ## Milestone 5 — Analysis
 

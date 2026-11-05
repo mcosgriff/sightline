@@ -87,4 +87,27 @@ interface SessionDao {
 
     @Query("DELETE FROM session WHERE id = :id")
     suspend fun delete(id: Long)
+
+    @Insert
+    suspend fun insertEvents(events: List<EventEntity>)
+
+    /** A monitor's batch of readings and the events finished with them, in one transaction (SPEC "Polling loop"). */
+    @Transaction
+    suspend fun append(readings: List<ReadingEntity>, events: List<EventEntity>) {
+        if (readings.isNotEmpty()) insertReadings(readings)
+        if (events.isNotEmpty()) insertEvents(events)
+    }
+
+    @Query("UPDATE session SET endedAt = :endedAt, tuner = :tuner WHERE id = :id")
+    suspend fun finish(id: Long, endedAt: Long, tuner: Int?)
+
+    /** Sessions of [kind] never ended: their process was killed. */
+    @Query("SELECT * FROM session WHERE kind = :kind AND endedAt IS NULL")
+    suspend fun unfinished(kind: SessionKind): List<SessionEntity>
+
+    @Query("SELECT MAX(ts) FROM reading WHERE sessionId = :sessionId")
+    suspend fun lastReadingTs(sessionId: Long): Long?
+
+    @Query("SELECT * FROM event WHERE sessionId = :sessionId ORDER BY startTs, id")
+    suspend fun events(sessionId: Long): List<EventEntity>
 }

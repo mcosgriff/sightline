@@ -19,6 +19,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -70,8 +71,13 @@ interface Navigator {
  * it, and the bar keeps that tab selected.
  */
 @Composable
-fun SightlineNavHost(screen: @Composable (NavKey, Navigator) -> Unit = { key, navigator -> AppScreen(key, navigator) }) {
+fun SightlineNavHost(
+    openMonitorRequests: Int = 0,
+    screen: @Composable (NavKey, Navigator) -> Unit = { key, navigator -> AppScreen(key, navigator) },
+) {
     val backStack = rememberNavBackStack(Devices)
+    // A tap on a Monitor notification.
+    LaunchedEffect(openMonitorRequests) { if (openMonitorRequests > 0) backStack.showTab(Monitor) }
     val navigator = remember(backStack) {
         object : Navigator {
             override fun showTab(key: NavKey) = backStack.showTab(key)

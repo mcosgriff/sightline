@@ -2,7 +2,21 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- The LAN permissions (discovery, the control protocol, HTTP) come from :data's manifest, beside the code
-         that uses them. The foreground service ones arrive with Monitor (milestone 4). -->
+         that uses them. -->
+
+    <!-- Monitor (SPEC "Monitor mode › Service"): a foreground service of type connectedDevice, never dataSync,
+         which Android 15 caps at 6 hours a day. Its prerequisite is one of the connected-device permissions:
+         CHANGE_NETWORK_STATE here, and CHANGE_WIFI_MULTICAST_STATE from :data. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+    <!-- The ongoing notification with its Stop action, and the optional dip notifications. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- A partial wake lock and a Wi-Fi lock for the session, so polling goes on with the screen off. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <!-- Asked once, on the first Monitor start. Sightline is sideloaded, not on Play, where this is restricted. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <!-- Aim: the tick on a new peak and the double buzz on lock loss. -->
     <uses-permission android:name="android.permission.VIBRATE" />
@@ -25,6 +39,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -32,6 +47,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Not restarted by the system when killed: a half-run session is closed at the next start instead. -->
+        <service
+            android:name=".monitor.MonitorService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
     </application>
 
 </manifest>

@@ -156,9 +156,9 @@ Six Room tables. Readings are the only large table: a 12-hour, one-channel sessi
 | --- | --- | --- |
 | `Device` | deviceId (PK, hex string), friendlyName, model, firmware, baseUrl, tunerCount, lastSeen | Refreshed on each discovery |
 | `Channel` | deviceId + guideNumber (PK), guideName, rfChannel?, frequencyHz?, band?, favorite | rfChannel filled the first time the channel is tuned |
-| `Session` | id (PK), deviceId, kind (`LIVE`, `AIM`, `MONITOR`, `SWEEP`), startedAt, endedAt?, channels (list), tuner?, pollIntervalMs, dwellMs?, note, weatherFetched | tuner is null when a sweep moved between tuners; dwellMs is a sweep's | One per run; live views are saved as sessions only when the user taps Save |
+| `Session` | id (PK), deviceId, kind (`LIVE`, `AIM`, `MONITOR`, `SWEEP`), startedAt, endedAt?, channels (list), tuner?, pollIntervalMs, dwellMs?, note, weatherFetched, fetchWeather | tuner is null when a sweep moved between tuners; dwellMs is a sweep's | One per run; live views are saved as sessions only when the user taps Save |
 | `Reading` | id (PK), sessionId (FK, indexed), ts (epoch ms, indexed with sessionId), guideNumber, tuner, ss, snq, seq, bps, pps, lock, headingDeg?, rawStatus? | `rawStatus` kept only when the parse failed |
-| `Event` | id (PK), sessionId, startTs, endTs, guideNumber, kind (`DIP`, `DROPOUT`, `TUNER_LOST`, `DEVICE_UNREACHABLE`, `GAP`), minSnq, minSeq | Written by the dip detector |
+| `Event` | id (PK), sessionId, startTs, endTs, guideNumber?, kind (`DIP`, `DROPOUT`, `TUNER_LOST`, `DEVICE_UNREACHABLE`, `GAP`), minSnq?, minSeq?, noLockMs | Written by the dip detector. guideNumber is null for device-wide events; minSnq/minSeq are the lowest locked values among the bad readings, null if it never locked; noLockMs is how long of it had no lock ("lock lost 4 s") |
 | `WeatherHour` | sessionId + hourTs (PK), tempC, windKph, gustKph, precipMm | From Open-Meteo, fetched after a session ends |
 
 Settings in DataStore: thresholds, poll interval, units (°F / mph default, metric option), theme, home coordinates for weather (entered manually or from one location fix), retention (default 90 days). Store metric internally; convert only for display.
@@ -328,11 +328,14 @@ A small state machine per channel:
 
 - **Enter a dip** when snq < the poor threshold or seq < 100 for 2 consecutive readings.
 - **Enter a dropout** when `lock=none` on a tuned channel.
-- **Exit** after 5 consecutive good readings.
-- **Merge** events less than 10 s apart.
+- **Exit** after 5 consecutive good readings; the event ends at the first of them.
+- **Merge** events less than 10 s apart (same channel only; a dip is final once that window has passed).
+- A dip's lowest values count only its bad readings, not the recovery.
 - Record start, end, minimum snq and minimum seq as an `Event`.
 - **Device unreachable** (3 failed polls) is its own event, so network problems are never mistaken for RF problems.
-- **Tuner lost** (a set fails with a lock error, or another client takes the tuner): record the event, try another idle tuner once, otherwise pause and notify.
+- **Tuner lost** (a set fails with a lock error, or another client takes the tuner): record the event, try another idle tuner once, otherwise pause and notify. While paused, try again every 30 s; the event lasts until the next reading. A tuner the user picked in setup is waited for, not swapped.
+- **Gap** is not recorded while the monitor stops polling on purpose: changing channel in rotate mode, or waiting for a tuner.
+- A monitor session the process didn't end (killed) is ended at its last reading on the next app start; the service is not sticky.
 
 Optional dip notifications, at most one per 10 minutes, with a summary ("3 dips on 9.1 in the last hour").
 

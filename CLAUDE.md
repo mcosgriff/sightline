@@ -25,7 +25,9 @@ feature works is in its code and tests. Words for things are in `GLOSSARY.md`.
 Milestones 0–3 are done: the protocol core (`:protocol`, golden captures, `FakeHdhr`), health and the live trace
 (`:analysis`), Room/DataStore/repositories and `LiveSession` (`:data`), the Devices and Live screens, and Aim
 (`PolarAim`, compass heading, tone, haptics, second tuner) and Sweep (`SweepRunner`, `SWEEP` sessions in Room v2,
-`ChannelRangeBars`, comparison). Next is milestone 4, Monitor. Nothing has run against a real unit yet: the user
+`ChannelRangeBars`, comparison), and Monitor (`DipDetector` and `TimelineSeries` in `:analysis`, `MonitorRunner`
+and Room v3 events in `:data`, `MonitorService`/`MonitorController` in `:app/monitor`, the Vico `SignalTimeline`).
+Next is milestone 5, Analysis. Nothing has run against a real unit yet: the user
 tests release builds only (not debug), so real-hardware checks wait for the first release.
 The user has two **HDHomeRun FLEX 4K** units (`HDFX-4K`, 4 tuners, ATSC 3.0 on tuners 0 and 1 only), and a DVR
 records from them. Captures and what they showed: `docs/protocol-captures/README.md`.
