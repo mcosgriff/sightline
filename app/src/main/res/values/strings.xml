@@ -748,4 +748,19 @@
     <string name="settings_licence_gpl">GPL 3.0</string>
     <string name="settings_licence_ofl">SIL OFL 1.1</string>
     <string name="settings_licence_apache">Apache 2.0</string>
+
+    <!-- Session detail: export (SPEC Screens › 8, item 8). -->
+    <string name="session_export">Export</string>
+    <string name="session_export_csv">Export CSV</string>
+    <string name="session_share_report">Share report</string>
+    <string name="session_export_csv_menu">Readings and events (CSV)</string>
+    <string name="session_export_report_menu">One-page report (PDF)</string>
+    <string name="session_share_title">Share session</string>
+    <string name="session_readings_deleted">This session\'s readings were deleted by the Keep readings setting. Its dips are kept and can still be exported.</string>
+    <string name="session_report_event">%1$s · %2$s</string>
+    <plurals name="session_report_more_events">
+        <item quantity="one">And %1$d more event in the events CSV.</item>
+        <item quantity="other">And %1$d more events in the events CSV.</item>
+    </plurals>
+    <string name="session_report_footer">Made with Sightline %1$s. Times are local (%2$s).</string>
 </resources>

@@ -82,6 +82,9 @@ private val LightColors = SightlineColors(
     heatEmpty = Color(0xFFE6EBEF),
 )
 
+/** The printed report's colours: the light theme's, on white paper whatever the app's theme. */
+val ReportColors: SightlineColors = LightColors
+
 /** The theme setting (SPEC Screens › 10). Dark is the default, whatever the phone's own setting. */
 enum class ThemeMode {
     System,

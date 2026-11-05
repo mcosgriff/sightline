@@ -46,7 +46,10 @@ class SessionContentTest {
         onWeatherMetric = { calls += "metric $it" },
         onRetryWeather = { calls += "retry" },
         onUseLocation = { calls += "location" },
+        onExportCsv = { calls += "csv" },
+        onShareReport = { text, footer -> report = text; calls += "report $footer" },
     )
+    private var report: ReportText? = null
 
     /**
      * Six hours on 9.1 a reading a minute: clean, except in hours 2 and 3, gusting to 45 km/h, when it dips for
@@ -147,6 +150,33 @@ class SessionContentTest {
         compose.onNodeWithText("This session is gone.").assertExists()
         compose.onNodeWithContentDescriptionBack()
         assertThat(calls).containsExactly("back")
+    }
+
+    @Test
+    fun `export CSV and share report sit at the end, the report worded like the page`() {
+        show(windy())
+        scrollTo("Share report")
+        compose.onNodeWithText("Export CSV").performClick()
+        compose.onNodeWithText("Share report").performClick()
+        compose.waitForIdle()
+        assertThat(calls.first()).isEqualTo("csv")
+        assertThat(calls.last()).startsWith("report Made with Sightline ")
+        val r = report!!
+        assertThat(r.title).isEqualTo("Monitor session")
+        assertThat(r.device).isEqualTo("Roof")
+        assertThat(r.figures.map { it.first }).containsExactly("Time in good health", "Dips", "Longest dropout", "Median quality").inOrder()
+        assertThat(r.findings.first().title).isEqualTo("Dips follow the wind")
+        assertThat(r.findings.first().badge).isEqualTo("Likely")
+        assertThat(r.events).isNotEmpty()
+        assertThat(r.events.first().title).endsWith(" · Dip")
+    }
+
+    @Test
+    fun `the header's export button offers CSV or the report`() {
+        show(windy())
+        compose.onNode(androidx.compose.ui.test.hasContentDescription("Export")).performClick()
+        compose.onNodeWithText("Readings and events (CSV)").performClick()
+        assertThat(calls).containsExactly("csv")
     }
 
     /** Session detail is a lazy list: what's below the fold isn't composed until scrolled to. */

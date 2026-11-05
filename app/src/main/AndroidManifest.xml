@@ -48,6 +48,17 @@
             </intent-filter>
         </activity>
 
+        <!-- Shares exported CSVs and reports with the app the user picks. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.exports"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <!-- Not restarted by the system when killed: a half-run session is closed at the next start instead. -->
         <service
             android:name=".monitor.MonitorService"

@@ -85,6 +85,13 @@ interface SessionDao {
     @Query("SELECT * FROM reading WHERE sessionId = :sessionId ORDER BY ts, id")
     suspend fun readings(sessionId: Long): List<ReadingEntity>
 
+    /** The next [limit] readings after ([afterTs], [afterId]) in time order, for writing a long session out in pages. */
+    @Query(
+        """SELECT * FROM reading WHERE sessionId = :sessionId AND (ts > :afterTs OR (ts = :afterTs AND id > :afterId))
+            ORDER BY ts, id LIMIT :limit""",
+    )
+    suspend fun readingsAfter(sessionId: Long, afterTs: Long, afterId: Long, limit: Int): List<ReadingEntity>
+
     @Query("DELETE FROM session WHERE id = :id")
     suspend fun delete(id: Long)
 
