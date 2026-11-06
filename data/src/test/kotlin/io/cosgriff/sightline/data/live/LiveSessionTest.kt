@@ -59,6 +59,8 @@ class LiveSessionTest {
         val watching = waitFor(LiveState.Watching::class.java) { it.trace.recent.size >= 3 }
         assertThat(watching.tuner).isEqualTo(0)
         assertThat(watching.stream).isFalse()
+        assertThat(watching.countersRead).isTrue()
+        assertThat(watching.errors.any).isFalse() // steady: seq 100 throughout
         assertThat(leases.held.value).containsExactly(fake.deviceIdHex to 0)
         assertThat(tuned).containsExactly("2.1 rf=7 VHF_HI atsc3=false")
 

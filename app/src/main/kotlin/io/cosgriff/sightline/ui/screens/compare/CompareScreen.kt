@@ -126,6 +126,10 @@ private fun Figures(before: SessionDetail, after: SessionDetail) {
         val hours = (d.data.endMs - d.data.startMs) / 3_600_000.0
         if (hours > 0) stringResource(R.string.compare_rate, d.stats.dips / hours) else dash
     }
+    val errorRate: @Composable (SessionDetail) -> String = { d ->
+        val hours = (d.data.endMs - d.data.startMs) / 3_600_000.0
+        if (d.stats.errors.hasCounters && hours > 0) stringResource(R.string.compare_error_rate_value, d.stats.errors.total.transport / hours) else dash
+    }
     val dropout: @Composable (SessionDetail) -> String = { d -> d.stats.longestDropoutMs?.let { compactDuration(it) } ?: stringResource(R.string.session_none) }
     val rows = listOf(
         stringResource(R.string.compare_length) to listOf(sessionLength(before.data.endMs - before.data.startMs), sessionLength(after.data.endMs - after.data.startMs)),
@@ -134,6 +138,9 @@ private fun Figures(before: SessionDetail, after: SessionDetail) {
         stringResource(R.string.compare_dip_rate) to listOf(rate(before), rate(after)),
         stringResource(R.string.session_card_dropout) to listOf(dropout(before), dropout(after)),
         stringResource(R.string.session_card_median) to listOf(before.stats.medianSnq?.toString() ?: dash, after.stats.medianSnq?.toString() ?: dash),
+        stringResource(R.string.compare_error_rate) to listOf(errorRate(before), errorRate(after)),
+        // A firmware update between the two is a change worth seeing next to the figures.
+        stringResource(R.string.compare_firmware) to listOf(before.info.firmware ?: dash, after.info.firmware ?: dash),
     )
     HeaderRow(stringResource(R.string.compare_figure), valueWidth = 72, change = false)
     HorizontalDivider(color = colors.outline)

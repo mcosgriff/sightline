@@ -32,6 +32,11 @@ data class DeviceInfo(
     @SerialName("TunerCount") val tunerCount: Int,
     @SerialName("BaseURL") val baseUrl: String? = null,
     @SerialName("LineupURL") val lineupUrl: String? = null,
+    /**
+     * The firmware version on offer when the device, which checks with SiliconDust itself, knows of a newer one.
+     * Absent when it's up to date or hasn't checked. Not yet seen in a capture: treat absence as "not reported".
+     */
+    @SerialName("UpgradeAvailable") val upgradeAvailable: String? = null,
 )
 
 /** One `GET /lineup.json` entry. Signal numbers are from the device's last channel scan, not live. */
@@ -103,8 +108,11 @@ sealed interface StreamOpen {
  * An open HTTP stream holding a tuner. The only way this firmware tunes ATSC 3.0 (ADR-0004). The tuner stays held
  * while the stream is read and is released when it closes, including when the app dies and the socket drops.
  */
-class TunerStream internal constructor(private val response: Response, private val io: CoroutineDispatcher) :
-    Closeable {
+class TunerStream internal constructor(
+    private val call: Call,
+    private val response: Response,
+    private val io: CoroutineDispatcher,
+) : Closeable {
     @Volatile
     var bytesRead = 0L
         private set
@@ -124,7 +132,15 @@ class TunerStream internal constructor(private val response: Response, private v
         }
     }
 
-    override fun close() = response.close()
+    /**
+     * Ends the stream and so frees the tuner. Cancelling the call closes the socket at once, from any thread, and
+     * breaks the read [drain] is blocked in. A bare `response.close()` tries to read the rest of the body first,
+     * which never ends on a live stream and is network on the main thread when the caller is a ViewModel.
+     */
+    override fun close() {
+        call.cancel()
+        response.close()
+    }
 
     private companion object {
         const val BUFFER = 64 * 1024
@@ -150,12 +166,13 @@ class HttpApi(
     /** Opens the stream at [url] (see [streamUrl]). The caller must [TunerStream.close] an opened stream. */
     suspend fun openStream(url: String): StreamOpen {
         val request = Request.Builder().url(url).build()
+        val call = client.newCall(request)
         val response = try {
-            client.newCall(request).await()
+            call.await()
         } catch (_: IOException) {
             return StreamOpen.Unreachable
         }
-        if (response.isSuccessful) return StreamOpen.Opened(TunerStream(response, io))
+        if (response.isSuccessful) return StreamOpen.Opened(TunerStream(call, response, io))
         val refusal = StreamRefusal.of(response.code, response.header("X-HDHomeRun-Error"))
         response.close()
         return StreamOpen.Refused(refusal)

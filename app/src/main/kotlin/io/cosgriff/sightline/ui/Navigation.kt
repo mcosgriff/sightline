@@ -46,3 +46,7 @@ data object MultiTuner : NavKey
 /** Two saved sessions side by side. Opens from History with two selected. */
 @Serializable
 data class Compare(val a: Long, val b: Long) : NavKey
+
+/** One device's raw state, counters and who holds each tuner, read-only. Opens from a Devices card. */
+@Serializable
+data class Diagnostics(val deviceId: String) : NavKey

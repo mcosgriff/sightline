@@ -38,6 +38,7 @@ import io.cosgriff.sightline.debugtools.ProtocolDebugEntry
 import io.cosgriff.sightline.ui.screens.aim.AimScreen
 import io.cosgriff.sightline.ui.screens.compare.CompareScreen
 import io.cosgriff.sightline.ui.screens.devices.DevicesScreen
+import io.cosgriff.sightline.ui.screens.diagnostics.DiagnosticsScreen
 import io.cosgriff.sightline.ui.screens.history.HistoryScreen
 import io.cosgriff.sightline.ui.screens.live.LiveActions
 import io.cosgriff.sightline.ui.screens.live.LiveScreen
@@ -120,6 +121,7 @@ fun SightlineNavHost(
                 entry<MultiTuner> { screen(MultiTuner, navigator) }
                 entry<Session> { screen(it, navigator) }
                 entry<Compare> { screen(it, navigator) }
+                entry<Diagnostics> { screen(it, navigator) }
                 entry<ProtocolDebug> { screen(ProtocolDebug, navigator) }
             },
         )
@@ -132,6 +134,7 @@ private fun AppScreen(key: NavKey, navigator: Navigator) {
     when (key) {
         Devices -> DevicesScreen(
             onOpenLive = { navigator.showTab(Live) },
+            onOpenDiagnostics = { navigator.push(Diagnostics(it)) },
             onOpenProtocolDebug = if (DebugTools.AVAILABLE) ({ navigator.push(ProtocolDebug) }) else null,
         )
         Live -> LiveScreen(
@@ -148,6 +151,7 @@ private fun AppScreen(key: NavKey, navigator: Navigator) {
         History -> HistoryScreen(onOpen = { navigator.push(Session(it)) }, onCompare = { a, b -> navigator.push(Compare(a, b)) })
         is Session -> SessionScreen(key.id, onBack = navigator::back)
         is Compare -> CompareScreen(key.a, key.b, onBack = navigator::back)
+        is Diagnostics -> DiagnosticsScreen(key.deviceId, onBack = navigator::back)
         Aim -> AimScreen(onBack = navigator::back)
         Sweep -> SweepScreen(onBack = navigator::back)
         Settings -> SettingsScreen(onBack = navigator::back)

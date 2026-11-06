@@ -2,6 +2,7 @@ package io.cosgriff.sightline.ui.screens.live
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -19,23 +21,31 @@ import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleStartEffect
@@ -58,6 +68,7 @@ import io.cosgriff.sightline.protocol.TunerStatus
 import io.cosgriff.sightline.ui.components.GaugeValues
 import io.cosgriff.sightline.ui.components.KeepScreenOn
 import io.cosgriff.sightline.ui.components.LocalNetworkCard
+import io.cosgriff.sightline.ui.components.PacketErrorsRow
 import io.cosgriff.sightline.ui.components.SparkPoint
 import io.cosgriff.sightline.ui.components.Sparkline
 import io.cosgriff.sightline.ui.components.TriGauge
@@ -79,6 +90,17 @@ data class LiveActions(
     val onTuners: () -> Unit = {},
 )
 
+/** What Live's channel and tuner controls do. */
+data class LiveControls(
+    val onPrevious: () -> Unit,
+    val onNext: () -> Unit,
+    val onSelect: (guideNumber: String) -> Unit,
+    val onRetry: () -> Unit,
+    val onReload: () -> Unit,
+    val onDisconnect: () -> Unit,
+    val onConnect: () -> Unit,
+)
+
 @Composable
 fun LiveScreen(actions: LiveActions, viewModel: LiveViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -94,10 +116,15 @@ fun LiveScreen(actions: LiveActions, viewModel: LiveViewModel = hiltViewModel())
     LiveContent(
         state = state,
         networkCard = if (network.granted) null else ({ LocalNetworkCard(network) }),
-        onPrevious = viewModel::previous,
-        onNext = viewModel::next,
-        onRetry = viewModel::retry,
-        onReload = viewModel::reload,
+        controls = LiveControls(
+            onPrevious = viewModel::previous,
+            onNext = viewModel::next,
+            onSelect = viewModel::select,
+            onRetry = viewModel::retry,
+            onReload = viewModel::reload,
+            onDisconnect = viewModel::disconnect,
+            onConnect = viewModel::connect,
+        ),
         actions = actions,
     )
 }
@@ -106,10 +133,7 @@ fun LiveScreen(actions: LiveActions, viewModel: LiveViewModel = hiltViewModel())
 fun LiveContent(
     state: LiveUiState,
     networkCard: (@Composable () -> Unit)?,
-    onPrevious: () -> Unit,
-    onNext: () -> Unit,
-    onRetry: () -> Unit,
-    onReload: () -> Unit,
+    controls: LiveControls,
     actions: LiveActions,
     modifier: Modifier = Modifier,
 ) {
@@ -117,7 +141,7 @@ fun LiveContent(
     val setup = state.setup
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
         val subtitle = when (setup) {
-            is LiveSetup.Ready -> when (val live = state.live) {
+            is LiveSetup.Ready -> when (val live = state.live?.takeUnless { state.disconnected }) {
                 is LiveState.Watching -> stringResource(R.string.live_device_tuner, setup.device.friendlyName, live.tuner)
                 else -> setup.device.friendlyName
             }
@@ -145,8 +169,8 @@ fun LiveContent(
         when (setup) {
             LiveSetup.Loading -> Unit
             LiveSetup.NoDevice -> Message(R.string.live_no_device, R.string.live_open_devices, actions.onDevices)
-            is LiveSetup.NoChannels -> Message(R.string.live_no_channels, R.string.live_reload, onReload)
-            is LiveSetup.Ready -> Ready(state, setup, onPrevious, onNext, onRetry, actions)
+            is LiveSetup.NoChannels -> Message(R.string.live_no_channels, R.string.live_reload, controls.onReload)
+            is LiveSetup.Ready -> Ready(state, setup, controls, actions)
         }
     }
 }
@@ -163,18 +187,30 @@ private fun Message(text: Int, button: Int, onClick: () -> Unit) {
 private fun Ready(
     state: LiveUiState,
     setup: LiveSetup.Ready,
-    onPrevious: () -> Unit,
-    onNext: () -> Unit,
-    onRetry: () -> Unit,
+    controls: LiveControls,
     actions: LiveActions,
 ) {
-    val live = state.live
+    val live = state.live?.takeUnless { state.disconnected }
+    val onPrevious = controls.onPrevious
+    val onNext = controls.onNext
     val watching = live as? LiveState.Watching
     val status = watching?.status
     val locked = status?.isLocked == true
     // The badge shows from the first ATSC 3.0 lock, before the stored channel learns it.
     val atsc3 = setup.channel.atsc3 || (status?.lock as? Lock.Locked)?.modulation == Modulation.ATSC3
-    ChannelPill(setup.channel, atsc3, onPrevious, onNext)
+    var picking by rememberSaveable { mutableStateOf(false) }
+    ChannelPill(setup.channel, atsc3, onPrevious, onNext, onPick = { picking = true })
+    if (picking) {
+        ChannelPicker(
+            channels = setup.channels,
+            current = setup.channel,
+            onPick = {
+                picking = false
+                controls.onSelect(it.guideNumber)
+            },
+            onDismiss = { picking = false },
+        )
+    }
 
     // Swipe the gauges sideways to step through channels (SPEC Live).
     Column(
@@ -197,8 +233,17 @@ private fun Ready(
     if (watching != null) {
         TraceRow(watching, state.thresholds, state.nowMs)
         InfoRow(setup.channel, status)
+        if (watching.countersRead) {
+            PacketErrorsRow(
+                stringResource(R.string.live_packet_errors),
+                watching.errors,
+                Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp),
+                rising = watching.lastAdded.any,
+            )
+        }
     }
-    StatusBanner(live, state.thresholds, onRetry)
+    if (state.disconnected) DisconnectedBanner(controls.onConnect)
+    else StatusBanner(live, state.thresholds, controls.onRetry, controls.onDisconnect)
     Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Button(onClick = actions.onAim, modifier = Modifier.weight(1f).height(48.dp)) { Text(stringResource(R.string.live_aim)) }
         OutlinedButton(onClick = actions.onSweep, modifier = Modifier.weight(1f).height(48.dp)) { Text(stringResource(R.string.live_sweep)) }
@@ -207,7 +252,7 @@ private fun Ready(
 }
 
 @Composable
-private fun ChannelPill(channel: Channel, atsc3: Boolean, onPrevious: () -> Unit, onNext: () -> Unit) {
+private fun ChannelPill(channel: Channel, atsc3: Boolean, onPrevious: () -> Unit, onNext: () -> Unit, onPick: () -> Unit) {
     val colors = MaterialTheme.sightlineColors
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
@@ -217,13 +262,22 @@ private fun ChannelPill(channel: Channel, atsc3: Boolean, onPrevious: () -> Unit
         RoundButton(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, stringResource(R.string.live_previous_channel), onPrevious)
         Row(
             Modifier.weight(1f).height(48.dp)
+                .clip(CircleShape)
                 .background(colors.surface, CircleShape)
-                .border(1.dp, colors.outline, CircleShape),
+                .border(1.dp, colors.outline, CircleShape)
+                .clickable(onClickLabel = stringResource(R.string.live_picker_open), role = Role.Button, onClick = onPick)
+                .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
         ) {
             Text(channel.guideNumber, style = Numbers.info)
-            Text(channel.guideName, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(start = 8.dp), maxLines = 1)
+            Text(
+                channel.guideName,
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(start = 8.dp).weight(1f, fill = false),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
             if (atsc3) {
                 Text(
                     stringResource(R.string.live_atsc3),
@@ -232,6 +286,7 @@ private fun ChannelPill(channel: Channel, atsc3: Boolean, onPrevious: () -> Unit
                     modifier = Modifier.padding(start = 8.dp).background(colors.accent.copy(alpha = 0.12f), MaterialTheme.shapes.small).padding(horizontal = 6.dp, vertical = 2.dp),
                 )
             }
+            Icon(Icons.Rounded.ArrowDropDown, contentDescription = null, tint = colors.textSecondary, modifier = Modifier.padding(start = 2.dp))
         }
         RoundButton(Icons.AutoMirrored.Rounded.KeyboardArrowRight, stringResource(R.string.live_next_channel), onNext)
     }
@@ -314,8 +369,7 @@ private fun Fact(label: String, value: String, mono: Boolean, modifier: Modifier
 
 /** The health banner while watching, or what's going on instead. */
 @Composable
-private fun StatusBanner(live: LiveState?, thresholds: Thresholds, onRetry: () -> Unit) {
-    val colors = MaterialTheme.sightlineColors
+private fun StatusBanner(live: LiveState?, thresholds: Thresholds, onRetry: () -> Unit, onDisconnect: () -> Unit) {
     val (health, title, body) = when (live) {
         null, is LiveState.Claiming -> Triple(null, stringResource(R.string.live_claiming), null)
         is LiveState.Watching -> {
@@ -340,6 +394,27 @@ private fun StatusBanner(live: LiveState?, thresholds: Thresholds, onRetry: () -
         is LiveState.UnknownChannel -> Triple(Health.POOR, stringResource(R.string.live_unknown_channel), null)
         is LiveState.Unreachable -> Triple(Health.NO_LOCK, stringResource(R.string.live_unreachable), stringResource(R.string.live_unreachable_body))
     }
+    Banner(health, title, body) {
+        if (live is LiveState.Lost || live is LiveState.UnknownChannel) {
+            OutlinedButton(onClick = onRetry) { Text(stringResource(R.string.live_retry)) }
+        } else {
+            // Let the tuner go without leaving the screen: claiming, waiting or watching (SPEC Live).
+            TextButton(onClick = onDisconnect, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.live_disconnect)) }
+        }
+    }
+}
+
+/** After Disconnect: nothing is held, and nothing will be until Connect. */
+@Composable
+private fun DisconnectedBanner(onConnect: () -> Unit) {
+    Banner(null, stringResource(R.string.live_disconnected), stringResource(R.string.live_disconnected_body)) {
+        OutlinedButton(onClick = onConnect) { Text(stringResource(R.string.live_connect)) }
+    }
+}
+
+@Composable
+private fun Banner(health: Health?, title: String, body: String?, action: @Composable () -> Unit) {
+    val colors = MaterialTheme.sightlineColors
     val tint = health?.color() ?: colors.outline
     Row(
         Modifier
@@ -357,9 +432,7 @@ private fun StatusBanner(live: LiveState?, thresholds: Thresholds, onRetry: () -
             Text(title, style = MaterialTheme.typography.titleSmall)
             if (body != null) Text(body, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
         }
-        if (live is LiveState.Lost || live is LiveState.UnknownChannel) {
-            OutlinedButton(onClick = onRetry) { Text(stringResource(R.string.live_retry)) }
-        }
+        action()
     }
 }
 

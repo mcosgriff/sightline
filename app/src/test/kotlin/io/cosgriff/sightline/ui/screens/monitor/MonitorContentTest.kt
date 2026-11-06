@@ -3,12 +3,14 @@ package io.cosgriff.sightline.ui.screens.monitor
 import android.app.Application
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import com.google.common.truth.Truth.assertThat
 import io.cosgriff.sightline.analysis.EventKind
+import io.cosgriff.sightline.analysis.PacketErrors
 import io.cosgriff.sightline.analysis.SignalEvent
 import io.cosgriff.sightline.analysis.SignalSample
 import io.cosgriff.sightline.analysis.Thresholds
@@ -131,6 +133,14 @@ class MonitorContentTest {
         compose.onNodeWithText("Lowest quality 22, lock lost 4 s").performScrollTo().assertExists()
         compose.onNodeWithText("Lowest quality 63, symbol 92").performScrollTo().assertExists()
         compose.onNodeWithText("Dropout").assertExists()
+    }
+
+    @Test
+    fun `running shows the session's packet errors once the tuner gives its counters`() {
+        val counted = status().copy(countersRead = true, errors = PacketErrors(transport = 412, crc = 103, resyncs = 2))
+        show(MonitorUiState(status = counted), now = start + 60_000L)
+        compose.onNode(hasContentDescription("Packet errors this session: transport errors 412, CRC errors 103, resyncs 2, network errors 0"))
+            .performScrollTo().assertExists()
     }
 
     @Test

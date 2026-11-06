@@ -53,7 +53,12 @@ class TunerSessionsTest {
             assertThat(reading.isLocked).isTrue()
             assertThat(reading.seq).isEqualTo(100)
 
+            val debug = claimed.debug()!!
+            assertThat(debug.transportErrors).isEqualTo(0) // DEMO Steady: seq 100 throughout
+            assertThat(debug.ss).isEqualTo(reading.ss)
+
             claimed.release()
+            assertThat(claimed.debug()).isNull()
             assertThat(fake.isIdle(0)).isTrue()
             assertThat(keys.held).isEmpty()
             assertThat(claimed.poll()).isEqualTo(Poll.Lost(LostReason.Released))
@@ -98,6 +103,8 @@ class TunerSessionsTest {
             assertThat(status.bps).isEqualTo(0)
             claimed.release()
             withTimeout(2_000) { while (!fake.isIdle(0)) kotlinx.coroutines.delay(10) }
+            // The read the drain was blocked in is broken, not left running until the read timeout.
+            withTimeout(1_000) { (claimed.hold as Hold.Stream).drain.join() }
         }
     }
 

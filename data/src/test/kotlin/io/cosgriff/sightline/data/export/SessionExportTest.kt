@@ -39,7 +39,10 @@ class SessionExportTest {
             SessionEntity(deviceId = "D", kind = SessionKind.MONITOR, startedAt = START, endedAt = START + HOUR, channels = listOf("9.1"), tuner = 0, pollIntervalMs = 1_000),
         )
         db.sessions().append(
-            (0 until readings).map { ReadingEntity(0, id, START + it * 1_000L, "9.1", 0, 80, 88, 100, 19_392_636, 0, "8vsb") },
+            (0 until readings).map {
+                ReadingEntity(0, id, START + it * 1_000L, "9.1", 0, 80, 88, 100, 19_392_636, 0, "8vsb")
+                    .let { r -> if (it == 0) r.copy(transportErrors = 12, crcErrors = 3, resyncs = 0, networkErrors = 0) else r }
+            },
             listOf(
                 EventEntity(0, id, START + 60_000, START + 64_500, "9.1", EventKind.DIP, 41, 72, 0),
                 EventEntity(0, id, START + 2 * HOUR, START + 2 * HOUR + 3_000, null, EventKind.DEVICE_UNREACHABLE, null, null, 3_000),
@@ -53,9 +56,10 @@ class SessionExportTest {
     fun `readings come out in order across pages, with local and utc times`() = runBlocking<Unit> {
         val id = session(12_001)
         val lines = export.readings(id, denver)!!.readLines()
-        assertThat(lines.first()).isEqualTo("time,utc_ms,channel,tuner,lock,ss,snq,seq,bps,pps,heading_deg")
+        assertThat(lines.first()).isEqualTo("time,utc_ms,channel,tuner,lock,ss,snq,seq,bps,pps,heading_deg,transport_errors,crc_errors,resyncs,network_errors")
         assertThat(lines).hasSize(12_002)
-        assertThat(lines[1]).isEqualTo("2026-11-01T17:00:00-07:00,$START,9.1,0,8vsb,80,88,100,19392636,0,")
+        assertThat(lines[1]).isEqualTo("2026-11-01T17:00:00-07:00,$START,9.1,0,8vsb,80,88,100,19392636,0,,12,3,0,0")
+        assertThat(lines[2]).endsWith(",19392636,0,,,,,")
         assertThat(lines.last()).startsWith("2026-11-01T20:20:00-07:00,${START + 12_000_000L},")
         assertThat(lines.drop(1).map { it.split(',')[1].toLong() }).isInOrder()
     }

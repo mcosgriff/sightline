@@ -76,6 +76,7 @@ import io.cosgriff.sightline.data.device.Channel
 import io.cosgriff.sightline.data.session.SessionDetail
 import io.cosgriff.sightline.data.session.SessionWeather
 import io.cosgriff.sightline.data.settings.Units
+import io.cosgriff.sightline.ui.components.PacketErrorsRow
 import io.cosgriff.sightline.ui.components.ChannelRangeBars
 import io.cosgriff.sightline.ui.components.RangeRow
 import io.cosgriff.sightline.ui.components.SignalTimeline
@@ -214,9 +215,55 @@ private fun Loaded(state: SessionUiState, detail: SessionDetail, thresholds: Thr
             Section(stringResource(R.string.session_histogram_title)) { Histogram(detail.stats.histogram, thresholds) }
         }
         item(key = "events") { Events(detail, units, zone, zoomTo) }
+        if (detail.stats.errors.hasCounters) item(key = "errors") { PacketErrorsSection(detail) }
+        detail.info.firmware?.let { firmware ->
+            item(key = "firmware") {
+                Text(
+                    stringResource(R.string.session_firmware, firmware),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.sightlineColors.textSecondary,
+                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp),
+                )
+            }
+        }
         item(key = "export") { ExportButtons(state.exporting, actions.onExportCsv) { wordingReport = true } }
     }
 }
+
+/** The session's packet errors in all, and how many fell inside dips and dropouts versus outside them. */
+@Composable
+private fun PacketErrorsSection(detail: SessionDetail) {
+    val colors = MaterialTheme.sightlineColors
+    val series = detail.stats.errors
+    val total = series.total
+    Section(stringResource(R.string.session_errors_title), stringResource(R.string.session_errors_subtitle)) {
+        PacketErrorsRow(stringResource(R.string.session_errors_total), total)
+        if (total.transport > 0) {
+            val during = detail.data.events
+                .filter { it.kind == EventKind.DIP || it.kind == EventKind.DROPOUT }
+                .sumOf { series.between(it.startMs, it.endMs).transport }
+                .coerceAtMost(total.transport) // overlapping events count a reading once at most
+            val outside = total.transport - during
+            Text(
+                stringResource(R.string.session_errors_split, during, outside),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textSecondary,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            if (outside > 0) {
+                Text(
+                    stringResource(R.string.session_errors_hidden),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textSecondary,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+        }
+    }
+}
+
+/** A plural's quantity from a count that may pass [Int.MAX_VALUE]. */
+private fun Long.toPluralCount(): Int = coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
 
 /** The timeline's position in the list, for scrolling to it when an event or hour is tapped. */
 private const val TIMELINE_ITEM = 2
@@ -643,7 +690,14 @@ internal fun eventWords(e: SignalEvent, detail: SessionDetail, units: Units, zon
     }
     val gust = detail.data.weatherAt(e.startMs)?.gustKph
     val second = gust?.let { stringResource(R.string.session_event_with_gusts, detailText, speedText(it, units)) } ?: detailText
-    return EventWords(title, second, stringResource(kind))
+    // What the tuner counted while it lasted: ties a dip to the damage it did (SPEC "Packet errors").
+    val errors = detail.stats.errors.between(e.startMs, e.endMs).transport
+    val third = if (errors > 0) {
+        stringResource(R.string.session_event_with_errors, second, pluralStringResource(R.plurals.session_event_errors, errors.toPluralCount(), errors))
+    } else {
+        second
+    }
+    return EventWords(title, third, stringResource(kind))
 }
 
 @Composable

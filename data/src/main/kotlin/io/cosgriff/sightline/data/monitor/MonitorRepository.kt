@@ -23,6 +23,7 @@ class MonitorRepository @Inject constructor(private val sessions: SessionDao) : 
             pollIntervalMs = plan.pollIntervalMs,
             dwellMs = if (plan.rotate) plan.dwellMs else null,
             fetchWeather = plan.fetchWeather,
+            firmware = plan.device.firmware.ifEmpty { null },
         ),
     )
 

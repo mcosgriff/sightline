@@ -22,6 +22,8 @@
 - **Event** — something the dip detector recorded: `DIP`, `DROPOUT`, `TUNER_LOST`, `DEVICE_UNREACHABLE`, `GAP`.
 - **Dip** — snq below the poor threshold or seq below 100 for 2 readings in a row, until 5 good readings.
 - **Dropout** — `lock=none` on a tuned channel.
+- **Packet errors** — the tuner's own counts since its last tune (`/tunerN/debug`): transport errors (damaged
+  packets), CRC errors, resyncs and network errors. They catch errors between polls that seq can't.
 - **Sweep** — tuning each lineup channel in turn for a **dwell** time and summarising each.
 - **Settle** — the first second after a tune, when a locked tuner still reads seq 0. Sweep doesn't read during it.
 - **Peak** — on Aim, the best snq since the last reset, with the heading it was read at.

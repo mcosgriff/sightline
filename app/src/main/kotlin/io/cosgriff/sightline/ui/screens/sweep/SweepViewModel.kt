@@ -153,7 +153,7 @@ class SweepViewModel @Inject constructor(
             when (outcome) {
                 SweepOutcome.Unreachable -> _state.update { it.copy(run = SweepRun.Failed) }
                 is SweepOutcome.Finished -> {
-                    val id = sweeps.save(ready.device.deviceId, outcome, settings.sweepDwellMs, settings.pollIntervalMs)
+                    val id = sweeps.save(ready.device.deviceId, outcome, settings.sweepDwellMs, settings.pollIntervalMs, ready.device.firmware.ifEmpty { null })
                     val saved = sweeps.load(id, settings.thresholds) ?: return@launch
                     val before = sweeps.sweeps(ready.device.deviceId).first()
                         .firstOrNull { it.id != id && it.startedAt <= saved.info.startedAt }

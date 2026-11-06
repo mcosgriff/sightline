@@ -250,6 +250,10 @@ class TunerSessions(
         else Poll.Lost(LostReason.ChannelChanged(status.channel))
     }
 
+    /** `/tunerN/debug` of a claimed tuner: the error counters since its tune. Null when it can't be read. */
+    internal suspend fun debug(claimed: ClaimedTuner): TunerDebug? =
+        (control.get("/tuner${claimed.tuner}/debug") as? ControlResult.Value)?.value?.let { TunerDebug.parse(it) }
+
     internal suspend fun release(claimed: ClaimedTuner) = withContext(NonCancellable) {
         when (val hold = claimed.hold) {
             is Hold.LockKey -> releaseLockKey(claimed.tuner, hold.key)
@@ -299,6 +303,9 @@ class ClaimedTuner internal constructor(
     private var released = false
 
     suspend fun poll(): Poll = if (released) Poll.Lost(LostReason.Released) else sessions.poll(this)
+
+    /** The tuner's error counters (`/tunerN/debug`); a get only. Null once released or when it doesn't answer. */
+    suspend fun debug(): TunerDebug? = if (released) null else sessions.debug(this)
 
     /** Gives the tuner back. Safe to call more than once and from a cancelled coroutine. */
     suspend fun release() {

@@ -69,6 +69,8 @@ data class SessionEntity(
     val weatherFetched: Boolean = false,
     /** A monitor session asked for weather afterwards (SPEC Screens › Monitor setup). */
     @ColumnInfo(defaultValue = "0") val fetchWeather: Boolean = false,
+    /** The device's firmware version when the session started; null for sessions from before it was kept. */
+    val firmware: String? = null,
 )
 
 /** One poll (GLOSSARY "Reading"). [rawStatus] is kept only when the line couldn't be parsed. */
@@ -93,6 +95,14 @@ data class ReadingEntity(
     val lock: String,
     val headingDeg: Double? = null,
     val rawStatus: String? = null,
+    /**
+     * `/tunerN/debug`'s counters read with this reading, each a running count since the tuner's last tune
+     * (SPEC "Packet errors"): `ts te`, `ts crc`, `dev resync`, `net err`. Null when not read.
+     */
+    val transportErrors: Long? = null,
+    val crcErrors: Long? = null,
+    val resyncs: Long? = null,
+    val networkErrors: Long? = null,
 )
 
 /**

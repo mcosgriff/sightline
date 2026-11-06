@@ -3,6 +3,9 @@ package io.cosgriff.sightline.data.monitor
 import io.cosgriff.sightline.analysis.DipAlert
 import io.cosgriff.sightline.analysis.DipAlerts
 import io.cosgriff.sightline.analysis.DipDetector
+import io.cosgriff.sightline.analysis.ErrorCounters
+import io.cosgriff.sightline.analysis.PacketErrorCounter
+import io.cosgriff.sightline.analysis.PacketErrors
 import io.cosgriff.sightline.analysis.Health
 import io.cosgriff.sightline.analysis.SignalEvent
 import io.cosgriff.sightline.analysis.SignalSample
@@ -24,6 +27,7 @@ import io.cosgriff.sightline.protocol.Modulation
 import io.cosgriff.sightline.protocol.Occupancy
 import io.cosgriff.sightline.protocol.Poll
 import io.cosgriff.sightline.protocol.RfChannels
+import io.cosgriff.sightline.protocol.TunerDebug
 import io.cosgriff.sightline.protocol.TunerSessions
 import io.cosgriff.sightline.protocol.TunerStatus
 import kotlinx.coroutines.NonCancellable
@@ -109,6 +113,9 @@ data class MonitorStatus(
     val readings: Long = 0,
     val goodReadings: Long = 0,
     val latest: TunerStatus? = null,
+    /** Packet errors counted so far (SPEC "Packet errors"); [countersRead] false until a tuner gave its counters. */
+    val errors: PacketErrors = PacketErrors.NONE,
+    val countersRead: Boolean = false,
     val ended: MonitorEnd? = null,
     /** When it ended, once [ended] is set. */
     val endedAt: Long? = null,
@@ -158,6 +165,7 @@ class MonitorRunner(
     private var sinceFlush = TimeSource.Monotonic.markNow()
     private var sessionId = 0L
     private val tunersUsed = mutableSetOf<Int>()
+    private val errorCounter = PacketErrorCounter()
     private var lastTuner: Int? = null
 
     /** Runs the session until its time is up or the caller cancels it. Always ends the session and releases the tuner. */
@@ -289,6 +297,7 @@ class MonitorRunner(
     private suspend fun watch(channel: Channel, tuner: ClaimedTuner, until: Long?): Watch {
         lastTuner = tuner.tuner
         tunersUsed += tuner.tuner
+        errorCounter.retuned(tuner.tuner)
         leases.add(plan.device.deviceId, tuner.tuner)
         val stream = tuner.hold is Hold.Stream
         publish { it.copy(phase = MonitorPhase.Watching(tuner.tuner, stream)) }
@@ -299,10 +308,10 @@ class MonitorRunner(
                     val s = waited.status
                     val rf = RfChannels.of(s.channel)
                     sink.tuned(channel, rf?.number, rf?.centerHz, rf?.band?.name, (s.lock as? Lock.Locked)?.modulation == Modulation.ATSC3)
-                    record(channel, tuner.tuner, s)
+                    record(channel, tuner.tuner, s, tuner.debug())
                 }
                 // No lock after the wait: recorded, which the detector makes a dropout.
-                is LockWait.NoLock -> waited.status?.let { record(channel, tuner.tuner, it) }
+                is LockWait.NoLock -> waited.status?.let { record(channel, tuner.tuner, it, tuner.debug()) }
             }
             var missed = 0
             val interval = plan.pollIntervalMs.milliseconds
@@ -317,7 +326,8 @@ class MonitorRunner(
                 when (val poll = tuner.poll()) {
                     is Poll.Reading -> {
                         missed = 0
-                        record(channel, tuner.tuner, poll.status)
+                        // One more get per poll: the counters catch errors between polls that seq can't.
+                        record(channel, tuner.tuner, poll.status, tuner.debug())
                     }
                     is Poll.Unparseable -> {
                         missed = 0
@@ -377,7 +387,7 @@ class MonitorRunner(
         }
     }
 
-    private fun record(channel: Channel, tuner: Int, s: TunerStatus) {
+    private fun record(channel: Channel, tuner: Int, s: TunerStatus, debug: TunerDebug?) {
         val at = clock.millis()
         val sample = SignalSample(s.isLocked, s.ss, s.snq, s.seq)
         buffer += ReadingEntity(
@@ -387,7 +397,12 @@ class MonitorRunner(
                 Lock.None -> LOCK_NONE
                 is Lock.Locked -> l.raw
             },
+            transportErrors = debug?.transportErrors, crcErrors = debug?.crcErrors,
+            resyncs = debug?.resync, networkErrors = debug?.networkErrors,
         )
+        val added = debug?.let {
+            errorCounter.add(tuner, channel.guideNumber, ErrorCounters(it.transportErrors, it.crcErrors, it.resync, it.networkErrors))
+        }
         add(detector.reading(at, channel.guideNumber, sample), at)
         val good = plan.thresholds.assess(sample).health == Health.GOOD
         publish {
@@ -396,6 +411,8 @@ class MonitorRunner(
                 goodReadings = it.goodReadings + if (good) 1 else 0,
                 timeline = it.timeline + (at to sample),
                 latest = s,
+                errors = added?.let { a -> it.errors + a } ?: it.errors,
+                countersRead = it.countersRead || added != null,
                 open = detector.open,
             )
         }

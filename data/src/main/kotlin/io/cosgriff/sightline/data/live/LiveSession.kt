@@ -1,6 +1,9 @@
 package io.cosgriff.sightline.data.live
 
+import io.cosgriff.sightline.analysis.ErrorCounters
 import io.cosgriff.sightline.analysis.LiveTrace
+import io.cosgriff.sightline.analysis.PacketErrorCounter
+import io.cosgriff.sightline.analysis.PacketErrors
 import io.cosgriff.sightline.analysis.SignalSample
 import io.cosgriff.sightline.analysis.TimedSample
 import io.cosgriff.sightline.data.device.Channel
@@ -43,6 +46,13 @@ sealed interface LiveState {
         val trace: LiveTrace = LiveTrace(),
         val raw: String? = null,
         val missedPolls: Int = 0,
+        /**
+         * Packet errors since the first reading of this tune, and what the latest poll added (SPEC "Packet
+         * errors"). [countersRead] is false while the tuner hasn't given its counters.
+         */
+        val errors: PacketErrors = PacketErrors.NONE,
+        val lastAdded: PacketErrors = PacketErrors.NONE,
+        val countersRead: Boolean = false,
     ) : LiveState
 
     /** No idle tuner can take this channel; who holds each. Tried again every [retryEvery]. */
@@ -139,6 +149,7 @@ class LiveSession(
         var watching = LiveState.Watching(channel, tuner.tuner, stream = tuner.hold is Hold.Stream)
         _state.value = watching
         var recorded = false
+        val counter = PacketErrorCounter()
         while (true) {
             watching = when (val poll = tuner.poll()) {
                 is Poll.Reading -> {
@@ -150,7 +161,15 @@ class LiveSession(
                         sink.tuned(channel, rf?.number, rf?.centerHz, rf?.band?.name, atsc3)
                     }
                     val sample = SignalSample(s.isLocked, s.ss, s.snq, s.seq)
-                    watching.copy(status = s, trace = watching.trace + TimedSample(clock.millis(), sample), raw = null, missedPolls = 0)
+                    val added = tuner.debug()?.let {
+                        counter.add(tuner.tuner, channel.guideNumber, ErrorCounters(it.transportErrors, it.crcErrors, it.resync, it.networkErrors))
+                    }
+                    watching.copy(
+                        status = s, trace = watching.trace + TimedSample(clock.millis(), sample), raw = null, missedPolls = 0,
+                        errors = added?.let { watching.errors + it } ?: watching.errors,
+                        lastAdded = added ?: PacketErrors.NONE,
+                        countersRead = watching.countersRead || added != null,
+                    )
                 }
                 is Poll.Unparseable -> watching.copy(raw = poll.raw, missedPolls = 0)
                 is Poll.Unreachable -> watching.copy(missedPolls = watching.missedPolls + 1)
