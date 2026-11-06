@@ -88,9 +88,12 @@
     <string name="packet_errors_crc">CRC</string>
     <string name="packet_errors_resyncs">resyncs</string>
     <string name="packet_errors_network">network</string>
-    <string name="packet_errors_description">%1$s: transport errors %2$d, CRC errors %3$d, resyncs %4$d, network errors %5$d</string>
+    <string name="packet_errors_description">%1$s: transport errors %2$d, CRC errors %3$d, resyncs %4$d, network errors %5$d.</string>
     <string name="packet_errors_description_rising">%1$s: transport errors %2$d, CRC errors %3$d, resyncs %4$d, network errors %5$d. Rising now.</string>
     <string name="packet_errors_none_description">%1$s: none</string>
+    <string name="packet_errors_source_signal">Damaged on the way in from the antenna.</string>
+    <string name="packet_errors_source_network">Lost on the network on the way out to the player; the signal itself was clean.</string>
+    <string name="packet_errors_source_both">Some damaged from the antenna, some lost on the network to the player.</string>
     <string name="devices_open_diagnostics">Diagnostics for %1$s</string>
     <string name="diagnostics_title">Diagnostics</string>
     <string name="diagnostics_back">Back</string>
@@ -123,6 +126,17 @@
     <string name="diagnostics_release">Release</string>
     <string name="diagnostics_releasing">Releasing…</string>
     <string name="diagnostics_release_failed">The tuner didn\'t take the release. It may not have answered; try again.</string>
+    <string name="diagnostics_watch">Watch this tuner in Monitor</string>
+    <string name="diagnostics_verdict_signal">These errors came in damaged from the antenna: a signal problem.</string>
+    <plurals name="diagnostics_verdict_network">
+        <item quantity="one">The signal is clean, but %1$d packet failed to go out on the network: a problem between the tuner and the player.</item>
+        <item quantity="other">The signal is clean, but %1$d packets failed to go out on the network: a problem between the tuner and the player.</item>
+    </plurals>
+    <plurals name="diagnostics_verdict_network_to">
+        <item quantity="one">The signal is clean, but %1$d packet failed to go out on the network to %2$s: a problem between the tuner and that player.</item>
+        <item quantity="other">The signal is clean, but %1$d packets failed to go out on the network to %2$s: a problem between the tuner and that player.</item>
+    </plurals>
+    <string name="diagnostics_verdict_both">Errors on both sides: some came in damaged from the antenna, some failed to go out on the network.</string>
     <string name="diagnostics_target">Stream to</string>
     <string name="diagnostics_vchannel">Channel</string>
     <string name="diagnostics_programs">Programs</string>
@@ -354,12 +368,19 @@
     <string name="monitor_setup_mode">Mode</string>
     <string name="monitor_setup_hold">Hold one channel</string>
     <string name="monitor_setup_rotate">Rotate channels</string>
+    <string name="monitor_setup_watch">Watch a tuner in use</string>
     <string name="monitor_setup_channel">Channel</string>
     <string name="monitor_setup_channels">Channels, in the order picked</string>
     <string name="monitor_setup_channel_chip">%1$s %2$s</string>
     <string name="monitor_setup_dwell">Time on each channel</string>
     <string name="monitor_setup_tuner">Tuner</string>
     <string name="monitor_setup_any_tuner">Any idle</string>
+    <string name="monitor_setup_watch_tuner">Tuner to watch</string>
+    <string name="monitor_setup_watch_chip_by">%1$d · %2$s</string>
+    <string name="monitor_setup_watch_chip_busy">%1$d · in use</string>
+    <string name="monitor_setup_watch_chip_idle">%1$d · idle</string>
+    <string name="monitor_setup_watch_chip_this">%1$d · this app</string>
+    <string name="monitor_setup_watch_note">Pick the tuner Plex or your DVR is using. Sightline only reads it: it never changes the channel or takes the tuner, and follows whatever channel is on. When nobody is using it, nothing is recorded.</string>
     <string name="monitor_setup_tuner_chip">%1$d</string>
     <string name="monitor_setup_duration">How long</string>
     <string name="monitor_setup_poll">A reading every</string>
@@ -387,6 +408,8 @@
 
     <!-- Monitor: running (mockups/Monitor.png) -->
     <string name="monitor_title_hold">Monitoring %1$s</string>
+    <string name="monitor_title_watch">Watching tuner %1$d</string>
+    <string name="monitor_title_watch_channel">Watching tuner %1$d · %2$s</string>
     <plurals name="monitor_title_rotate">
         <item quantity="one">Monitoring %1$d channel</item>
         <item quantity="other">Monitoring %1$d channels</item>
@@ -405,6 +428,9 @@
         <item quantity="other">No answer to the last %1$d polls</item>
     </plurals>
     <string name="monitor_phase_rotating">Now on %1$s, %2$d s each</string>
+    <string name="monitor_phase_observing_by">In use by %1$s. Sightline is only reading it.</string>
+    <string name="monitor_phase_observing">In use by another client. Sightline is only reading it.</string>
+    <string name="monitor_phase_observing_idle">Nobody is using tuner %1$d. Recording starts when someone tunes it.</string>
     <string name="monitor_of_ends">of %1$s · ends %2$s</string>
     <string name="monitor_elapsed_hm">%1$dh %2$02dm</string>
     <string name="monitor_elapsed_ms">%1$dm %2$02ds</string>
@@ -478,6 +504,7 @@
     <string name="monitor_notification_all_busy">Waiting for an idle tuner</string>
     <string name="monitor_notification_paused">Paused: the tuner was taken</string>
     <string name="monitor_notification_unreachable">The tuner isn\'t answering</string>
+    <string name="monitor_notification_watch_idle">Waiting for someone to use the tuner</string>
     <string name="monitor_alert_title">Signal dips</string>
     <plurals name="monitor_alert_one_channel">
         <item quantity="one">%1$d dip on %2$s in the last hour</item>
@@ -681,6 +708,16 @@
         <item quantity="other">The tuner stopped answering %1$d times, %2$s in all.</item>
     </plurals>
     <string name="session_fix_not_rf">Fix: wire the tuner and the player; check the switch and Wi-Fi.</string>
+    <string name="session_finding_network_loss">Packets lost on the network, not the air</string>
+    <plurals name="session_evidence_network_loss_clean">
+        <item quantity="one">The tuner failed to send %1$d packet to the player, and none came in damaged from the antenna.</item>
+        <item quantity="other">The tuner failed to send %1$d packets to the player, and none came in damaged from the antenna.</item>
+    </plurals>
+    <plurals name="session_evidence_network_loss">
+        <item quantity="one">The tuner failed to send %1$d packet to the player; only %2$d came in damaged from the antenna.</item>
+        <item quantity="other">The tuner failed to send %1$d packets to the player; only %2$d came in damaged from the antenna.</item>
+    </plurals>
+    <string name="session_fix_network_loss">Fix: wire the tuner and the player (Plex server, DVR) to the same switch; check that cable, the switch and the player\'s network.</string>
 
     <string name="session_list_separator">, </string>
 
@@ -758,6 +795,8 @@
     <string name="session_errors_split">Transport errors during dips and dropouts: %1$d. At other times: %2$d.</string>
     <string name="session_errors_hidden">Errors while every reading looked fine are trouble too brief for a reading to catch: a short burst of interference, or signal right at the edge.</string>
     <string name="session_firmware">Recorded on firmware %1$s</string>
+    <string name="session_watched">Watched while another client used tuner %1$d; Sightline didn\'t tune it.</string>
+    <string name="session_watched_by">Watched while %2$s used tuner %1$d; Sightline didn\'t tune it.</string>
     <string name="session_device_firmware">%1$s · firmware %2$s</string>
     <string name="compare_firmware">Firmware</string>
     <string name="compare_error_rate">Transport errors / h</string>

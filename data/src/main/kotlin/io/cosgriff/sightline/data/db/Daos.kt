@@ -105,6 +105,10 @@ interface SessionDao {
         if (events.isNotEmpty()) insertEvents(events)
     }
 
+    /** A watched session's channels so far (as [Converters.fromList] writes them) and the client using the tuner. */
+    @Query("UPDATE session SET channels = :channels, holder = :holder WHERE id = :id")
+    suspend fun setWatched(id: Long, channels: String, holder: String?)
+
     @Query("UPDATE session SET endedAt = :endedAt, tuner = :tuner WHERE id = :id")
     suspend fun finish(id: Long, endedAt: Long, tuner: Int?)
 

@@ -71,6 +71,12 @@ data class SessionEntity(
     @ColumnInfo(defaultValue = "0") val fetchWeather: Boolean = false,
     /** The device's firmware version when the session started; null for sessions from before it was kept. */
     val firmware: String? = null,
+    /**
+     * A monitor that read a tuner another client was using, without holding it (GLOSSARY "Watch a tuner in use").
+     * [channels] then fill in as that client tunes them, and [holder] is the client's address as last seen.
+     */
+    @ColumnInfo(defaultValue = "0") val watched: Boolean = false,
+    val holder: String? = null,
 )
 
 /** One poll (GLOSSARY "Reading"). [rawStatus] is kept only when the line couldn't be parsed. */

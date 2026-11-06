@@ -216,6 +216,18 @@ private fun Loaded(state: SessionUiState, detail: SessionDetail, thresholds: Thr
         }
         item(key = "events") { Events(detail, units, zone, zoomTo) }
         if (detail.stats.errors.hasCounters) item(key = "errors") { PacketErrorsSection(detail) }
+        if (detail.info.watched) {
+            item(key = "watched") {
+                val tuner = detail.info.tuner ?: 0
+                Text(
+                    detail.info.holder?.let { stringResource(R.string.session_watched_by, tuner, it) }
+                        ?: stringResource(R.string.session_watched, tuner),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.sightlineColors.textSecondary,
+                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp),
+                )
+            }
+        }
         detail.info.firmware?.let { firmware ->
             item(key = "firmware") {
                 Text(

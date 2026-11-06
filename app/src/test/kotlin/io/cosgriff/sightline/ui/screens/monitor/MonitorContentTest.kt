@@ -17,6 +17,7 @@ import io.cosgriff.sightline.analysis.Thresholds
 import io.cosgriff.sightline.analysis.TimelineSeries
 import io.cosgriff.sightline.data.device.Channel
 import io.cosgriff.sightline.data.device.Device
+import io.cosgriff.sightline.data.device.TunerHolder
 import io.cosgriff.sightline.data.monitor.MonitorEnd
 import io.cosgriff.sightline.data.monitor.MonitorPhase
 import io.cosgriff.sightline.data.monitor.MonitorPlan
@@ -46,6 +47,7 @@ class MonitorContentTest {
         onSelectDevice = { calls += "device $it" },
         onToggleChannel = { calls += "channel $it" },
         onRotate = { calls += "rotate $it" },
+        onWatch = { calls += "watch $it" },
         onTuner = { calls += "tuner $it" },
         onDwell = { calls += "dwell $it" },
         onDuration = { calls += "duration $it" },
@@ -139,7 +141,7 @@ class MonitorContentTest {
     fun `running shows the session's packet errors once the tuner gives its counters`() {
         val counted = status().copy(countersRead = true, errors = PacketErrors(transport = 412, crc = 103, resyncs = 2))
         show(MonitorUiState(status = counted), now = start + 60_000L)
-        compose.onNode(hasContentDescription("Packet errors this session: transport errors 412, CRC errors 103, resyncs 2, network errors 0"))
+        compose.onNode(hasContentDescription("Packet errors this session: transport errors 412, CRC errors 103, resyncs 2, network errors 0. Damaged on the way in from the antenna."))
             .performScrollTo().assertExists()
     }
 
@@ -170,5 +172,34 @@ class MonitorContentTest {
         compose.onNodeWithText("Done").performClick()
         compose.onNodeWithText("Start monitoring").performScrollTo().assertExists()
         assertThat(calls).containsExactly("dismiss")
+    }
+
+    @Test
+    fun `watch mode picks a tuner by who is using it, not a channel`() {
+        val holders = listOf(TunerHolder.Idle, TunerHolder.ThisApp, TunerHolder.Other("192.168.1.20"), TunerHolder.Idle)
+        show(MonitorUiState(SetupState.Ready(setup("9.1").copy(watch = true, holders = holders))))
+        compose.onNodeWithText("Tuner to watch").assertExists()
+        compose.onNodeWithText("Channel").assertDoesNotExist()
+        compose.onNodeWithText("Start monitoring").performScrollTo().assertIsNotEnabled()
+        compose.onNodeWithText("2 · 192.168.1.20").performScrollTo().performClick()
+        compose.onNodeWithText("1 · this app").assertExists()
+        compose.onNodeWithText("Hold one channel").performScrollTo().performClick()
+        assertThat(calls).containsExactly("tuner 2", "rotate false").inOrder()
+    }
+
+    @Test
+    fun `watching says who is using the tuner, and when nobody is`() {
+        val plan = MonitorPlan(device, lineup, 2, 30_000, null, 1_000, Thresholds.DEFAULT, false, false, watch = true)
+        val base = status().copy(plan = plan, phase = MonitorPhase.Observing(2, "192.168.1.20", "http://192.168.1.20:5004"))
+        show(MonitorUiState(SetupState.Loading, status = base))
+        compose.onNodeWithText("Watching tuner 2 · 9.1").assertExists()
+        compose.onNodeWithText("In use by 192.168.1.20. Sightline is only reading it.").assertExists()
+    }
+
+    @Test
+    fun `watching an idle tuner waits for someone`() {
+        val plan = MonitorPlan(device, lineup, 2, 30_000, null, 1_000, Thresholds.DEFAULT, false, false, watch = true)
+        show(MonitorUiState(SetupState.Loading, status = status().copy(plan = plan, phase = MonitorPhase.ObservingIdle(2))))
+        compose.onNodeWithText("Nobody is using tuner 2. Recording starts when someone tunes it.").assertExists()
     }
 }

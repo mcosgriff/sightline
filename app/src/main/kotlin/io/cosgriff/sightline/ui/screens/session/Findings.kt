@@ -95,6 +95,14 @@ fun Finding.text(units: Units, zone: ZoneId): FindingText = when (this) {
         pluralStringResource(R.plurals.session_evidence_flutter, swings, swings, list(channels)),
         stringResource(R.string.session_fix_flutter),
     )
+    is Finding.NetworkLoss -> FindingText(
+        stringResource(R.string.session_finding_network_loss),
+        networkErrors.toInt().let { n ->
+            if (signalErrors == 0L) pluralStringResource(R.plurals.session_evidence_network_loss_clean, n, n)
+            else pluralStringResource(R.plurals.session_evidence_network_loss, n, n, signalErrors)
+        },
+        stringResource(R.string.session_fix_network_loss),
+    )
     is Finding.NotRf -> FindingText(
         stringResource(R.string.session_finding_not_rf),
         pluralStringResource(R.plurals.session_evidence_not_rf, count, count, compactDuration(totalMs)),

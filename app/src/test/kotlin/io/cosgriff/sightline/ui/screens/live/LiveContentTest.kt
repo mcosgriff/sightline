@@ -98,7 +98,7 @@ class LiveContentTest {
     fun `packet errors since tuned show and say when they rise`() {
         val w = watching("ch=8vsb:599000000 lock=8vsb ss=88 snq=86 seq=97")
         show(LiveUiState(ready, w.copy(countersRead = true, errors = PacketErrors(transport = 42, crc = 7), lastAdded = PacketErrors(transport = 3)), nowMs = 1_000))
-        compose.onNode(hasContentDescription("Packet errors since tuned: transport errors 42, CRC errors 7, resyncs 0, network errors 0. Rising now."))
+        compose.onNode(hasContentDescription("Packet errors since tuned: transport errors 42, CRC errors 7, resyncs 0, network errors 0. Rising now. Damaged on the way in from the antenna."))
             .performScrollTo().assertExists()
     }
 

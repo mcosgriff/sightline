@@ -110,7 +110,8 @@ The libhdhomerun source (github.com/Silicondust/libhdhomerun, `hdhomerun_pkt.h` 
 | `set /tunerN/vchannel 7.1` | Tune by virtual channel (sent with lock key). ATSC 1.0 and QAM only: an ATSC 3.0 channel answers `invalid virtual channel` |
 | `set /tunerN/channel auto:<rf>` | Tune by RF channel, for channels missing from the lineup. ATSC 1.0 and QAM only; status keeps reporting `ch=auto:<rf>` |
 | `get /tunerN/channel` | The `ch=` value a tune produced, read right after tuning so each poll can check it is unchanged |
-| `get /tunerN/streaminfo` | Programs in the transport stream |
+| `get /tunerN/streaminfo` | Programs in the transport stream (`1: 9.1 KUSA-HD` per line, then `tsid=`) |
+| `get /tunerN/vchannel`, `get /tunerN/program` | The guide number tuned (`none` when tuned by RF), and the program number being sent. Watch mode names another client's channel with them |
 | `get /tunerN/debug` | Four lines, `tun:` (ch, lock, ss, snq, seq, `dbg`), `dev:` (bps, `resync`, `overflow`), `ts:` (bps, `te` transport errors, `crc`) and `net:` (bps, pps, `err`, `stop`). The counters run from the last tune. Diagnostics shows them |
 | `get /sys/features`, `get /tunerN/plpinfo` | Channel maps and modulations; ATSC 3.0 PLPs (empty when none). Diagnostics shows them raw |
 | `set /tunerN/channel none`, then `set /tunerN/lockkey none` | Release the tuner (always, including on crash recovery) |
@@ -158,7 +159,7 @@ Seven Room tables. Readings are the only large table: a 12-hour, one-channel ses
 | --- | --- | --- |
 | `Device` | deviceId (PK, hex string), friendlyName, model, firmware, baseUrl, tunerCount, lastSeen | Refreshed on each discovery |
 | `Channel` | deviceId + guideNumber (PK), guideName, rfChannel?, frequencyHz?, band?, favorite | rfChannel filled the first time the channel is tuned |
-| `Session` | id (PK), deviceId, kind (`LIVE`, `AIM`, `MONITOR`, `SWEEP`), startedAt, endedAt?, channels (list), tuner?, pollIntervalMs, dwellMs?, note, weatherFetched, fetchWeather, firmware? | firmware is the device's when the session started (null before Room v5), so sessions either side of an update can be told apart; tuner is null when a sweep moved between tuners; dwellMs is a sweep's | One per run; live views are saved as sessions only when the user taps Save |
+| `Session` | id (PK), deviceId, kind (`LIVE`, `AIM`, `MONITOR`, `SWEEP`), startedAt, endedAt?, channels (list), tuner?, pollIntervalMs, dwellMs?, note, weatherFetched, fetchWeather, firmware?, watched, holder? | firmware is the device's when the session started (null before Room v5), so sessions either side of an update can be told apart; watched marks a monitor that watched a tuner in use (Room v6), holder the client's address; tuner is null when a sweep moved between tuners; dwellMs is a sweep's | One per run; live views are saved as sessions only when the user taps Save |
 | `Reading` | id (PK), sessionId (FK, indexed), ts (epoch ms, indexed with sessionId), guideNumber, tuner, ss, snq, seq, bps, pps, lock, headingDeg?, rawStatus?, transportErrors?, crcErrors?, resyncs?, networkErrors? | `rawStatus` kept only when the parse failed. The four counters are `/tunerN/debug`'s running counts as read with the reading (Monitor only, from Room v5); see "Packet errors" |
 | `Event` | id (PK), sessionId, startTs, endTs, guideNumber?, kind (`DIP`, `DROPOUT`, `TUNER_LOST`, `DEVICE_UNREACHABLE`, `GAP`), minSnq?, minSeq?, noLockMs | Written by the dip detector. guideNumber is null for device-wide events; minSnq/minSeq are the lowest locked values among the bad readings, null if it never locked; noLockMs is how long of it had no lock ("lock lost 4 s") |
 | `WeatherHour` | sessionId + hourTs (PK), tempC, windKph, gustKph, precipMm | From Open-Meteo, fetched after a session ends |
@@ -268,7 +269,11 @@ Navigation is a bottom bar with four destinations: Devices, Live, Monitor, Histo
 ### 6. Monitor setup (no mockup yet)
 
 - Pick device, tuner, and one or more channels.
-- Mode: hold one channel, or rotate through several with a dwell time (default 30 s each).
+- Mode: hold one channel, rotate through several with a dwell time (default 30 s each), or **watch a tuner in use**.
+- **Watch a tuner in use** reads a tuner another client (Plex, a DVR) is using, without holding it: gets only (`status` and `debug` each poll; `lockkey`, `target`, `vchannel`, `program`, `streaminfo` when the channel changes), never a set, so the "never take a tuner in use" rule holds. The setup picks a tuner, not channels, showing who is using each (read when the mode is picked) and preselecting the one other client when there is just one. Diagnostics' **Watch this tuner in Monitor** opens the setup this way.
+  - The channel is whatever the client tunes: `vchannel`, else the program being sent looked up in `streaminfo`, else the lineup channel on that RF channel, else the tuner's `ch=` value. A channel change pauses the dip detector and starts its packet errors from a fresh baseline; readings in the 3 s after a tune are skipped until it locks with seq above 0, as in the polling loop.
+  - A tuner nobody is using is not a dropout: the detector pauses and nothing is recorded until someone tunes it. The running view says who is using it, or that nobody is.
+  - The session (`watched`) stores the channels as they're first seen and the client's address as last seen; Session detail says it watched rather than tuned.
 - Duration (1 h to 72 h, or until stopped), poll interval (1 s default, 5 s battery saver), and dip thresholds (prefilled from Settings).
 - Option: fetch weather afterward.
 - An estimate line: "About 43,000 readings, 3 MB" plus a battery estimate once measured.
@@ -315,6 +320,8 @@ The main analysis screen, from top to bottom:
 - **Device:** model (`/sys/hwmodel`), firmware (`/sys/version`) and firmware name (`/sys/model`), whether the tuner offers an update, address, device ID, this phone's address on the control connection, and `/sys/features`.
 - **Update:** `discover.json`'s `UpgradeAvailable`, which the tuner fills from its own check with SiliconDust; the phone asks nobody but the tuner. Absent means none offered. Not yet seen in a capture.
 - **Each tuner:** who holds it, the status line, the `/tunerN/debug` counters (transport and CRC errors, resyncs, overflows, network errors and stops, with a warning icon when not zero), stream target, channel and programs, and every raw reply behind a toggle.
+- **Where the errors are:** under the counters, when any are above zero: came in damaged from the antenna (transport, CRC, resyncs), failed to go out on the network (`net err`, naming the stream target's host), or both. The counts run from the tune, so this describes the whole tune.
+- **Watch this tuner in Monitor** on a tuner another client holds: opens Monitor's setup in watch mode on that tuner.
 - **Who holds it:** idle; in use by Sightline (a screen or the monitor holds it now); held by this phone (the lock or stream target is this phone's address but nothing in Sightline holds it: a tuner left behind, or another app on the phone); another client by IP; tuned with no holder; no answer.
 - **Release** shows only on a tuner held by this phone for which Sightline still has the lock key, and sends the same release as the start-up stale-key recovery, which the tuner refuses with any other client's lock. Nothing else on the screen sets anything: it is gets only, every 2 s while visible, so it is safe on tuners a DVR is recording on.
 - **Share** sends a plain-text report of everything shown plus the raw replies. `discover.json` is read into a model without DeviceAuth, so the report can't contain it.
@@ -349,6 +356,7 @@ Store the active lock key and tuner in DataStore. On app start, if a stale lock 
 
 - Monitor stores the four running counts on each reading. Errors per reading are the counts' growth since the tuner's previous reading of the same tune. A new tune starts when the tuner's channel changes, a counter falls, or (Monitor, which knows) it is claimed again; its first reading is the baseline and adds nothing, so tuning itself never counts. A reading without counters adds nothing and keeps the baseline. `PacketErrorCounter` in `:analysis` does this for Live, Monitor's running total and Session detail alike.
 - Sessions recorded before this (Room v4 and earlier) have no counters; screens leave packet errors out rather than show 0.
+- **Where:** transport, CRC and resyncs happen on the way in from the antenna (the signal side); `net err` on the way out to the client (the network side). Every packet errors row says which side the errors were on, and the Network loss rule turns a session whose errors are mostly network-side into a finding. When Sightline itself holds a tuner with a lock key nothing streams, so the network side only counts for ATSC 3.0 (its stream to the phone) and in watch mode (the client's stream).
 - Not yet checked on a real unit: whether ATSC 3.0 tunes count `te`/`crc` the same way, and whether the counters wrap.
 
 ### Dip detection
@@ -393,6 +401,7 @@ The engine turns a session into plain-language findings, each with evidence and 
 | One tuner | Same channel is fine on other tuners but dips on one | Possible tuner fault | Avoid that tuner; contact SiliconDust support |
 | Impulse noise | seq drops while snq stays ≥ 80 | Short bursts of interference | Look for LED drivers, motors or power supplies near the antenna or cable |
 | Flutter | snq swings 20+ points within 10 s, repeatedly | Multipath or aircraft flutter | Re-aim for a cleaner path; try a more directional antenna |
+| Network loss | The tuner's network send errors are 10+ and at least 10× its antenna-side errors | Packets lost on the network, not the air | Wire the tuner and the player to the same switch; check that cable, the switch and the player's network |
 | Not RF | Device-unreachable events, or seq at 100 during reported glitches | The tuner is fine; the network or player is not | Wire the tuner and player; check the switch and Wi-Fi |
 
 Each rule's exact numbers, and what makes it Likely rather than Possible, are in [`docs/rules/diagnosis.md`](rules/diagnosis.md). Findings are sorted by strength of evidence. A session with no rule firing shows "No pattern found" with the summary numbers, never an empty card.
@@ -427,7 +436,7 @@ Same release path as Glovebox: a public GitHub repo under GPL-3.0, release APKs 
 - **Protocol unit tests (JVM):** encode and decode against golden packets captured from a real unit with `tcpdump` while running `hdhomerun_config`. CRC, varlen sizes at 127/128 bytes, and malformed replies.
 - **Status parser tests:** real status lines from 8VSB, ATSC 3.0, no-lock and idle tuners, plus unknown keys.
 - **Fake HDHomeRun:** a small Kotlin server in test sources that answers discovery and get/set, with scripted signal patterns (steady, slow fade, wind flutter, hard dropouts, device vanishing). Used by the dip detector and diagnosis tests.
-- **Demo device:** the same fake built into debug builds as a selectable "Demo tuner", so the UI can be built and screenshotted without hardware.
+- **Demo device:** the same fake built into debug builds as a selectable "Demo tuner", so the UI can be built and screenshotted without hardware. Its tuner 3 is held by a made-up player (`192.0.2.20`, a documentation address) on the Wind channel whose stream loses 2 packets a second on the network, for watch mode and the network side of packet errors.
 - **Screenshot tests:** Roborazzi for `ArcGauge`, `TriGauge`, the heatmap and the polar plot in light, dark and true-black themes.
 - **Soak test:** a 12-hour Monitor run on a real phone, screen off, on a charger and on battery, to measure gaps and battery drain.
 

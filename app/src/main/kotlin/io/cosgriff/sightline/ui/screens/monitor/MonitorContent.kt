@@ -43,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -63,6 +64,8 @@ import io.cosgriff.sightline.analysis.Thresholds
 import io.cosgriff.sightline.analysis.dipCount
 import io.cosgriff.sightline.analysis.longestDipMs
 import io.cosgriff.sightline.data.monitor.MonitorEnd
+import io.cosgriff.sightline.data.device.TunerHolder
+import io.cosgriff.sightline.monitor.monitorTitle
 import io.cosgriff.sightline.data.monitor.MonitorPhase
 import io.cosgriff.sightline.data.monitor.MonitorStatus
 import io.cosgriff.sightline.protocol.LostReason
@@ -80,6 +83,7 @@ data class MonitorActions(
     val onSelectDevice: (String) -> Unit,
     val onToggleChannel: (String) -> Unit,
     val onRotate: (Boolean) -> Unit,
+    val onWatch: (Boolean) -> Unit = {},
     val onTuner: (Int?) -> Unit,
     val onDwell: (Int) -> Unit,
     val onDuration: (MonitorDuration) -> Unit,
@@ -157,11 +161,14 @@ private fun Setup(setup: SetupState, actions: MonitorActions) {
 
                 Field(stringResource(R.string.monitor_setup_mode)) {
                     Choices {
-                        Choice(stringResource(R.string.monitor_setup_hold), !s.rotate) { actions.onRotate(false) }
+                        Choice(stringResource(R.string.monitor_setup_hold), !s.rotate && !s.watch) { actions.onRotate(false) }
                         Choice(stringResource(R.string.monitor_setup_rotate), s.rotate) { actions.onRotate(true) }
+                        Choice(stringResource(R.string.monitor_setup_watch), s.watch) { actions.onWatch(true) }
                     }
                 }
-                Field(stringResource(if (s.rotate) R.string.monitor_setup_channels else R.string.monitor_setup_channel)) {
+                if (s.watch) {
+                    WatchTuner(s, actions.onTuner)
+                } else Field(stringResource(if (s.rotate) R.string.monitor_setup_channels else R.string.monitor_setup_channel)) {
                     Choices {
                         s.channels.forEach { c ->
                             Choice(stringResource(R.string.monitor_setup_channel_chip, c.guideNumber, c.guideName), c.guideNumber in s.selected) {
@@ -179,11 +186,13 @@ private fun Setup(setup: SetupState, actions: MonitorActions) {
                         }
                     }
                 }
-                Field(stringResource(R.string.monitor_setup_tuner)) {
-                    Choices {
-                        Choice(stringResource(R.string.monitor_setup_any_tuner), s.tuner == null) { actions.onTuner(null) }
-                        (0 until s.device.tunerCount).forEach { t ->
-                            Choice(stringResource(R.string.monitor_setup_tuner_chip, t), s.tuner == t) { actions.onTuner(t) }
+                if (!s.watch) {
+                    Field(stringResource(R.string.monitor_setup_tuner)) {
+                        Choices {
+                            Choice(stringResource(R.string.monitor_setup_any_tuner), s.tuner == null) { actions.onTuner(null) }
+                            (0 until s.device.tunerCount).forEach { t ->
+                                Choice(stringResource(R.string.monitor_setup_tuner_chip, t), s.tuner == t) { actions.onTuner(t) }
+                            }
                         }
                     }
                 }
@@ -214,6 +223,27 @@ private fun Setup(setup: SetupState, actions: MonitorActions) {
                 }
             }
         }
+    }
+}
+
+/** Watch mode's tuner pick: each tuner with who is using it, read when the mode was picked. */
+@Composable
+private fun WatchTuner(s: MonitorSetup, onTuner: (Int?) -> Unit) {
+    val colors = MaterialTheme.sightlineColors
+    Field(stringResource(R.string.monitor_setup_watch_tuner)) {
+        Choices {
+            (0 until s.device.tunerCount).forEach { t ->
+                val label = when (val h = s.holders?.getOrNull(t)) {
+                    is TunerHolder.Other -> h.address?.let { stringResource(R.string.monitor_setup_watch_chip_by, t, it) }
+                        ?: stringResource(R.string.monitor_setup_watch_chip_busy, t)
+                    TunerHolder.Idle -> stringResource(R.string.monitor_setup_watch_chip_idle, t)
+                    TunerHolder.ThisApp, is TunerHolder.ThisPhone -> stringResource(R.string.monitor_setup_watch_chip_this, t)
+                    else -> stringResource(R.string.monitor_setup_tuner_chip, t)
+                }
+                Choice(label, s.tuner == t) { onTuner(t) }
+            }
+        }
+        Text(stringResource(R.string.monitor_setup_watch_note), style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
     }
 }
 
@@ -334,11 +364,15 @@ private fun ColumnScope.Running(status: MonitorStatus, thresholds: Thresholds, n
     val colors = MaterialTheme.sightlineColors
     val plan = status.plan
     var confirmStop by remember { mutableStateOf(false) }
-    val title = if (plan.rotate) pluralStringResource(R.plurals.monitor_title_rotate, plan.channels.size, plan.channels.size)
-    else stringResource(R.string.monitor_title_hold, status.channel.guideNumber)
+    val title = monitorTitle(LocalResources.current, status)
     val rate = if (plan.pollIntervalMs <= 1_000) stringResource(R.string.monitor_rate_1s)
     else stringResource(R.string.monitor_rate_every, (plan.pollIntervalMs / 1_000).toInt())
-    val tuner = (status.phase as? MonitorPhase.Watching)?.tuner
+    val tuner = when (val p = status.phase) {
+        is MonitorPhase.Watching -> p.tuner
+        is MonitorPhase.Observing -> p.tuner
+        is MonitorPhase.ObservingIdle -> p.tuner
+        else -> null
+    }
     val subtitle = if (tuner != null) stringResource(R.string.monitor_subtitle_tuner, plan.device.friendlyName, tuner, rate)
     else stringResource(R.string.monitor_subtitle, plan.device.friendlyName, rate)
     val events = status.allEvents
@@ -449,11 +483,19 @@ private fun PhaseLine(status: MonitorStatus) {
             status.plan.rotate -> stringResource(R.string.monitor_phase_rotating, status.channel.guideNumber, (status.plan.dwellMs / 1_000).toInt())
             else -> null
         }
+        is MonitorPhase.Observing -> when {
+            p.missedPolls > 0 -> pluralStringResource(R.plurals.monitor_phase_missed, p.missedPolls, p.missedPolls)
+            else -> p.holder?.let { stringResource(R.string.monitor_phase_observing_by, it) }
+                ?: stringResource(R.string.monitor_phase_observing)
+        }
+        is MonitorPhase.ObservingIdle -> stringResource(R.string.monitor_phase_observing_idle, p.tuner)
     } ?: return
     Text(
         text,
         style = MaterialTheme.typography.bodyMedium,
-        color = if (status.phase is MonitorPhase.Watching && !status.plan.rotate) colors.healthMarginal else colors.textSecondary,
+        color = if ((status.phase as? MonitorPhase.Watching)?.missedPolls?.let { it > 0 } == true ||
+            (status.phase as? MonitorPhase.Observing)?.missedPolls?.let { it > 0 } == true
+        ) colors.healthMarginal else colors.textSecondary,
         modifier = Modifier.padding(start = 20.dp, end = 16.dp, top = 6.dp).semantics { liveRegion = LiveRegionMode.Polite },
     )
 }

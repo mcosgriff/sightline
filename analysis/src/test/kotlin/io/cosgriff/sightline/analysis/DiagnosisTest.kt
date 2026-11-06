@@ -325,6 +325,41 @@ class DiagnosisTest {
         assertThat(f).isNull()
     }
 
+    /** [readings] with running counters: the network count rising [netPerReading] a reading, the signal side [signalPerReading]. */
+    private fun SyntheticSession.counted(netPerReading: Long, signalPerReading: Long = 0) {
+        readings.replaceAll { r ->
+            val i = (r.atMs - START) / pollMs
+            r.copy(counters = ErrorCounters(transport = i * signalPerReading, crc = 0, resyncs = 0, network = i * netPerReading))
+        }
+    }
+
+    @Test
+    fun `network loss fires when the network side has the errors`() {
+        val f = SyntheticSession().apply {
+            read("9.1", good, toMs = HOUR)
+            counted(netPerReading = 3)
+        }.diagnose().find<Finding.NetworkLoss>()
+        // 360 readings, the first a baseline.
+        assertThat(f!!.networkErrors).isEqualTo(359 * 3L)
+        assertThat(f.signalErrors).isEqualTo(0)
+        assertThat(f.strength).isEqualTo(Strength.LIKELY)
+    }
+
+    @Test
+    fun `network loss is only possible with antenna errors too, and quiet when they lead`() {
+        val possible = SyntheticSession().apply {
+            read("9.1", good, toMs = HOUR)
+            counted(netPerReading = 20, signalPerReading = 1)
+        }.diagnose().find<Finding.NetworkLoss>()
+        assertThat(possible!!.strength).isEqualTo(Strength.POSSIBLE)
+
+        val none = SyntheticSession().apply {
+            read("9.1", good, toMs = HOUR)
+            counted(netPerReading = 3, signalPerReading = 1)
+        }.diagnose().find<Finding.NetworkLoss>()
+        assertThat(none).isNull()
+    }
+
     @Test
     fun `Likely findings come before Possible ones`() {
         val findings = SyntheticSession().apply {

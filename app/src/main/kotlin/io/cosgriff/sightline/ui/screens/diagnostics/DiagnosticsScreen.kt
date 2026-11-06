@@ -44,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
@@ -59,7 +60,10 @@ import io.cosgriff.sightline.data.device.TunerHolder
 import io.cosgriff.sightline.protocol.ControlResult
 import io.cosgriff.sightline.protocol.Probe
 import io.cosgriff.sightline.protocol.TunerDebug
+import io.cosgriff.sightline.protocol.TunerObserver
 import io.cosgriff.sightline.protocol.TunerSnapshot
+import io.cosgriff.sightline.analysis.ErrorSource
+import io.cosgriff.sightline.analysis.PacketErrors
 import io.cosgriff.sightline.ui.theme.Numbers
 import io.cosgriff.sightline.ui.theme.sightlineColors
 import java.time.Instant
@@ -67,7 +71,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 @Composable
-fun DiagnosticsScreen(deviceId: String, onBack: () -> Unit) {
+fun DiagnosticsScreen(deviceId: String, onBack: () -> Unit, onWatch: () -> Unit = {}) {
     val viewModel = hiltViewModel<DiagnosticsViewModel, DiagnosticsViewModel.Factory>(key = "diagnostics-$deviceId") { it.create(deviceId) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     LifecycleStartEffect(viewModel) {
@@ -81,6 +85,10 @@ fun DiagnosticsScreen(deviceId: String, onBack: () -> Unit) {
         zone = zone,
         onBack = onBack,
         onRelease = viewModel::release,
+        onWatch = { tuner ->
+            viewModel.watch(tuner)
+            onWatch()
+        },
         onShare = { d -> shareReport(context, diagnosticsReport(context, d, BuildConfig.VERSION_NAME, zone)) },
     )
 }
@@ -93,6 +101,7 @@ fun DiagnosticsContent(
     onRelease: (Int) -> Unit,
     onShare: (Diagnostics) -> Unit,
     modifier: Modifier = Modifier,
+    onWatch: (Int) -> Unit = {},
 ) {
     val colors = MaterialTheme.sightlineColors
     val read = state as? DiagnosticsState.Read
@@ -128,6 +137,7 @@ fun DiagnosticsContent(
                         releasing = state.releasing == t.tuner,
                         releaseFailed = state.releaseFailed == t.tuner,
                         onRelease = { onRelease(t.tuner) },
+                        onWatch = { onWatch(t.tuner) },
                     )
                 }
                 Text(
@@ -214,7 +224,14 @@ private fun Fact(label: String, value: String, mono: Boolean = true, tint: Color
 }
 
 @Composable
-private fun TunerCard(tuner: TunerSnapshot, holder: TunerHolder, releasing: Boolean, releaseFailed: Boolean, onRelease: () -> Unit) {
+private fun TunerCard(
+    tuner: TunerSnapshot,
+    holder: TunerHolder,
+    releasing: Boolean,
+    releaseFailed: Boolean,
+    onRelease: () -> Unit,
+    onWatch: () -> Unit,
+) {
     val colors = MaterialTheme.sightlineColors
     var raw by rememberSaveable(tuner.tuner) { mutableStateOf(false) }
     Card {
@@ -236,7 +253,13 @@ private fun TunerCard(tuner: TunerSnapshot, holder: TunerHolder, releasing: Bool
             Text(stringResource(R.string.diagnostics_release_failed), style = MaterialTheme.typography.bodySmall, color = colors.healthPoor)
         }
         tuner.value("status")?.let { Text(it.trim(), style = Numbers.info.copy(fontSize = Numbers.info.fontSize * 0.85f)) }
-        tuner.debug?.let { Counters(it) }
+        tuner.debug?.let {
+            Counters(it)
+            ErrorVerdict(it, tuner.target?.let(TunerObserver::streamHost))
+        }
+        if (holder is TunerHolder.Other) {
+            OutlinedButton(onClick = onWatch) { Text(stringResource(R.string.diagnostics_watch)) }
+        }
         tuner.target?.let { Fact(stringResource(R.string.diagnostics_target), it) }
         tuner.value("vchannel")?.takeIf { it != "none" }?.let { Fact(stringResource(R.string.diagnostics_vchannel), it) }
         tuner.value("streaminfo")?.trim()?.takeIf { it.isNotEmpty() && it != "none" }?.let {
@@ -271,6 +294,30 @@ private fun Counters(debug: TunerDebug) {
             debug.transportBps?.let { stringResource(R.string.diagnostics_mbps, it / 1_000_000.0) } ?: dash,
             bad = false,
         )
+    }
+}
+
+/**
+ * Where this tune's errors are (SPEC "Packet errors"): arriving damaged from the antenna, or failing to get out to
+ * the client on the network. The counts are since the tune, so this describes the whole tune, not this moment.
+ */
+@Composable
+private fun ErrorVerdict(debug: TunerDebug, client: String?) {
+    val colors = MaterialTheme.sightlineColors
+    val errors = PacketErrors(debug.transportErrors ?: 0, debug.crcErrors ?: 0, debug.resync ?: 0, debug.networkErrors ?: 0)
+    val text = when (errors.source) {
+        ErrorSource.NONE -> return
+        ErrorSource.SIGNAL -> stringResource(R.string.diagnostics_verdict_signal)
+        ErrorSource.NETWORK -> {
+            val n = errors.network.toInt()
+            client?.let { pluralStringResource(R.plurals.diagnostics_verdict_network_to, n, n, it) }
+                ?: pluralStringResource(R.plurals.diagnostics_verdict_network, n, n)
+        }
+        ErrorSource.BOTH -> stringResource(R.string.diagnostics_verdict_both)
+    }
+    Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Icon(Icons.Rounded.Warning, contentDescription = null, tint = colors.healthMarginal, modifier = Modifier.size(16.dp).padding(top = 2.dp))
+        Text(text, style = MaterialTheme.typography.bodySmall)
     }
 }
 

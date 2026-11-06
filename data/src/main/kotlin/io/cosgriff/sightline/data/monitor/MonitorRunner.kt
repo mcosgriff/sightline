@@ -24,6 +24,7 @@ import io.cosgriff.sightline.protocol.Hold
 import io.cosgriff.sightline.protocol.Lock
 import io.cosgriff.sightline.protocol.LostReason
 import io.cosgriff.sightline.protocol.Modulation
+import io.cosgriff.sightline.protocol.Observation
 import io.cosgriff.sightline.protocol.Occupancy
 import io.cosgriff.sightline.protocol.Poll
 import io.cosgriff.sightline.protocol.RfChannels
@@ -48,6 +49,9 @@ import kotlin.time.TimeSource
  * What to monitor (SPEC Screens › Monitor setup). One channel is held for the whole session; several are rotated
  * through, [dwellMs] each. [tuner] is the one to use, or null for any idle one. [durationMs] null runs until
  * stopped.
+ *
+ * [watch]: read [tuner] while another client (Plex, a DVR) uses it, without holding it (GLOSSARY "Watch a tuner in
+ * use"). The channel is whatever that client tunes; [channels] are then the lineup, for names, and may be empty.
  */
 data class MonitorPlan(
     val device: Device,
@@ -59,12 +63,14 @@ data class MonitorPlan(
     val thresholds: Thresholds,
     val fetchWeather: Boolean,
     val notifyDips: Boolean,
+    val watch: Boolean = false,
 ) {
     init {
-        require(channels.isNotEmpty()) { "a monitor needs a channel" }
+        require(watch || channels.isNotEmpty()) { "a monitor needs a channel" }
+        require(!watch || tuner != null) { "watching needs a tuner" }
     }
 
-    val rotate: Boolean get() = channels.size > 1
+    val rotate: Boolean get() = !watch && channels.size > 1
 }
 
 /** What the monitor is doing right now. */
@@ -83,6 +89,15 @@ sealed interface MonitorPhase {
 
     /** The device didn't answer; tried again after [retryIn]. */
     data class Unreachable(val retryIn: Duration) : MonitorPhase
+
+    /**
+     * Watching [tuner] while another client uses it. [holder] is that client's address, [target] where the tuner
+     * streams to; null when the tuner doesn't say. [missedPolls] in a row got no answer.
+     */
+    data class Observing(val tuner: Int, val holder: String?, val target: String?, val missedPolls: Int = 0) : MonitorPhase
+
+    /** Watching [tuner], but nobody is using it: nothing is recorded until someone tunes it. */
+    data class ObservingIdle(val tuner: Int) : MonitorPhase
 }
 
 /** Why a monitor session ended. */
@@ -132,6 +147,9 @@ interface MonitorLog {
     suspend fun begin(plan: MonitorPlan, startedAt: Long): Long
     suspend fun append(readings: List<ReadingEntity>, events: List<SignalEvent>, sessionId: Long)
     suspend fun end(sessionId: Long, endedAt: Long, tuner: Int?)
+
+    /** A watched session's channels so far, in the order first seen, and the client last seen using the tuner. */
+    suspend fun watched(sessionId: Long, channels: List<String>, holder: String?) = Unit
 }
 
 /**
@@ -175,12 +193,13 @@ class MonitorRunner(
         val startedAt = clock.millis()
         sessionId = log.begin(plan, startedAt)
         _status.value = MonitorStatus(
-            plan, sessionId, startedAt, plan.channels.first(), MonitorPhase.Claiming,
+            plan, sessionId, startedAt, plan.channels.firstOrNull() ?: unknownChannel(""),
+            if (plan.watch) MonitorPhase.ObservingIdle(plan.tuner!!) else MonitorPhase.Claiming,
             TimelineSeries.forPlan(startedAt, plan.durationMs, plan.pollIntervalMs),
         )
         var end = MonitorEnd.STOPPED
         try {
-            end = loop(startedAt)
+            end = if (plan.watch) observe(startedAt) else loop(startedAt)
             return end
         } finally {
             withContext(NonCancellable) {
@@ -386,6 +405,101 @@ class MonitorRunner(
             delay(lockPoll)
         }
     }
+
+    /**
+     * Watch mode: reads the plan's tuner every interval without ever claiming it, following whatever channel the
+     * client using it tunes. An idle tuner pauses the dip detector (nobody watching, so no dropout); a new channel,
+     * or a new tune after idle, starts its error counts from a fresh baseline. As when Monitor tunes itself, the
+     * readings of the first [lockWait] after a tune are skipped until the tuner locks with seq above 0.
+     */
+    private suspend fun observe(startedAt: Long): MonitorEnd {
+        val tuner = plan.tuner!!
+        val deadline = plan.durationMs?.let { startedAt + it }
+        val observer = sessions.observer(tuner)
+        val byGuide = plan.channels.associateBy { it.guideNumber }
+        val seen = LinkedHashSet<String>()
+        var holderSeen: String? = null
+        var current: String? = null
+        var settling: TimeSource.Monotonic.ValueTimeMark? = null
+        var missed = 0
+        tunersUsed += tuner
+        val interval = plan.pollIntervalMs.milliseconds
+        var next = TimeSource.Monotonic.markNow()
+        while (true) {
+            val wait = minOf(-next.elapsedNow(), timeLeft(deadline))
+            if (wait > Duration.ZERO) delay(wait)
+            if (timeLeft(deadline) <= Duration.ZERO) return MonitorEnd.TIME_UP
+            next += interval
+            if (next.hasPassedNow()) next = TimeSource.Monotonic.markNow() + interval
+            when (val o = observer.read()) {
+                is Observation.InUse -> {
+                    missed = 0
+                    val channel = channelOf(o, byGuide)
+                    if (channel.guideNumber != current) {
+                        val at = clock.millis()
+                        if (current != null) add(detector.pause(at), at)
+                        errorCounter.retuned(tuner)
+                        current = channel.guideNumber
+                        settling = TimeSource.Monotonic.markNow()
+                        publish { it.copy(channel = channel, latest = null) }
+                    }
+                    if (seen.add(channel.guideNumber) || (o.holder != null && o.holder != holderSeen)) {
+                        holderSeen = o.holder ?: holderSeen
+                        log.watched(sessionId, seen.toList(), holderSeen)
+                    }
+                    publish { it.copy(phase = MonitorPhase.Observing(tuner, o.holder, o.target)) }
+                    val settled = settling == null || (o.status.isLocked && o.status.seq > 0) || settling.elapsedNow() >= lockWait
+                    if (settled) {
+                        if (settling != null && o.status.isLocked && channel.guideNumber in byGuide) {
+                            val rf = RfChannels.of(o.status.channel)
+                            sink.tuned(channel, rf?.number, rf?.centerHz, rf?.band?.name, (o.status.lock as? Lock.Locked)?.modulation == Modulation.ATSC3)
+                        }
+                        settling = null
+                        record(channel, tuner, o.status, o.debug)
+                    }
+                }
+                Observation.Idle -> {
+                    missed = 0
+                    if (current != null) {
+                        val at = clock.millis()
+                        add(detector.pause(at), at)
+                        current = null
+                    }
+                    publish { it.copy(phase = MonitorPhase.ObservingIdle(tuner), latest = null) }
+                }
+                is Observation.Unparseable -> {
+                    missed = 0
+                    current?.let { guide ->
+                        buffer += ReadingEntity(
+                            sessionId = sessionId, ts = clock.millis(), guideNumber = guide, tuner = tuner,
+                            ss = 0, snq = 0, seq = 0, bps = null, pps = null, lock = LOCK_UNREAD, rawStatus = o.raw,
+                        )
+                    }
+                }
+                is Observation.Unreachable -> {
+                    val at = clock.millis()
+                    add(detector.missedPoll(at), at)
+                    val count = ++missed
+                    publish { s -> s.copy(phase = (s.phase as? MonitorPhase.Observing)?.copy(missedPolls = count) ?: s.phase) }
+                }
+            }
+            if (sinceFlush.elapsedNow() >= flushEvery) flush()
+        }
+    }
+
+    /**
+     * The lineup channel the client tuned: by guide number, else by the frequency or RF channel the tuner says.
+     * One the lineup doesn't have is named by the tuner's own `ch=` value.
+     */
+    private fun channelOf(o: Observation.InUse, byGuide: Map<String, Channel>): Channel {
+        o.guideNumber?.let { g -> return byGuide[g] ?: unknownChannel(g) }
+        val rf = RfChannels.of(o.status.channel)?.number
+        val match = rf?.let { n -> plan.channels.firstOrNull { it.rfChannel == n } }
+        return match ?: unknownChannel(o.status.raw.substringAfter("ch=", "").substringBefore(' ').ifEmpty { o.status.raw })
+    }
+
+    private fun unknownChannel(guideNumber: String) =
+        Channel(plan.device.deviceId, guideNumber, "", "", null, null, null, false)
 
     private fun record(channel: Channel, tuner: Int, s: TunerStatus, debug: TunerDebug?) {
         val at = clock.millis()
