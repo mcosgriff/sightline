@@ -20,6 +20,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.unit.dp
 import io.cosgriff.sightline.R
+import io.cosgriff.sightline.analysis.ErrorSource
 import io.cosgriff.sightline.analysis.PacketErrors
 import io.cosgriff.sightline.ui.theme.Numbers
 import io.cosgriff.sightline.ui.theme.sightlineColors
@@ -33,7 +34,13 @@ import io.cosgriff.sightline.ui.theme.sightlineColors
 fun PacketErrorsRow(title: String, errors: PacketErrors, modifier: Modifier = Modifier, rising: Boolean = false) {
     val colors = MaterialTheme.sightlineColors
     val tint = if (errors.any) colors.healthMarginal else colors.healthGood
-    val description = if (errors.any) {
+    val source = when (errors.source) {
+        ErrorSource.NONE -> null
+        ErrorSource.SIGNAL -> stringResource(R.string.packet_errors_source_signal)
+        ErrorSource.NETWORK -> stringResource(R.string.packet_errors_source_network)
+        ErrorSource.BOTH -> stringResource(R.string.packet_errors_source_both)
+    }
+    val counts = if (errors.any) {
         stringResource(
             if (rising) R.string.packet_errors_description_rising else R.string.packet_errors_description,
             title, errors.transport, errors.crc, errors.resyncs, errors.network,
@@ -41,6 +48,8 @@ fun PacketErrorsRow(title: String, errors: PacketErrors, modifier: Modifier = Mo
     } else {
         stringResource(R.string.packet_errors_none_description, title)
     }
+    // Two whole sentences, each its own resource.
+    val description = listOfNotNull(counts, source).joinToString(" ")
     Row(
         modifier.fillMaxWidth().clearAndSetSemantics { contentDescription = description },
         verticalAlignment = Alignment.CenterVertically,
@@ -59,6 +68,7 @@ fun PacketErrorsRow(title: String, errors: PacketErrors, modifier: Modifier = Mo
                     Count(stringResource(R.string.packet_errors_resyncs), errors.resyncs)
                     Count(stringResource(R.string.packet_errors_network), errors.network)
                 }
+                source?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary) }
             } else {
                 Text(stringResource(R.string.packet_errors_none), style = MaterialTheme.typography.bodyMedium)
             }

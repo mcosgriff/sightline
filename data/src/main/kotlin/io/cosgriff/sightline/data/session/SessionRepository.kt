@@ -48,6 +48,9 @@ data class SessionInfo(
     val note: String?,
     /** The device's firmware when the session started; null when not kept (older sessions). */
     val firmware: String? = null,
+    /** Read a tuner another client was using, without holding it; [holder] is that client's address. */
+    val watched: Boolean = false,
+    val holder: String? = null,
 )
 
 /** What History shows of a session; null figures before it's summarised. */
@@ -231,7 +234,7 @@ class SessionRepository @Inject constructor(
             else ErrorCounters(transportErrors, crcErrors, resyncs, networkErrors),
         )
 
-    private fun SessionEntity.info() = SessionInfo(id, deviceId, kind, startedAt, endedAt, channels, tuner, pollIntervalMs, note, firmware)
+    private fun SessionEntity.info() = SessionInfo(id, deviceId, kind, startedAt, endedAt, channels, tuner, pollIntervalMs, note, firmware, watched, holder)
 
     private fun SessionSummaryEntity.toSummary() = SessionSummary(
         readings = readings,

@@ -5,6 +5,7 @@ import io.cosgriff.sightline.protocol.DeviceInfo
 import io.cosgriff.sightline.protocol.DeviceSnapshot
 import io.cosgriff.sightline.protocol.HttpApi
 import io.cosgriff.sightline.protocol.HttpResult
+import io.cosgriff.sightline.protocol.TunerObserver
 import io.cosgriff.sightline.protocol.TunerSnapshot
 import java.time.Clock
 import javax.inject.Inject
@@ -79,7 +80,7 @@ class DeviceDiagnostics @Inject constructor(
             if (ours) return TunerHolder.ThisApp
             val status = tuner.status ?: return TunerHolder.Unknown
             val lock = tuner.lockHolder
-            val streamHost = tuner.target?.substringAfter("://")?.substringBefore('/')?.substringBefore(':')
+            val streamHost = tuner.target?.let(TunerObserver::streamHost)
             val holder = lock ?: streamHost
             return when {
                 holder == null && status.isIdle -> TunerHolder.Idle

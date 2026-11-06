@@ -11,9 +11,26 @@ data class ErrorCounters(
     val network: Long?,
 )
 
+/**
+ * Where packet errors happened (SPEC "Packet errors"): on the way in from the antenna (transport, CRC, resyncs),
+ * on the way out to the client over the network, or both.
+ */
+enum class ErrorSource { NONE, SIGNAL, NETWORK, BOTH }
+
 /** Errors counted over some stretch: transport (damaged packets), CRC, demodulator resyncs, network send errors. */
 data class PacketErrors(val transport: Long = 0, val crc: Long = 0, val resyncs: Long = 0, val network: Long = 0) {
     val any: Boolean get() = transport > 0 || crc > 0 || resyncs > 0 || network > 0
+
+    /** Errors on the antenna side: everything but [network]. */
+    val signal: Long get() = transport + crc + resyncs
+
+    val source: ErrorSource
+        get() = when {
+            signal > 0 && network > 0 -> ErrorSource.BOTH
+            signal > 0 -> ErrorSource.SIGNAL
+            network > 0 -> ErrorSource.NETWORK
+            else -> ErrorSource.NONE
+        }
 
     operator fun plus(o: PacketErrors) = PacketErrors(transport + o.transport, crc + o.crc, resyncs + o.resyncs, network + o.network)
 

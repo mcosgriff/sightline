@@ -35,6 +35,7 @@ They are starting values: tune them against real sessions, and change this file 
 | One tuner | A channel read on 2+ tuners, an hour+ on each, dips 3× as often on one as on the others together; 3+ dips there. A dip's tuner is that of the channel's reading nearest its start | 5+ dips there and none on the others |
 | Impulse noise | 3+ `DIP` events whose lowest snq stayed at or above the good line (80): symbol errors alone | They're half or more of all dips |
 | Flutter | Locked snq swings 20+ points within 10 s, 5+ times in all (each swing counted once, then 10 s skipped) | 20+ swings |
+| Network loss | The tuner's network send errors (`net err`, see SPEC "Packet errors") total 10+ over the session and are at least 10× its antenna-side errors (transport, CRC, resyncs) | No antenna-side errors and no dips |
 | Not RF | Any device-unreachable event | 2+ of them, or no dips at all |
 
 ## Weather

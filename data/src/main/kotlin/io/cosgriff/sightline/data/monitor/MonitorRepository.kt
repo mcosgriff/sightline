@@ -1,6 +1,7 @@
 package io.cosgriff.sightline.data.monitor
 
 import io.cosgriff.sightline.analysis.SignalEvent
+import io.cosgriff.sightline.data.db.Converters
 import io.cosgriff.sightline.data.db.EventEntity
 import io.cosgriff.sightline.data.db.ReadingEntity
 import io.cosgriff.sightline.data.db.SessionDao
@@ -18,17 +19,21 @@ class MonitorRepository @Inject constructor(private val sessions: SessionDao) : 
             kind = SessionKind.MONITOR,
             startedAt = startedAt,
             endedAt = null,
-            channels = plan.channels.map { it.guideNumber },
+            channels = if (plan.watch) emptyList() else plan.channels.map { it.guideNumber },
             tuner = plan.tuner,
             pollIntervalMs = plan.pollIntervalMs,
             dwellMs = if (plan.rotate) plan.dwellMs else null,
             fetchWeather = plan.fetchWeather,
             firmware = plan.device.firmware.ifEmpty { null },
+            watched = plan.watch,
         ),
     )
 
     override suspend fun append(readings: List<ReadingEntity>, events: List<SignalEvent>, sessionId: Long) =
         sessions.append(readings.map { it.copy(sessionId = sessionId) }, events.map { it.toEntity(sessionId) })
+
+    override suspend fun watched(sessionId: Long, channels: List<String>, holder: String?) =
+        sessions.setWatched(sessionId, Converters().fromList(channels), holder)
 
     override suspend fun end(sessionId: Long, endedAt: Long, tuner: Int?) = sessions.finish(sessionId, endedAt, tuner)
 

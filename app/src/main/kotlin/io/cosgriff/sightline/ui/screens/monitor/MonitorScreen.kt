@@ -101,6 +101,7 @@ fun MonitorScreen(onOpenSession: (Long) -> Unit, viewModel: MonitorViewModel = h
             onSelectDevice = viewModel::selectDevice,
             onToggleChannel = viewModel::toggleChannel,
             onRotate = viewModel::setRotate,
+            onWatch = viewModel::setWatch,
             onTuner = viewModel::setTuner,
             onDwell = viewModel::setDwell,
             onDuration = viewModel::setDuration,

@@ -43,4 +43,14 @@ class PacketErrorSeriesTest {
         assertThat(s.hasCounters).isFalse()
         assertThat(s.total.any).isFalse()
     }
+
+    @Test
+    fun `errors say where they happened`() {
+        assertThat(PacketErrors.NONE.source).isEqualTo(ErrorSource.NONE)
+        assertThat(PacketErrors(transport = 3).source).isEqualTo(ErrorSource.SIGNAL)
+        assertThat(PacketErrors(resyncs = 1).source).isEqualTo(ErrorSource.SIGNAL)
+        assertThat(PacketErrors(network = 9).source).isEqualTo(ErrorSource.NETWORK)
+        assertThat(PacketErrors(crc = 1, network = 9).source).isEqualTo(ErrorSource.BOTH)
+        assertThat(PacketErrors(transport = 4, crc = 1, resyncs = 2, network = 9).signal).isEqualTo(7)
+    }
 }

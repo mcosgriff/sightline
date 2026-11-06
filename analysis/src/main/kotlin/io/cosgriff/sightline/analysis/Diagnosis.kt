@@ -106,6 +106,12 @@ sealed interface Finding {
     /** snq swung 20+ points within 10 s [swings] times, on [channels]. */
     data class Flutter(val swings: Int, val channels: List<String>, override val strength: Strength, override val score: Double) : Finding
 
+    /**
+     * The tuner failed to send [networkErrors] packets onto the network while only [signalErrors] arrived damaged
+     * from the antenna: the picture breaks up between the tuner and the client (Plex, a DVR), not on the air.
+     */
+    data class NetworkLoss(val networkErrors: Long, val signalErrors: Long, override val strength: Strength, override val score: Double) : Finding
+
     /** The device stopped answering [count] times, for [totalMs] in all, against [dips] dips. */
     data class NotRf(val count: Int, val totalMs: Long, val dips: Int, override val strength: Strength, override val score: Double) : Finding
 }
@@ -153,7 +159,7 @@ class Diagnosable(val data: SessionData, val thresholds: Thresholds) {
 object Diagnosis {
     val RULES: List<DiagnosisRule> = listOf(
         OverloadRule, WeakSignalRule, OneChannelBadRule, VhfWeakRule, UpperUhfRule, TimeOfDayRule,
-        WindRule, RainRule, HeatRule, CommonPathRule, OneTunerRule, ImpulseNoiseRule, FlutterRule, NotRfRule,
+        WindRule, RainRule, HeatRule, CommonPathRule, OneTunerRule, ImpulseNoiseRule, FlutterRule, NetworkLossRule, NotRfRule,
     )
 
     /** Scores past this count as equal, so a pile of evidence for one rule can't bury a clearer cause. */
@@ -512,6 +518,25 @@ object FlutterRule : DiagnosisRule {
 }
 
 /** Not RF: the device stopped answering. Likely when it did so twice or more, or there were no dips at all. */
+/**
+ * Network loss: the tuner's `net err` counted [MIN_ERRORS]+ over the session, at least [RATIO]× the antenna-side
+ * errors. Likely when the antenna side had none and the session had no dips.
+ */
+object NetworkLossRule : DiagnosisRule {
+    const val MIN_ERRORS = 10L
+    const val RATIO = 10
+
+    override fun evaluate(session: Diagnosable): Finding? {
+        val total = PacketErrorSeries.of(session.data.readings).total
+        if (total.network < MIN_ERRORS || total.network < total.signal * RATIO) return null
+        val likely = total.signal == 0L && session.dips.isEmpty()
+        return Finding.NetworkLoss(
+            total.network, total.signal,
+            if (likely) Strength.LIKELY else Strength.POSSIBLE, total.network.toDouble() / MIN_ERRORS,
+        )
+    }
+}
+
 object NotRfRule : DiagnosisRule {
     override fun evaluate(session: Diagnosable): Finding? {
         val outages = session.data.events.filter { it.kind == EventKind.DEVICE_UNREACHABLE }

@@ -151,7 +151,7 @@ private fun AppScreen(key: NavKey, navigator: Navigator) {
         History -> HistoryScreen(onOpen = { navigator.push(Session(it)) }, onCompare = { a, b -> navigator.push(Compare(a, b)) })
         is Session -> SessionScreen(key.id, onBack = navigator::back)
         is Compare -> CompareScreen(key.a, key.b, onBack = navigator::back)
-        is Diagnostics -> DiagnosticsScreen(key.deviceId, onBack = navigator::back)
+        is Diagnostics -> DiagnosticsScreen(key.deviceId, onBack = navigator::back, onWatch = { navigator.showTab(Monitor) })
         Aim -> AimScreen(onBack = navigator::back)
         Sweep -> SweepScreen(onBack = navigator::back)
         Settings -> SettingsScreen(onBack = navigator::back)

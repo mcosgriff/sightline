@@ -6,12 +6,15 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import io.cosgriff.sightline.analysis.Thresholds
 import io.cosgriff.sightline.data.device.Channel
 import io.cosgriff.sightline.data.device.Device
+import io.cosgriff.sightline.data.device.DeviceDiagnostics
 import io.cosgriff.sightline.data.device.DeviceRepository
+import io.cosgriff.sightline.data.device.TunerHolder
 import io.cosgriff.sightline.data.monitor.MonitorPlan
 import io.cosgriff.sightline.data.monitor.MonitorStatus
 import io.cosgriff.sightline.data.settings.AppStateRepository
 import io.cosgriff.sightline.data.settings.SettingsRepository
 import io.cosgriff.sightline.monitor.MonitorController
+import io.cosgriff.sightline.monitor.WatchRequests
 import io.cosgriff.sightline.ui.screens.Selection
 import io.cosgriff.sightline.ui.screens.loadSelection
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -50,8 +53,12 @@ data class MonitorSetup(
     val dipSnq: Int,
     val fetchWeather: Boolean = false,
     val notifyDips: Boolean = false,
+    /** Watch a tuner another client is using instead of tuning one (GLOSSARY "Watch a tuner in use"). */
+    val watch: Boolean = false,
+    /** Who holds each tuner, read when watch mode is picked; null until read. */
+    val holders: List<TunerHolder>? = null,
 ) {
-    val canStart: Boolean get() = selected.isNotEmpty()
+    val canStart: Boolean get() = if (watch) tuner != null else selected.isNotEmpty()
 }
 
 /** What the setup form can show. */
@@ -82,6 +89,8 @@ class MonitorViewModel @Inject constructor(
     private val devices: DeviceRepository,
     private val appState: AppStateRepository,
     private val controller: MonitorController,
+    private val diagnostics: DeviceDiagnostics,
+    private val watchRequests: WatchRequests,
     settingsRepository: SettingsRepository,
     val clock: Clock,
 ) : ViewModel() {
@@ -112,6 +121,41 @@ class MonitorViewModel @Inject constructor(
                     ),
                 )
             }
+            watchRequests.pending.collect { if (it != null) takeWatchRequest() }
+        }
+    }
+
+    /** Diagnostics asked to watch a tuner: that device, watch mode, that tuner. */
+    private suspend fun takeWatchRequest() {
+        val request = watchRequests.take() ?: return
+        val current = (setup.value as? SetupState.Ready)?.setup ?: return
+        if (request.deviceId != current.device.deviceId) {
+            val device = devices.device(request.deviceId) ?: return
+            val channels = devices.channelList(device.deviceId)
+            setup.value = SetupState.Ready(
+                current.copy(device = device, channels = channels, selected = channels.take(1).map { it.guideNumber }, holders = null),
+            )
+        }
+        setWatch(true)
+        setTuner(request.tuner)
+    }
+
+    /** Watch mode picks a tuner, not channels; with it on, who holds each tuner is read (gets only). */
+    fun setWatch(on: Boolean) {
+        edit { it.copy(watch = on, rotate = false, tuner = if (on) it.tuner else null, selected = it.selected.take(1)) }
+        if (on) refreshHolders()
+    }
+
+    fun refreshHolders() {
+        val device = (setup.value as? SetupState.Ready)?.setup?.device ?: return
+        viewModelScope.launch {
+            val holders = runCatching { diagnostics.read(device).holders }.getOrNull() ?: return@launch
+            edit { s ->
+                if (s.device.deviceId != device.deviceId) return@edit s
+                // Pick the tuner someone else is using, when there's just one and none is picked yet.
+                val busy = holders.withIndex().filter { it.value is TunerHolder.Other }.map { it.index }
+                s.copy(holders = holders, tuner = s.tuner ?: busy.singleOrNull())
+            }
         }
     }
 
@@ -128,8 +172,9 @@ class MonitorViewModel @Inject constructor(
             setup.value = if (channels.isEmpty()) {
                 SetupState.NoChannels(device)
             } else {
-                SetupState.Ready(current.copy(device = device, channels = channels, selected = listOf(channels.first().guideNumber), tuner = null))
+                SetupState.Ready(current.copy(device = device, channels = channels, selected = listOf(channels.first().guideNumber), tuner = null, holders = null))
             }
+            if (current.watch) refreshHolders()
         }
     }
 
@@ -143,7 +188,7 @@ class MonitorViewModel @Inject constructor(
     }
 
     /** Back to holding one channel keeps the first picked. */
-    fun setRotate(rotate: Boolean) = edit { s -> s.copy(rotate = rotate, selected = if (rotate) s.selected else s.selected.take(1)) }
+    fun setRotate(rotate: Boolean) = edit { s -> s.copy(rotate = rotate, watch = false, selected = if (rotate) s.selected else s.selected.take(1)) }
 
     fun setTuner(tuner: Int?) = edit { it.copy(tuner = tuner) }
     fun setDwell(seconds: Int) = edit { it.copy(dwellS = seconds) }
@@ -163,7 +208,7 @@ class MonitorViewModel @Inject constructor(
         controller.start(
             MonitorPlan(
                 device = s.device,
-                channels = s.selected.mapNotNull { byGuide[it] },
+                channels = if (s.watch) s.channels else s.selected.mapNotNull { byGuide[it] },
                 tuner = s.tuner,
                 dwellMs = s.dwellS * 1_000L,
                 durationMs = s.duration.hours?.let { it * 3_600_000L },
@@ -171,6 +216,7 @@ class MonitorViewModel @Inject constructor(
                 thresholds = thresholds.copy(snqMarginal = s.dipSnq),
                 fetchWeather = s.fetchWeather,
                 notifyDips = s.notifyDips,
+                watch = s.watch,
             ),
         )
     }

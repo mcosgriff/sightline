@@ -2,6 +2,7 @@ package io.cosgriff.sightline.widget
 
 import android.content.Context
 import io.cosgriff.sightline.R
+import io.cosgriff.sightline.monitor.monitorTitle
 import io.cosgriff.sightline.analysis.Health
 import io.cosgriff.sightline.analysis.SignalSample
 import io.cosgriff.sightline.analysis.Thresholds
@@ -35,17 +36,13 @@ fun monitorWidgetView(context: Context, status: MonitorStatus?, thresholds: Thre
     if (status.ended != null) {
         return MonitorWidgetView.Ended(context.getString(R.string.widget_ended_title), dipsText)
     }
-    val title = if (status.plan.rotate) {
-        res.getQuantityString(R.plurals.monitor_title_rotate, status.plan.channels.size, status.plan.channels.size)
-    } else {
-        context.getString(R.string.monitor_title_hold, status.channel.guideNumber)
-    }
+    val title = monitorTitle(res, status)
     val minutes = ((nowMs - status.startedAt).coerceAtLeast(0) / 60_000).toInt()
     val elapsed = if (minutes < 60) context.getString(R.string.widget_minutes, minutes) else context.getString(R.string.widget_hours_minutes, minutes / 60, minutes % 60)
     val detail = context.getString(R.string.widget_detail, dipsText, elapsed)
     val latest = status.latest
     return when (val phase = status.phase) {
-        is MonitorPhase.Watching -> {
+        is MonitorPhase.Watching, is MonitorPhase.Observing -> {
             val health = latest?.let { thresholds.assess(SignalSample(it.isLocked, it.ss, it.snq, it.seq)).health }
             MonitorWidgetView.Running(
                 title = title,
@@ -64,6 +61,7 @@ fun monitorWidgetView(context: Context, status: MonitorStatus?, thresholds: Thre
                     MonitorPhase.Claiming -> R.string.monitor_phase_claiming
                     is MonitorPhase.AllBusy -> R.string.monitor_notification_all_busy
                     is MonitorPhase.Paused -> R.string.monitor_notification_paused
+                    is MonitorPhase.ObservingIdle -> R.string.monitor_notification_watch_idle
                     else -> R.string.monitor_notification_unreachable
                 },
             ),

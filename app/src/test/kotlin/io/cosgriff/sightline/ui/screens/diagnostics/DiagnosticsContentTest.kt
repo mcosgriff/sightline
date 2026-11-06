@@ -108,4 +108,33 @@ class DiagnosticsContentTest {
         compose.onNodeWithText("The tuner isn't answering. Is it on, and on this network?").assertExists()
         compose.onNodeWithText("Unknown: discover.json didn't answer").assertExists()
     }
+
+    @Test
+    fun `a player's tuner with network losses says so, and offers to watch it`() {
+        val lossy = "tun: ch=8vsb:189000000 lock=8vsb:189000000 ss=100 snq=97 seq=100 dbg=0\n" +
+            "dev: bps=19636224 resync=0 overflow=0\nts:  bps=8335168 te=0 crc=0\nnet: bps=8335168 pps=280 err=14 stop=0\n"
+        val plex = TunerSnapshot(
+            2,
+            listOf(
+                Probe("/tuner2/status", v("ch=8vsb:189000000 lock=8vsb ss=100 snq=97 seq=100 bps=8335168 pps=280")),
+                Probe("/tuner2/debug", v(lossy)),
+                Probe("/tuner2/lockkey", v("192.168.1.20")),
+                Probe("/tuner2/target", v("http://192.168.1.20:5004")),
+            ),
+        )
+        val d = diagnostics().let { it.copy(snapshot = it.snapshot.copy(tuners = listOf(plex)), holders = listOf(TunerHolder.Idle, TunerHolder.Idle, TunerHolder.Other("192.168.1.20"))) }
+        compose.setContent {
+            SightlineTheme {
+                DiagnosticsContent(
+                    DiagnosticsState.Read(d), ZoneOffset.UTC, onBack = {}, onRelease = {}, onShare = {},
+                    onWatch = { calls += "watch $it" },
+                )
+            }
+        }
+        compose.onNodeWithText(
+            "The signal is clean, but 14 packets failed to go out on the network to 192.168.1.20: a problem between the tuner and that player.",
+        ).performScrollTo().assertExists()
+        compose.onNodeWithText("Watch this tuner in Monitor").performScrollTo().performClick()
+        assertThat(calls).containsExactly("watch 2")
+    }
 }

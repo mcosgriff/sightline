@@ -8,6 +8,7 @@ import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.cosgriff.sightline.data.device.DeviceDiagnostics
 import io.cosgriff.sightline.data.device.DeviceRepository
+import io.cosgriff.sightline.monitor.WatchRequests
 import io.cosgriff.sightline.data.device.Diagnostics
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -33,6 +34,7 @@ class DiagnosticsViewModel @AssistedInject constructor(
     @Assisted private val deviceId: String,
     private val devices: DeviceRepository,
     private val diagnostics: DeviceDiagnostics,
+    private val watchRequests: WatchRequests,
 ) : ViewModel() {
     @AssistedFactory
     interface Factory {
@@ -80,6 +82,9 @@ class DiagnosticsViewModel @AssistedInject constructor(
             _state.update { (it as? DiagnosticsState.Read)?.copy(releasing = null, releaseFailed = if (done) null else tuner) ?: it }
         }
     }
+
+    /** Asks Monitor's setup to watch [tuner] of this device; the screen then goes to Monitor. */
+    fun watch(tuner: Int) = watchRequests.request(deviceId, tuner)
 
     private companion object {
         const val REFRESH_MS = 2_000L

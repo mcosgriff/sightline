@@ -45,19 +45,19 @@ class MonitorNotifications @Inject constructor(@param:ApplicationContext private
         val res = context.resources
         val title = when {
             status == null -> context.getString(R.string.monitor_notification_starting)
-            status.plan.rotate -> res.getQuantityString(R.plurals.monitor_title_rotate, status.plan.channels.size, status.plan.channels.size)
-            else -> context.getString(R.string.monitor_title_hold, status.channel.guideNumber)
+            else -> monitorTitle(res, status)
         }
         val text = status?.let {
             val dips = it.allEvents.dipCount()
             when (it.phase) {
-                is MonitorPhase.Watching -> it.latest?.takeIf { s -> s.isLocked }
+                is MonitorPhase.Watching, is MonitorPhase.Observing -> it.latest?.takeIf { s -> s.isLocked }
                     ?.let { s -> res.getQuantityString(R.plurals.monitor_notification_reading, dips, s.snq, dips) }
                     ?: res.getQuantityString(R.plurals.monitor_notification_no_lock, dips, dips)
                 MonitorPhase.Claiming -> context.getString(R.string.monitor_phase_claiming)
                 is MonitorPhase.AllBusy -> context.getString(R.string.monitor_notification_all_busy)
                 is MonitorPhase.Paused -> context.getString(R.string.monitor_notification_paused)
                 is MonitorPhase.Unreachable -> context.getString(R.string.monitor_notification_unreachable)
+                is MonitorPhase.ObservingIdle -> context.getString(R.string.monitor_notification_watch_idle)
             }
         }
         val stop = PendingIntent.getService(

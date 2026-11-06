@@ -92,6 +92,10 @@ class FakeHdhr(
         /** Damaged packets since the tune, for `debug`'s `ts te`: grows while seq is below 100. */
         var transportErrors: Long = 0
         var countedAt: Long = 0
+
+        /** Another client's stream losing packets on the network: `net err` grows this much a second. */
+        var networkLossPerSecond: Long = 0
+        var networkErrors: Long = 0
     }
 
     /** How many sets reached the device, so read-only callers can be checked. */
@@ -109,9 +113,13 @@ class FakeHdhr(
         thread(isDaemon = true, name = "fake-hdhr-http") { accept(http, ::serveHttp) }
     }
 
-    /** Another client takes [tuner], the way a DVR does with an HTTP stream: lock held by [byIp], tuned to [channel]. */
-    fun takeTuner(tuner: Int, byIp: String, channel: FakeChannel = channels.first()): Unit = synchronized(lock) {
+    /**
+     * Another client takes [tuner], the way a DVR does with an HTTP stream: lock held by [byIp], tuned to [channel].
+     * [networkLossPerSecond] makes its stream fail to reach the client that often (`debug`'s `net err`).
+     */
+    fun takeTuner(tuner: Int, byIp: String, channel: FakeChannel = channels.first(), networkLossPerSecond: Long = 0): Unit = synchronized(lock) {
         tuners[tuner].run {
+            this.networkLossPerSecond = networkLossPerSecond
             lockKey = -1 // a key Sightline can't know
             lockHolder = byIp
             this.channel = channel
@@ -241,6 +249,7 @@ class FakeHdhr(
                 "vchannel" -> Reply.Value(tuner.channel?.takeIf { !tuner.viaRf }?.guideNumber ?: "none")
                 "target" -> Reply.Value(tuner.streamTarget ?: "none")
                 "streaminfo" -> Reply.Value(streamInfo(tuner))
+                "program" -> Reply.Value(if (tuner.channel == null) "none" else "1")
                 "debug" -> Reply.Value(debugText(tuner))
                 "plpinfo" -> Reply.Value("")
                 else -> UNKNOWN
@@ -328,21 +337,23 @@ class FakeHdhr(
         if (tuner.countedAt < tuner.tunedAt) {
             tuner.countedAt = tuner.tunedAt
             tuner.transportErrors = 0
+            tuner.networkErrors = 0
         }
         val seconds = (now - tuner.countedAt) / 1000
         if (seconds > 0) {
             if (signal.locked) tuner.transportErrors += seconds * (100 - signal.seq) * 3
+            tuner.networkErrors += seconds * tuner.networkLossPerSecond
             tuner.countedAt += seconds * 1000
         }
         val ch = channelField(tuner)
         val lock = if (!signal.locked) "none" else ch
         val tsBps = if (signal.locked && !channel.atsc3) 19_392_658L * signal.seq / 100 else 0
-        val netBps = if (tuner.stream != null) tsBps else 0
+        val netBps = if (tuner.stream != null || tuner.streamTarget != null) tsBps else 0
         return "tun: ch=$ch lock=$lock ss=${signal.ss} snq=${if (signal.locked) signal.snq else 0} " +
             "seq=${if (signal.locked) signal.seq else 0} dbg=0\n" +
             "dev: bps=${if (signal.locked) 19_636_224 else 0} resync=0 overflow=0\n" +
             "ts:  bps=$tsBps te=${tuner.transportErrors} crc=${tuner.transportErrors / 4}\n" +
-            "net: bps=$netBps pps=${if (netBps > 0) 280 else 0} err=0 stop=0\n"
+            "net: bps=$netBps pps=${if (netBps > 0) 280 else 0} err=${tuner.networkErrors} stop=0\n"
     }
 
     private fun streamInfo(tuner: TunerState): String {
@@ -357,6 +368,7 @@ class FakeHdhr(
         tuner.channel = null
         tuner.viaRf = false
         tuner.streamTarget = null
+        tuner.networkLossPerSecond = 0
         tuner.stream?.let { runCatching { it.close() } }
         tuner.stream = null
     }

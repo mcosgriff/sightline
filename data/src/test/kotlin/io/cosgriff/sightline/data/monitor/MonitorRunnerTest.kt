@@ -86,6 +86,12 @@ class MonitorRunnerTest {
         override suspend fun end(sessionId: Long, endedAt: Long, tuner: Int?) {
             ended = endedAt to tuner
         }
+
+        var watched: Pair<List<String>, String?>? = null
+
+        override suspend fun watched(sessionId: Long, channels: List<String>, holder: String?) {
+            watched = channels to holder
+        }
     }
 
     private val log = MemoryLog()
@@ -221,6 +227,47 @@ class MonitorRunnerTest {
         val back = waitFor { s -> s.events.any { it.kind == EventKind.DEVICE_UNREACHABLE } }
         assertThat(back.events.none { it.kind == EventKind.GAP }).isTrue()
         run.cancelAndJoin()
+    }
+
+    private fun watchPlan(tuner: Int, durationS: Long = 30) =
+        plan("2.1", "4.1", "5.1", "9.1", durationS = durationS, tuner = tuner).copy(watch = true)
+
+    @Test
+    fun `watching follows another client's tuner without a single set, and counts its network losses`() = runBlocking<Unit> {
+        fake.takeTuner(2, "192.168.1.20", fake.channels[0], networkLossPerSecond = 4)
+        val job = launch(Dispatchers.Default) { runner.run(watchPlan(2, durationS = 40)) }
+        val watching = waitFor { it.readings >= 5 }
+        assertThat(watching.phase).isEqualTo(MonitorPhase.Observing(2, "192.168.1.20", "http://192.168.1.20:5004"))
+        assertThat(watching.channel.guideNumber).isEqualTo("2.1")
+        assertThat(watching.errors.network).isGreaterThan(0)
+        assertThat(watching.errors.signal).isEqualTo(0)
+
+        // The client changes channel: the readings follow, from a fresh baseline.
+        fake.freeTuner(2)
+        fake.takeTuner(2, "192.168.1.20", fake.channels[1])
+        waitFor { it.channel.guideNumber == "4.1" && it.latest != null }
+        // Then stops: idle, not a dropout.
+        fake.freeTuner(2)
+        waitFor { it.phase == MonitorPhase.ObservingIdle(2) }
+        job.join()
+
+        assertThat(fake.setsReceived).isEqualTo(0)
+        assertThat(log.readings.map { it.guideNumber }.toSet()).containsExactly("2.1", "4.1")
+        assertThat(log.readings.all { it.tuner == 2 }).isTrue()
+        assertThat(log.events.filter { it.isDip }).isEmpty()
+        assertThat(log.watched).isEqualTo(listOf("2.1", "4.1") to "192.168.1.20")
+        assertThat(log.ended?.second).isEqualTo(2)
+        assertThat(leases.held.value).isEmpty()
+    }
+
+    @Test
+    fun `watching an idle tuner records nothing and never tunes it`() = runBlocking<Unit> {
+        val end = withTimeout(15_000) { runner.run(watchPlan(1, durationS = 10)) }
+        assertThat(end).isEqualTo(MonitorEnd.TIME_UP)
+        assertThat(log.readings).isEmpty()
+        assertThat(log.events).isEmpty()
+        assertThat(fake.isIdle(1)).isTrue()
+        assertThat(fake.setsReceived).isEqualTo(0)
     }
 
     private companion object {

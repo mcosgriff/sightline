@@ -106,6 +106,9 @@ class TunerSessions(
     /** Guide numbers that answered `invalid virtual channel` but streamed: ATSC 3.0, go straight to HTTP. */
     private val streamOnly = mutableSetOf<String>()
 
+    /** Reads [tuner] without holding it: for a tuner another client is using ([TunerObserver]). */
+    fun observer(tuner: Int): TunerObserver = TunerObserver(control, tuner)
+
     suspend fun occupancy(tuner: Int): Occupancy {
         val status = when (val r = control.get("/tuner$tuner/status")) {
             is ControlResult.Value -> (StatusParser.parse(r.value) as? StatusParse.Parsed)?.status
@@ -121,7 +124,7 @@ class TunerSessions(
         if (lockKey != "none") return lockKey
         val target = (control.get("/tuner$tuner/target") as? ControlResult.Value)?.value ?: return null
         if (target == "none") return null
-        return target.substringAfter("://").substringBefore('/').substringBefore(':').ifEmpty { null }
+        return TunerObserver.streamHost(target)
     }
 
     /**

@@ -24,6 +24,10 @@
 - **Dropout** — `lock=none` on a tuned channel.
 - **Packet errors** — the tuner's own counts since its last tune (`/tunerN/debug`): transport errors (damaged
   packets), CRC errors, resyncs and network errors. They catch errors between polls that seq can't.
+- **Watch a tuner in use** — a Monitor mode that reads a tuner another client (Plex, a DVR) is using, with gets
+  only, following whatever channel it tunes. Sightline never holds or changes the tuner.
+- **Signal side / network side** — where packet errors happened: arriving damaged from the antenna (transport,
+  CRC, resyncs), or failing to go out on the network to the client (network errors).
 - **Sweep** — tuning each lineup channel in turn for a **dwell** time and summarising each.
 - **Settle** — the first second after a tune, when a locked tuner still reads seq 0. Sweep doesn't read during it.
 - **Peak** — on Aim, the best snq since the last reset, with the heading it was read at.
