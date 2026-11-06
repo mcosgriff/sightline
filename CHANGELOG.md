@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/mcosgriff/sightline/compare/v0.1.0...v0.2.0) (2026-11-06)
+
+
+### Features
+
+* channel picker, disconnect, diagnostics and packet errors ([#12](https://github.com/mcosgriff/sightline/issues/12)) ([d458b45](https://github.com/mcosgriff/sightline/commit/d458b450cb1926f9926f27e97fb63aab6020f141))
+
 ## 0.1.0 (2026-11-05)
 
 
