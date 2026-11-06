@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/mcosgriff/sightline/compare/v0.2.0...v0.3.0) (2026-11-06)
+
+
+### Features
+
+* watch a tuner in use and tell signal errors from network errors ([#14](https://github.com/mcosgriff/sightline/issues/14)) ([101593c](https://github.com/mcosgriff/sightline/commit/101593cf4a34304c4d5dc3447d606d10724a5bea))
+
 ## [0.2.0](https://github.com/mcosgriff/sightline/compare/v0.1.0...v0.2.0) (2026-11-06)
 
 
