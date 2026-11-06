@@ -11,6 +11,8 @@ data class LoggedReading(
     val tuner: Int,
     val sample: SignalSample,
     val atsc3: Boolean = false,
+    /** The tuner's error counters read with it; null when not read (older sessions, no `/tunerN/debug`). */
+    val counters: ErrorCounters? = null,
 )
 
 /** One hour of weather at home (Open-Meteo), metric. [hourMs] is the UTC epoch ms the hour starts at. */
@@ -102,6 +104,8 @@ data class SessionStats(
     val histogram: SnqHistogram,
     /** Per channel, 24 cells by local hour of day; null for an hour never read. */
     val hours: Map<String, List<HourCell?>>,
+    /** The packet errors each reading added; [PacketErrorSeries.hasCounters] false when none were recorded. */
+    val errors: PacketErrorSeries = PacketErrorSeries.of(emptyList()),
 ) {
     companion object {
         fun of(data: SessionData, thresholds: Thresholds): SessionStats {
@@ -132,6 +136,7 @@ data class SessionStats(
                 },
                 histogram = SnqHistogram.of(locked.map { it.sample.snq }),
                 hours = data.byChannel.mapValues { (_, rs) -> hourCells(data, rs, thresholds) },
+                errors = PacketErrorSeries.of(readings),
             )
         }
 

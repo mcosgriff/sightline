@@ -32,7 +32,7 @@ class SweepRepository @Inject constructor(
     private val sessions: SessionDao,
     private val channels: ChannelDao,
 ) {
-    suspend fun save(deviceId: String, outcome: SweepOutcome.Finished, dwellMs: Long, pollIntervalMs: Long): Long {
+    suspend fun save(deviceId: String, outcome: SweepOutcome.Finished, dwellMs: Long, pollIntervalMs: Long, firmware: String? = null): Long {
         val session = SessionEntity(
             deviceId = deviceId,
             kind = SessionKind.SWEEP,
@@ -42,6 +42,7 @@ class SweepRepository @Inject constructor(
             tuner = outcome.readings.map { it.tuner }.distinct().singleOrNull(),
             pollIntervalMs = pollIntervalMs,
             dwellMs = dwellMs,
+            firmware = firmware,
         )
         val readings = outcome.readings.map { r ->
             val s = r.status

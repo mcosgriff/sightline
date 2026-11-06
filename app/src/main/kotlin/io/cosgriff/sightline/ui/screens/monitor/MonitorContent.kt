@@ -53,6 +53,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import io.cosgriff.sightline.R
+import io.cosgriff.sightline.ui.components.PacketErrorsRow
 import io.cosgriff.sightline.ui.components.Choice
 import io.cosgriff.sightline.ui.components.Choices
 import io.cosgriff.sightline.analysis.EventKind
@@ -508,6 +509,10 @@ private fun Stats(events: List<SignalEvent>, status: MonitorStatus) {
             },
             Modifier.weight(1f),
         )
+    }
+    // The tuner's own counters catch errors between polls; shown once it has given them (SPEC "Packet errors").
+    if (status.countersRead) {
+        PacketErrorsRow(stringResource(R.string.monitor_packet_errors), status.errors, Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp))
     }
 }
 

@@ -13,6 +13,7 @@ import androidx.compose.ui.test.onFirst
 import com.google.common.truth.Truth.assertThat
 import io.cosgriff.sightline.analysis.Diagnosis
 import io.cosgriff.sightline.analysis.DipDetector
+import io.cosgriff.sightline.analysis.ErrorCounters
 import io.cosgriff.sightline.analysis.LoggedReading
 import io.cosgriff.sightline.analysis.SessionData
 import io.cosgriff.sightline.analysis.SessionStats
@@ -111,6 +112,40 @@ class SessionContentTest {
         show(clean)
         compose.onNodeWithText("No pattern found").assertExists()
         compose.onNodeWithText("Dips follow the wind").assertDoesNotExist()
+    }
+
+    @Test
+    fun `packet errors are split between dips and other times, and the firmware is named`() {
+        // The counter climbs 5 a reading inside the dips and 1 a reading in the 5th hour, where nothing dipped.
+        val d = windy().let { d ->
+            var te = 0L
+            val readings = d.data.readings.map { r ->
+                val m = (r.atMs - START) / MINUTE
+                te += when {
+                    r.sample.snq < 80 -> 5
+                    m / 60 == 5L -> 1
+                    else -> 0
+                }
+                r.copy(counters = ErrorCounters(te, 0, 0, 0))
+            }
+            val data = d.data.copy(readings = readings)
+            d.copy(data = data, stats = SessionStats.of(data, Thresholds.DEFAULT), info = d.info.copy(firmware = "20260326"))
+        }
+        show(d)
+        scrollTo("Packet errors")
+        val total = d.stats.errors.total.transport
+        assertThat(total).isGreaterThan(60)
+        scrollTo("Recorded on firmware 20260326")
+        val split = d.stats.errors.let { s -> d.data.events.sumOf { s.between(it.startMs, it.endMs).transport } }
+        compose.onNodeWithText("Transport errors during dips and dropouts: $split. At other times: ${total - split}.").assertExists()
+        compose.onNodeWithText("trouble too brief for a reading to catch", substring = true).assertExists()
+    }
+
+    @Test
+    fun `old sessions without counters show no errors section`() {
+        show(windy())
+        compose.onNodeWithText("Packet errors").assertDoesNotExist()
+        compose.onNodeWithText("Recorded on firmware", substring = true).assertDoesNotExist()
     }
 
     @Test

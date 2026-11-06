@@ -6,6 +6,7 @@ import io.cosgriff.sightline.analysis.Finding
 import io.cosgriff.sightline.analysis.Health
 import io.cosgriff.sightline.analysis.LoggedReading
 import io.cosgriff.sightline.analysis.SessionData
+import io.cosgriff.sightline.analysis.ErrorCounters
 import io.cosgriff.sightline.analysis.SessionStats
 import io.cosgriff.sightline.analysis.SignalEvent
 import io.cosgriff.sightline.analysis.SignalSample
@@ -45,6 +46,8 @@ data class SessionInfo(
     val tuner: Int?,
     val pollIntervalMs: Long,
     val note: String?,
+    /** The device's firmware when the session started; null when not kept (older sessions). */
+    val firmware: String? = null,
 )
 
 /** What History shows of a session; null figures before it's summarised. */
@@ -222,9 +225,13 @@ class SessionRepository @Inject constructor(
     }
 
     private fun ReadingEntity.logged() =
-        LoggedReading(ts, guideNumber, tuner, SignalSample(lock != LOCK_NONE, ss, snq, seq), atsc3 = lock == LOCK_ATSC3)
+        LoggedReading(
+            ts, guideNumber, tuner, SignalSample(lock != LOCK_NONE, ss, snq, seq), atsc3 = lock == LOCK_ATSC3,
+            counters = if (transportErrors == null && crcErrors == null && resyncs == null && networkErrors == null) null
+            else ErrorCounters(transportErrors, crcErrors, resyncs, networkErrors),
+        )
 
-    private fun SessionEntity.info() = SessionInfo(id, deviceId, kind, startedAt, endedAt, channels, tuner, pollIntervalMs, note)
+    private fun SessionEntity.info() = SessionInfo(id, deviceId, kind, startedAt, endedAt, channels, tuner, pollIntervalMs, note, firmware)
 
     private fun SessionSummaryEntity.toSummary() = SessionSummary(
         readings = readings,

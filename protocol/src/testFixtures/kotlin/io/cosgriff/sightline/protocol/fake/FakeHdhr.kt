@@ -88,7 +88,20 @@ class FakeHdhr(
         var tunedAt: Long = 0
         var stream: Socket? = null
         var streamTarget: String? = null
+
+        /** Damaged packets since the tune, for `debug`'s `ts te`: grows while seq is below 100. */
+        var transportErrors: Long = 0
+        var countedAt: Long = 0
     }
+
+    /** How many sets reached the device, so read-only callers can be checked. */
+    @Volatile
+    var setsReceived: Int = 0
+        private set
+
+    /** Makes the next discover.json offer [version] as `UpgradeAvailable`; null takes it away. */
+    @Volatile
+    var upgradeAvailable: String? = null
 
     init {
         thread(isDaemon = true, name = "fake-hdhr-udp") { serveDiscovery() }
@@ -213,6 +226,7 @@ class FakeHdhr(
             "/sys/model" -> return Reply.Value("hdhomerun_dvr_atsc3")
             "/sys/hwmodel" -> return Reply.Value("HDFX-4K")
             "/sys/version" -> return Reply.Value("20260326")
+            "/sys/features" -> return Reply.Value(FEATURES)
         }
         val match = TUNER_PATH.matchEntire(name) ?: return UNKNOWN
         val index = match.groupValues[1].toInt()
@@ -227,9 +241,12 @@ class FakeHdhr(
                 "vchannel" -> Reply.Value(tuner.channel?.takeIf { !tuner.viaRf }?.guideNumber ?: "none")
                 "target" -> Reply.Value(tuner.streamTarget ?: "none")
                 "streaminfo" -> Reply.Value(streamInfo(tuner))
+                "debug" -> Reply.Value(debugText(tuner))
+                "plpinfo" -> Reply.Value("")
                 else -> UNKNOWN
             }
         }
+        setsReceived++
 
         // Sets. A locked tuner takes sets only with its key.
         val held = tuner.lockKey
@@ -299,6 +316,33 @@ class FakeHdhr(
         val bps = if (!signal.locked || settling || channel.atsc3) 0 else 19_392_658L * seq / 100
         val pps = if (streaming && signal.locked) 280 else 0
         return "ch=${channelField(tuner)} lock=$lockText ss=${signal.ss} snq=$snq seq=$seq bps=$bps pps=$pps"
+    }
+
+    /** Like the capture: `tun`, `dev`, `ts` and `net` lines, with `te` counting up while the signal is damaged. */
+    private fun debugText(tuner: TunerState): String {
+        val channel = tuner.channel
+            ?: return "tun: ch=none lock=none ss=0 snq=0 seq=0 dbg=0\ndev: bps=0 resync=0 overflow=0\n" +
+                "ts:  bps=0 te=0 crc=0\nnet: bps=0 pps=0 err=0 stop=0\n"
+        val now = clock()
+        val signal = channel.pattern.at(now - tuner.tunedAt)
+        if (tuner.countedAt < tuner.tunedAt) {
+            tuner.countedAt = tuner.tunedAt
+            tuner.transportErrors = 0
+        }
+        val seconds = (now - tuner.countedAt) / 1000
+        if (seconds > 0) {
+            if (signal.locked) tuner.transportErrors += seconds * (100 - signal.seq) * 3
+            tuner.countedAt += seconds * 1000
+        }
+        val ch = channelField(tuner)
+        val lock = if (!signal.locked) "none" else ch
+        val tsBps = if (signal.locked && !channel.atsc3) 19_392_658L * signal.seq / 100 else 0
+        val netBps = if (tuner.stream != null) tsBps else 0
+        return "tun: ch=$ch lock=$lock ss=${signal.ss} snq=${if (signal.locked) signal.snq else 0} " +
+            "seq=${if (signal.locked) signal.seq else 0} dbg=0\n" +
+            "dev: bps=${if (signal.locked) 19_636_224 else 0} resync=0 overflow=0\n" +
+            "ts:  bps=$tsBps te=${tuner.transportErrors} crc=${tuner.transportErrors / 4}\n" +
+            "net: bps=$netBps pps=${if (netBps > 0) 280 else 0} err=0 stop=0\n"
     }
 
     private fun streamInfo(tuner: TunerState): String {
@@ -398,7 +442,8 @@ class FakeHdhr(
     private fun discoverJson() =
         """{"FriendlyName":"Demo tuner","ModelNumber":"HDFX-4K","FirmwareName":"hdhomerun_dvr_atsc3",""" +
             """"FirmwareVersion":"20260326","DeviceID":"$deviceIdHex","DeviceAuth":"DEMODEMODEMODEMODEMODEMO",""" +
-            """"BaseURL":"$baseUrl","LineupURL":"$baseUrl/lineup.json","TunerCount":$tunerCount}"""
+            """"BaseURL":"$baseUrl","LineupURL":"$baseUrl/lineup.json","TunerCount":$tunerCount""" +
+            (upgradeAvailable?.let { ""","UpgradeAvailable":"$it"""" } ?: "") + "}"
 
     private fun lineupJson() = channels.joinToString(",", "[", "]") { c ->
         val codec = if (c.atsc3) """"VideoCodec":"HEVC","AudioCodec":"AC4"""" else """"VideoCodec":"MPEG2","AudioCodec":"AC3""""
@@ -416,6 +461,10 @@ class FakeHdhr(
 
     companion object {
         private val UNKNOWN = Reply.Error("unknown getset variable")
+        /** `/sys/features` as the FLEX 4K sends it. */
+        private const val FEATURES = "channelmap: us-bcast us-cable us-hrc us-irc kr-bcast kr-cable\n" +
+            "modulation: atsc3 8vsb qam256 qam64\nauto-modulation: auto auto6t auto6c qam\n"
+
         private val TUNER_PATH = Regex("/tuner(\\d+)/(\\w+)")
         private val STREAM_PATH = Regex("/(auto|tuner\\d+)/v([\\d.]+)")
 

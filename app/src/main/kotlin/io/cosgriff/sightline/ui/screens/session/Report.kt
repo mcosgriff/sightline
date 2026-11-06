@@ -69,7 +69,9 @@ fun reportText(detail: SessionDetail, units: Units, zone: ZoneId): ReportText {
     return ReportText(
         title = title(detail),
         subtitle = subtitle(detail, zone),
-        device = detail.deviceName,
+        device = detail.deviceName?.let { name ->
+            detail.info.firmware?.let { stringResource(R.string.session_device_firmware, name, it) } ?: name
+        },
         figures = summaryFigures(detail),
         diagnosisHeading = stringResource(R.string.session_diagnosis),
         findings = findings,

@@ -48,6 +48,8 @@ data class LiveUiState(
     val live: LiveState? = null,
     val thresholds: Thresholds = Thresholds.DEFAULT,
     val nowMs: Long = 0,
+    /** The user let the tuner go with Disconnect; nothing is claimed until Connect or a new channel. */
+    val disconnected: Boolean = false,
 )
 
 /**
@@ -126,21 +128,44 @@ class LiveViewModel @Inject constructor(
     /** After a lost tuner or a refused channel: try again. */
     fun retry() = launchSession()
 
+    /** Releases the tuner and stays off it while the screen is open, until [connect] or a channel change. */
+    fun disconnect() {
+        _state.update { it.copy(disconnected = true, live = null) }
+        job?.cancel()
+        job = null
+    }
+
+    fun connect() {
+        _state.update { it.copy(disconnected = false) }
+        launchSession()
+    }
+
     fun next() = step(+1)
     fun previous() = step(-1)
+
+    /** Jumps straight to a channel from the picker. */
+    fun select(guideNumber: String) {
+        val ready = state.value.setup as? LiveSetup.Ready ?: return
+        val channel = ready.channels.firstOrNull { it.guideNumber == guideNumber } ?: return
+        show(ready, channel)
+    }
 
     private fun step(by: Int) {
         val ready = state.value.setup as? LiveSetup.Ready ?: return
         val i = ready.channels.indexOfFirst { it.guideNumber == ready.channel.guideNumber }
-        val next = ready.channels[Math.floorMod(i + by, ready.channels.size)]
-        _state.update { it.copy(setup = ready.copy(channel = next), live = null) }
-        viewModelScope.launch { appState.selectForLive(ready.device.deviceId, next.guideNumber) }
+        show(ready, ready.channels[Math.floorMod(i + by, ready.channels.size)])
+    }
+
+    /** Picking a channel means watching it, so it connects again after a Disconnect. */
+    private fun show(ready: LiveSetup.Ready, channel: Channel) {
+        _state.update { it.copy(setup = ready.copy(channel = channel), live = null, disconnected = false) }
+        viewModelScope.launch { appState.selectForLive(ready.device.deviceId, channel.guideNumber) }
         launchSession()
     }
 
     private fun launchSession() {
         val ready = state.value.setup as? LiveSetup.Ready ?: return
-        if (!visible) return
+        if (!visible || state.value.disconnected) return
         val previous = job
         val live = sessionFor(ready.device)
         job = viewModelScope.launch {
@@ -165,7 +190,10 @@ class LiveViewModel @Inject constructor(
         sessionFor = device.deviceId
         stateJob?.cancel()
         stateJob = viewModelScope.launch {
-            created.state.collect { s -> _state.update { it.copy(live = s, nowMs = clock.millis()) } }
+            created.state.collect { s ->
+                // A last reading landing after Disconnect mustn't bring the gauges back.
+                _state.update { if (it.disconnected) it else it.copy(live = s, nowMs = clock.millis()) }
+            }
         }
         return created
     }

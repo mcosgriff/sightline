@@ -94,11 +94,15 @@ internal object Csv {
     private val TIME = DateTimeFormatter.ISO_OFFSET_DATE_TIME
 
     fun readingsHeader(out: Writer) =
-        row(out, "time", "utc_ms", "channel", "tuner", "lock", "ss", "snq", "seq", "bps", "pps", "heading_deg")
+        row(
+            out, "time", "utc_ms", "channel", "tuner", "lock", "ss", "snq", "seq", "bps", "pps", "heading_deg",
+            "transport_errors", "crc_errors", "resyncs", "network_errors",
+        )
 
     fun reading(out: Writer, r: ReadingEntity, zone: ZoneId) = row(
         out, time(r.ts, zone), r.ts.toString(), r.guideNumber, r.tuner.toString(), r.lock,
         r.ss.toString(), r.snq.toString(), r.seq.toString(), r.bps?.toString(), r.pps?.toString(), r.headingDeg?.let { "%.1f".format(Locale.ROOT, it) },
+        r.transportErrors?.toString(), r.crcErrors?.toString(), r.resyncs?.toString(), r.networkErrors?.toString(),
     )
 
     fun eventsHeader(out: Writer) = row(

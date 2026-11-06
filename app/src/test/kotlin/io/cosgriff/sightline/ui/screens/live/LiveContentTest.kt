@@ -2,13 +2,18 @@ package io.cosgriff.sightline.ui.screens.live
 
 import android.app.Application
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextInput
 import com.google.common.truth.Truth.assertThat
 import io.cosgriff.sightline.analysis.LiveTrace
+import io.cosgriff.sightline.analysis.PacketErrors
 import io.cosgriff.sightline.analysis.SignalSample
 import io.cosgriff.sightline.analysis.TimedSample
 import io.cosgriff.sightline.data.device.Channel
@@ -38,11 +43,25 @@ class LiveContentTest {
     private val calls = mutableListOf<String>()
     private val actions = LiveActions({ calls += "aim" }, { calls += "sweep" }, { calls += "monitor" }, { calls += "settings" }, { calls += "devices" })
 
+    private val controls = LiveControls(
+        onPrevious = { calls += "previous" },
+        onNext = { calls += "next" },
+        onSelect = { calls += "select $it" },
+        onRetry = { calls += "retry" },
+        onReload = { calls += "reload" },
+        onDisconnect = { calls += "disconnect" },
+        onConnect = { calls += "connect" },
+    )
+
+    private val pickChannel = SemanticsMatcher("opens the channel picker") {
+        it.config.getOrElseNullable(SemanticsActions.OnClick) { null }?.label == "Pick a channel"
+    }
+
     private fun status(line: String) = (StatusParser.parse(line) as StatusParse.Parsed).status
 
     private fun show(state: LiveUiState) = compose.setContent {
         SightlineTheme {
-            LiveContent(state, null, { calls += "previous" }, { calls += "next" }, { calls += "retry" }, { calls += "reload" }, actions)
+            LiveContent(state, null, controls, actions)
         }
     }
 
@@ -67,6 +86,20 @@ class LiveContentTest {
         compose.onNodeWithText("8VSB").assertExists()
         compose.onNodeWithText("Good").assertExists()
         compose.onNodeWithText("Clean signal, no symbol errors.").assertExists()
+    }
+
+    @Test
+    fun `no packet errors row before the tuner gives its counters`() {
+        show(LiveUiState(ready, watching("ch=8vsb:599000000 lock=8vsb ss=88 snq=86 seq=97"), nowMs = 1_000))
+        compose.onNodeWithText("Packet errors since tuned").assertDoesNotExist()
+    }
+
+    @Test
+    fun `packet errors since tuned show and say when they rise`() {
+        val w = watching("ch=8vsb:599000000 lock=8vsb ss=88 snq=86 seq=97")
+        show(LiveUiState(ready, w.copy(countersRead = true, errors = PacketErrors(transport = 42, crc = 7), lastAdded = PacketErrors(transport = 3)), nowMs = 1_000))
+        compose.onNode(hasContentDescription("Packet errors since tuned: transport errors 42, CRC errors 7, resyncs 0, network errors 0. Rising now."))
+            .performScrollTo().assertExists()
     }
 
     @Test
@@ -120,6 +153,45 @@ class LiveContentTest {
         compose.onNodeWithText("Aim").performScrollTo().performClick()
         compose.onNode(hasContentDescription("Settings")).performScrollTo().performClick()
         assertThat(calls).containsExactly("next", "previous", "aim", "settings").inOrder()
+    }
+
+    @Test
+    fun `the picker jumps straight to a channel found by number or name`() {
+        val lineup = (1..20).map { channel.copy(guideNumber = "$it.1", guideName = "Station $it") } +
+            channel.copy(guideNumber = "44.3", guideName = "Weather Now")
+        show(LiveUiState(ready.copy(channels = lineup, channel = lineup[0]), LiveState.Claiming(lineup[0])))
+        compose.onNode(pickChannel).performClick()
+        compose.onNode(hasSetTextAction()).performTextInput("weather")
+        compose.onNodeWithText("Weather Now").performClick()
+        compose.onNode(pickChannel).performClick()
+        compose.onNode(hasSetTextAction()).performTextInput("16-1")
+        compose.onNodeWithText("Station 16").performClick()
+        assertThat(calls).containsExactly("select 44.3", "select 16.1").inOrder()
+    }
+
+    @Test
+    fun `the picker says when nothing matches`() {
+        show(LiveUiState(ready, LiveState.Claiming(channel)))
+        compose.onNode(pickChannel).performClick()
+        compose.onNode(hasSetTextAction()).performTextInput("zzz")
+        compose.onNodeWithText("No channel matches “zzz”.").assertExists()
+    }
+
+    @Test
+    fun `disconnect lets the tuner go and connect takes one again`() {
+        show(LiveUiState(ready, watching("ch=8vsb:599000000 lock=8vsb ss=88 snq=86 seq=100"), nowMs = 1_000))
+        compose.onNodeWithText("Disconnect").performScrollTo().performClick()
+        assertThat(calls).containsExactly("disconnect")
+    }
+
+    @Test
+    fun `disconnected shows no reading and offers connect`() {
+        show(LiveUiState(ready, watching("ch=8vsb:599000000 lock=8vsb ss=88 snq=86 seq=100"), nowMs = 1_000, disconnected = true))
+        compose.onNodeWithText("Disconnected").assertExists()
+        compose.onNodeWithText("Living room HDHomeRun").assertExists() // no tuner number: none is held
+        compose.onNodeWithText("Good").assertDoesNotExist()
+        compose.onNodeWithText("Connect").performScrollTo().performClick()
+        assertThat(calls).containsExactly("connect")
     }
 
     @Test

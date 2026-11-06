@@ -1,7 +1,11 @@
 package io.cosgriff.sightline.data.monitor
 
 import com.google.common.truth.Truth.assertThat
+import io.cosgriff.sightline.analysis.ErrorCounters
 import io.cosgriff.sightline.analysis.EventKind
+import io.cosgriff.sightline.analysis.LoggedReading
+import io.cosgriff.sightline.analysis.PacketErrorSeries
+import io.cosgriff.sightline.analysis.SignalSample
 import io.cosgriff.sightline.analysis.SignalEvent
 import io.cosgriff.sightline.analysis.Thresholds
 import io.cosgriff.sightline.data.db.ReadingEntity
@@ -14,6 +18,7 @@ import io.cosgriff.sightline.protocol.LostReason
 import io.cosgriff.sightline.protocol.TunerSessions
 import io.cosgriff.sightline.protocol.fake.FakeChannel
 import io.cosgriff.sightline.protocol.fake.FakeHdhr
+import io.cosgriff.sightline.protocol.fake.Signal
 import io.cosgriff.sightline.protocol.fake.SignalPattern
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -53,6 +58,8 @@ class MonitorRunnerTest {
             FakeChannel("2.1", "STEADY", 7, SignalPattern.steady()),
             FakeChannel("4.1", "OTHER", 9, SignalPattern.steady(snq = 84)),
             FakeChannel("9.1", "DROPS", 21, SignalPattern.dropouts(everyMs = 20_000, lengthMs = 4_000)),
+            // Locked but losing symbols the whole time: the counters climb.
+            FakeChannel("5.1", "ERRORS", 11, SignalPattern { Signal(true, 80, 60, 90) }),
         ),
         clock = clock::millis,
     )
@@ -126,6 +133,22 @@ class MonitorRunnerTest {
         assertThat(fake.isIdle(0)).isTrue()
         assertThat(leases.held.value).isEmpty()
         assertThat(runner.status.value?.ended).isEqualTo(MonitorEnd.TIME_UP)
+    }
+
+    @Test
+    fun `each reading carries the tuner's counters and the running total counts from the first`() = runBlocking<Unit> {
+        withTimeout(15_000) { runner.run(plan("5.1", durationS = 20)) }
+        assertThat(log.readings).isNotEmpty()
+        assertThat(log.readings.all { it.transportErrors != null && it.crcErrors != null }).isTrue()
+        assertThat(log.readings.map { it.transportErrors!! }).isInOrder()
+        val status = runner.status.value!!
+        assertThat(status.countersRead).isTrue()
+        assertThat(status.errors.transport).isGreaterThan(0)
+        // The same count Session detail will make from the stored readings.
+        val logged = log.readings.map {
+            LoggedReading(it.ts, it.guideNumber, it.tuner, SignalSample(true, it.ss, it.snq, it.seq), counters = ErrorCounters(it.transportErrors, it.crcErrors, it.resyncs, it.networkErrors))
+        }
+        assertThat(PacketErrorSeries.of(logged).total).isEqualTo(status.errors)
     }
 
     @Test

@@ -111,6 +111,8 @@ The libhdhomerun source (github.com/Silicondust/libhdhomerun, `hdhomerun_pkt.h` 
 | `set /tunerN/channel auto:<rf>` | Tune by RF channel, for channels missing from the lineup. ATSC 1.0 and QAM only; status keeps reporting `ch=auto:<rf>` |
 | `get /tunerN/channel` | The `ch=` value a tune produced, read right after tuning so each poll can check it is unchanged |
 | `get /tunerN/streaminfo` | Programs in the transport stream |
+| `get /tunerN/debug` | Four lines, `tun:` (ch, lock, ss, snq, seq, `dbg`), `dev:` (bps, `resync`, `overflow`), `ts:` (bps, `te` transport errors, `crc`) and `net:` (bps, pps, `err`, `stop`). The counters run from the last tune. Diagnostics shows them |
+| `get /sys/features`, `get /tunerN/plpinfo` | Channel maps and modulations; ATSC 3.0 PLPs (empty when none). Diagnostics shows them raw |
 | `set /tunerN/channel none`, then `set /tunerN/lockkey none` | Release the tuner (always, including on crash recovery) |
 
 `/tunerN/vstatus` does not exist on this firmware (`unknown getset variable`). Errors come back as tag `0x05` alone, e.g. `ERROR: resource locked by 192.168.1.21`, `ERROR: invalid channel`, `ERROR: invalid virtual channel`, `ERROR: unknown getset variable`.
@@ -156,8 +158,8 @@ Seven Room tables. Readings are the only large table: a 12-hour, one-channel ses
 | --- | --- | --- |
 | `Device` | deviceId (PK, hex string), friendlyName, model, firmware, baseUrl, tunerCount, lastSeen | Refreshed on each discovery |
 | `Channel` | deviceId + guideNumber (PK), guideName, rfChannel?, frequencyHz?, band?, favorite | rfChannel filled the first time the channel is tuned |
-| `Session` | id (PK), deviceId, kind (`LIVE`, `AIM`, `MONITOR`, `SWEEP`), startedAt, endedAt?, channels (list), tuner?, pollIntervalMs, dwellMs?, note, weatherFetched, fetchWeather | tuner is null when a sweep moved between tuners; dwellMs is a sweep's | One per run; live views are saved as sessions only when the user taps Save |
-| `Reading` | id (PK), sessionId (FK, indexed), ts (epoch ms, indexed with sessionId), guideNumber, tuner, ss, snq, seq, bps, pps, lock, headingDeg?, rawStatus? | `rawStatus` kept only when the parse failed |
+| `Session` | id (PK), deviceId, kind (`LIVE`, `AIM`, `MONITOR`, `SWEEP`), startedAt, endedAt?, channels (list), tuner?, pollIntervalMs, dwellMs?, note, weatherFetched, fetchWeather, firmware? | firmware is the device's when the session started (null before Room v5), so sessions either side of an update can be told apart; tuner is null when a sweep moved between tuners; dwellMs is a sweep's | One per run; live views are saved as sessions only when the user taps Save |
+| `Reading` | id (PK), sessionId (FK, indexed), ts (epoch ms, indexed with sessionId), guideNumber, tuner, ss, snq, seq, bps, pps, lock, headingDeg?, rawStatus?, transportErrors?, crcErrors?, resyncs?, networkErrors? | `rawStatus` kept only when the parse failed. The four counters are `/tunerN/debug`'s running counts as read with the reading (Monitor only, from Room v5); see "Packet errors" |
 | `Event` | id (PK), sessionId, startTs, endTs, guideNumber?, kind (`DIP`, `DROPOUT`, `TUNER_LOST`, `DEVICE_UNREACHABLE`, `GAP`), minSnq?, minSeq?, noLockMs | Written by the dip detector. guideNumber is null for device-wide events; minSnq/minSeq are the lowest locked values among the bad readings, null if it never locked; noLockMs is how long of it had no lock ("lock lost 4 s") |
 | `WeatherHour` | sessionId + hourTs (PK), tempC, windKph, gustKph, precipMm | From Open-Meteo, fetched after a session ends |
 | `SessionSummary` | sessionId (PK, FK), readings, goodShare?, dips, medianSnq?, health?, sparkline | What History shows; written when a session ends (or at the next app start), kept when old readings are deleted |
@@ -226,16 +228,16 @@ Navigation is a bottom bar with four destinations: Devices, Live, Monitor, Histo
 - One card per HDHomeRun: friendly name, model, firmware, IP, and a dot per tuner (green = idle, blue = in use by Sightline, gray = in use by another client, with that client's IP shown).
 - Pull to rescan. A field adds a device by IP or hostname.
 - Empty state: a short explanation that the phone must be on the same Wi-Fi, a Retry button, and the manual entry field.
-- Tapping a card opens Live on that device's first idle tuner.
+- Tapping a card opens Live on that device's first idle tuner. Its info button opens Diagnostics.
 
 ### 2. Live — `mockups/Live.png`
 
-- **Top bar:** device, tuner (auto-picks the first idle tuner) and a channel selector. Swipe left or right on the gauges to step through channels.
+- **Top bar:** device, tuner (auto-picks the first idle tuner) and a channel selector. Swipe left or right on the gauges to step through channels. Tapping the channel opens a picker: a list of the lineup with a search field that matches guide numbers by prefix (`7`, `7.1`, `7-1`) and names by substring, so any channel is one jump away.
 - **Center:** `TriGauge` — signal quality large, strength and symbol quality beneath, each with its ghost peak marker and number.
 - **Below the gauges:** a `Sparkline` for the last 60 s, then an info row: RF channel, band (VHF-lo, VHF-hi, UHF), frequency in MHz, modulation.
 - **Health banner:** a `HealthChip` plus one sentence, e.g. "Strong signal but low quality: likely overload or multipath."
 - **Actions:** Aim, Sweep, Monitor (this channel). Overflow: Save as session.
-- Polls once a second. Leaving the screen releases the tuner.
+- Polls once a second, reading `/tunerN/debug` with each status; once the counters arrive, a row under the info row shows the packet errors since the first reading of this tune, with "Rising now" when the last poll added any. Leaving the screen releases the tuner. The health banner has Disconnect, which releases it without leaving; the screen then holds nothing until Connect or a channel is picked.
 
 ### 3. Aim — `mockups/Aim.png`
 
@@ -274,7 +276,7 @@ Navigation is a bottom bar with four destinations: Devices, Live, Monitor, Histo
 
 ### 7. Monitor running — `mockups/Monitor.png`
 
-- Elapsed and remaining time with a progress bar, live counters (dips, longest, time good).
+- Elapsed and remaining time with a progress bar, live counters (dips, longest, time good), and below them the session's packet errors once the tuner has given its counters.
 - A `SignalTimeline` that grows in real time, with dip bands appearing as they happen.
 - Recent dips list, current reading, Stop button with a confirm dialog.
 - The ongoing notification shows the current snq, dip count and a Stop action. An optional home-screen widget (Jetpack Glance) shows the same.
@@ -289,7 +291,9 @@ The main analysis screen, from top to bottom:
 4. `HourHeatmap` for sessions longer than 12 h.
 5. `ChannelRangeBars` when more than one channel was logged.
 6. `Histogram` of snq.
-7. **Event list:** each dip with time, channel, duration, minimum values and weather at the time; tapping one zooms the timeline to it.
+7. **Event list:** each dip with time, channel, duration, minimum values, weather at the time and the transport errors counted during it; tapping one zooms the timeline to it.
+   - **Packet errors** (sessions with counters only): the whole session's counts, and how many transport errors fell inside dips and dropouts against outside them. Errors outside any dip are trouble too brief for a once-a-second reading to show.
+   - The firmware the session was recorded on, when known. The report's device line carries it too, and Compare puts both sessions' firmware and transport errors per hour beside the other figures.
 8. Export: CSV of readings, CSV of events, and a one-page summary report (PDF or Markdown) with the charts.
    - Built as: **Export CSV** shares both CSVs together; **Share report** a one-page US Letter PDF (summary figures, findings, the quality timeline, as many events as fit and a count of the rest), in the light theme's colours. The header's export button offers the same two.
    - CSV columns don't follow the units setting, so scripts can rely on them: times as local ISO 8601 with the offset plus UTC epoch ms, weather metric with the unit in the column name, RFC 4180 quoting.
@@ -304,6 +308,16 @@ The main analysis screen, from top to bottom:
 
 - Thresholds, poll interval, units, theme (system / light / dark / true black), home location for weather, data retention, keep screen on, tone range, and an About page with licenses.
 - Retention: 30 days, 90 days (default), 1 year or for ever. The tone range is inside 200–1200 Hz and at least 200 Hz wide. Thresholds stay in order (each marginal line at or below its good line, overload above good strength).
+
+### 11. Diagnostics (no mockup yet)
+
+- For one device, in release builds too: what the tuner says about itself, to see what holds a tuner and to paste into a bug report. Opens from a Devices card's info button.
+- **Device:** model (`/sys/hwmodel`), firmware (`/sys/version`) and firmware name (`/sys/model`), whether the tuner offers an update, address, device ID, this phone's address on the control connection, and `/sys/features`.
+- **Update:** `discover.json`'s `UpgradeAvailable`, which the tuner fills from its own check with SiliconDust; the phone asks nobody but the tuner. Absent means none offered. Not yet seen in a capture.
+- **Each tuner:** who holds it, the status line, the `/tunerN/debug` counters (transport and CRC errors, resyncs, overflows, network errors and stops, with a warning icon when not zero), stream target, channel and programs, and every raw reply behind a toggle.
+- **Who holds it:** idle; in use by Sightline (a screen or the monitor holds it now); held by this phone (the lock or stream target is this phone's address but nothing in Sightline holds it: a tuner left behind, or another app on the phone); another client by IP; tuned with no holder; no answer.
+- **Release** shows only on a tuner held by this phone for which Sightline still has the lock key, and sends the same release as the start-up stale-key recovery, which the tuner refuses with any other client's lock. Nothing else on the screen sets anything: it is gets only, every 2 s while visible, so it is safe on tuners a DVR is recording on.
+- **Share** sends a plain-text report of everything shown plus the raw replies. `discover.json` is read into a model without DeviceAuth, so the report can't contain it.
 
 ## Monitor mode
 
@@ -328,6 +342,14 @@ Monitor mode is the feature no other app has. It needs to survive many hours wit
 7. On stop, normal or not: tune `none`, release the lock key, close the socket.
 
 Store the active lock key and tuner in DataStore. On app start, if a stale lock key is found, release that tuner first. This covers the process being killed mid-session.
+
+### Packet errors
+
+`/tunerN/debug` counts errors since the tuner's last tune: `ts te` (transport errors, damaged packets), `ts crc`, `dev resync` (the demodulator losing sync) and `net err` (the tuner failing to send its stream). Unlike seq, a snapshot of one second, they catch errors between polls. Live and Monitor read them with every status (one more get per poll).
+
+- Monitor stores the four running counts on each reading. Errors per reading are the counts' growth since the tuner's previous reading of the same tune. A new tune starts when the tuner's channel changes, a counter falls, or (Monitor, which knows) it is claimed again; its first reading is the baseline and adds nothing, so tuning itself never counts. A reading without counters adds nothing and keeps the baseline. `PacketErrorCounter` in `:analysis` does this for Live, Monitor's running total and Session detail alike.
+- Sessions recorded before this (Room v4 and earlier) have no counters; screens leave packet errors out rather than show 0.
+- Not yet checked on a real unit: whether ATSC 3.0 tunes count `te`/`crc` the same way, and whether the counters wrap.
 
 ### Dip detection
 
