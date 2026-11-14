@@ -67,9 +67,9 @@ Use the libhdhomerun control protocol as the primary data source and the HTTP JS
 
 | Field | Size | Notes |
 | --- | --- | --- |
-| Type | 2 bytes, big-endian | `0x0002` discover request, `0x0003` discover reply, `0x0004` get/set request, `0x0005` get/set reply |
-| Payload length | 2 bytes, big-endian | Length of the TLV payload only |
-| Payload | variable | Sequence of TLVs |
+| Type | 2 bytes, big-endian | `0x0002` discover request, `0x0003` discover reply, `0x0004` get/set request, `0x0005` get/set reply, `0x0006` upgrade request, `0x0007` upgrade reply |
+| Payload length | 2 bytes, big-endian | Length of the payload only |
+| Payload | variable | Sequence of TLVs; an upgrade request's is raw (below) |
 | CRC32 | 4 bytes, little-endian | Standard CRC-32 (`java.util.zip.CRC32`) over type + length + payload |
 
 Each TLV is a 1-byte tag, a variable-length size, then the value. The size is 1 byte if under 128. Otherwise it is 2 bytes: `(len and 0x7F) or 0x80`, then `len shr 7`. Get/set names and values are null-terminated ASCII.
@@ -89,6 +89,10 @@ Each TLV is a 1-byte tag, a variable-length size, then the value. The size is 1 
 | `0x2A` | Base URL | Discovery reply, e.g. `http://192.168.1.50:80` |
 
 The libhdhomerun source (github.com/Silicondust/libhdhomerun, `hdhomerun_pkt.h` and `hdhomerun_pkt.c`) is the authority if anything here disagrees with it.
+
+### Firmware upload (ADR-0005)
+
+As libhdhomerun's `hdhomerun_control_upgrade`, over the TCP control connection: the image in 1024-byte pieces, each an upgrade request whose payload is a big-endian uint32 byte offset followed by the bytes, with no reply; then one upgrade request whose payload is the offset `0xFFFFFFFF` alone. The device checks the image and answers that one with an upgrade reply within 40 s: no TLVs when it took it, tag `0x05` (e.g. `ERROR: invalid image`) when it refused. A device that took the image installs it and restarts; `hdhomerun_config` waits 10 s, then looks for it once a second. libhdhomerun first forces tuners 0 and 1 free (`set lockkey force`, `set channel none`); Sightline never does: it refuses to start unless every tuner is idle. Not yet seen against a real unit: no update was on offer when the captures were taken.
 
 ### Discovery
 
@@ -150,6 +154,12 @@ RF channel and frequency come from the `ch` field after tuning. Map frequency to
 - `GET /discover.json` — FriendlyName, ModelNumber, FirmwareName, FirmwareVersion, DeviceID, TunerCount, BaseURL, LineupURL. It also has `DeviceAuth`, a credential, which Sightline never reads.
 - `GET /lineup.json` — GuideNumber, GuideName, VideoCodec, AudioCodec, URL per channel; used for the channel picker and, for ATSC 3.0, the stream URL. Its SignalStrength and SignalQuality are from the last channel scan, not live.
 - `GET /status.json` — one entry per tuner; an idle one has only `Resource`, an in-use one adds VctNumber, VctName, Frequency, percentages and TargetIP.
+- `GET /lineup_status.json` — the device's own channel scan. Idle: `{"ScanInProgress":0,"ScanPossible":1,"Source":"Antenna","SourceList":["Antenna","Cable"]}` (captured, `lineup-status-idle.json`). Scanning: `{"ScanInProgress":1,"Progress":10,"Found":24}` (from the device's own web page script; not yet captured).
+- `POST /lineup.post?scan=start&source=<Source>` starts that scan and `POST /lineup.post?scan=abort` stops it, as the device's web page ("Detect Channels") does. The device picks the tuner and replaces `lineup.json` when done. How the scanning tuner looks over the control protocol is not yet captured.
+
+### SiliconDust firmware files (ADR-0005)
+
+`https://download.silicondust.com/hdhomerun/<FirmwareName>_firmware_<version>.bin` (a FLEX 4K's, `hdhomerun_dvr_atsc3_firmware_20261107.bin`, is 2,226,288 bytes). The unversioned `<FirmwareName>_firmware.bin` answers `302` with `Location` naming the newest, so a `HEAD` without following redirects gives the newest version without a download. Checked 2026-11-14. Only the firmware name is sent, and only when the user taps Check or Install.
 
 ## Data model
 
@@ -318,13 +328,21 @@ The main analysis screen, from top to bottom:
 
 - For one device, in release builds too: what the tuner says about itself, to see what holds a tuner and to paste into a bug report. Opens from a Devices card's info button.
 - **Device:** model (`/sys/hwmodel`), firmware (`/sys/version`) and firmware name (`/sys/model`), whether the tuner offers an update, address, device ID, this phone's address on the control connection, and `/sys/features`.
-- **Update:** `discover.json`'s `UpgradeAvailable`, which the tuner fills from its own check with SiliconDust; the phone asks nobody but the tuner. Absent means none offered. Not yet seen in a capture.
+- **Update:** `discover.json`'s `UpgradeAvailable`, which the tuner fills from its own check with SiliconDust; this screen asks nobody but the tuner. Absent means none offered. Not yet seen in a capture. Installing is on Device tools.
 - **Each tuner:** who holds it, the status line, the `/tunerN/debug` counters (transport and CRC errors, resyncs, overflows, network errors and stops, with a warning icon when not zero), stream target, channel and programs, and every raw reply behind a toggle.
 - **Where the errors are:** under the counters, when any are above zero: came in damaged from the antenna (transport, CRC, resyncs), failed to go out on the network (`net err`, naming the stream target's host), or both. The counts run from the tune, so this describes the whole tune.
 - **Watch this tuner in Monitor** on a tuner another client holds: opens Monitor's setup in watch mode on that tuner.
 - **Who holds it:** idle; in use by Sightline (a screen or the monitor holds it now); held by this phone (the lock or stream target is this phone's address but nothing in Sightline holds it: a tuner left behind, or another app on the phone); another client by IP; tuned with no holder; no answer.
 - **Release** shows only on a tuner held by this phone for which Sightline still has the lock key, and sends the same release as the start-up stale-key recovery, which the tuner refuses with any other client's lock. Nothing else on the screen sets anything: it is gets only, every 2 s while visible, so it is safe on tuners a DVR is recording on.
 - **Share** sends a plain-text report of everything shown plus the raw replies. `discover.json` is read into a model without DeviceAuth, so the report can't contain it.
+
+### 12. Device tools (no mockup yet)
+
+- For one device, from the wrench on its Devices card. The two things Sightline changes on a device as a whole, each confirmed in a dialog first. Diagnostics stays read-only.
+- **Refused while any tuner is in use:** by another client (named with its IP, as on Devices), or by Sightline itself (Live, Aim, Sweep, Multi-tuner, Monitor), or when the device doesn't answer. A scan takes a tuner and rewrites the lineup a DVR records from; an update restarts the device. Both are checked again just before they start. The Demo tuner shows the refusal for its made-up player and offers a Demo-only button to stop it.
+- **Channel scan:** the device's own scan (`lineup.post`, above), of a source it lists (Antenna, Cable). Shows the lineup size, then progress and programs found, and Stop. When it ends, the lineup is read again into Room.
+- **Firmware:** installed (`FirmwareVersion`), what the tuner offers (`UpgradeAvailable`), and SiliconDust's newest, asked only when the user taps Check. Install takes SiliconDust's newest when it is newer, else the tuner's offer; it downloads the file, checks the tuners again, uploads it (Firmware upload, above), then waits up to 3 minutes for the device to answer on the new version and records it on the device. No update while the device scans. The update runs in the app scope, so leaving the screen doesn't stop it; a cancelled upload sends no end marker, so the device keeps its firmware.
+- Every failure is worded: a tuner came into use, no firmware name, no such file, download failed, the tuner refused the file (its message), upload didn't finish, or not back on the new version in time.
 
 ## Monitor mode
 
@@ -419,7 +437,8 @@ Each rule's exact numbers, and what makes it Likely rather than Possible, are in
 - **Clock changes and time zones:** store UTC epoch milliseconds; display in local time.
 - **Doze:** the foreground service plus battery optimization exemption keeps polling alive; if a gap over 60 s appears anyway, record a `GAP` event and draw it as a gap in the timeline, not a dropout.
 - **Storage:** readings older than the retention setting are deleted on app start, once the session has its summary; Event rows, weather and session summaries are kept. Sweeps keep their readings: they're a few hundred rows, and comparing sweeps reads them.
-- **Privacy:** no analytics, no network calls except to the HDHomeRun and, if enabled, Open-Meteo. Location is used once to save home coordinates and never stored more precisely than 2 decimal places (about 1 km).
+- **Device tools never interrupt a recording:** scan and update start only with every tuner idle (screen 12), checked right before each.
+- **Privacy:** no analytics, no network calls except to the HDHomeRun, Open-Meteo if enabled, and SiliconDust's download server when the user asks Device tools to check for or install firmware (ADR-0005). Location is used once to save home coordinates and never stored more precisely than 2 decimal places (about 1 km).
 
 ## Build, release and testing
 
@@ -436,7 +455,7 @@ Same release path as Glovebox: a public GitHub repo under GPL-3.0, release APKs 
 - **Protocol unit tests (JVM):** encode and decode against golden packets captured from a real unit with `tcpdump` while running `hdhomerun_config`. CRC, varlen sizes at 127/128 bytes, and malformed replies.
 - **Status parser tests:** real status lines from 8VSB, ATSC 3.0, no-lock and idle tuners, plus unknown keys.
 - **Fake HDHomeRun:** a small Kotlin server in test sources that answers discovery and get/set, with scripted signal patterns (steady, slow fade, wind flutter, hard dropouts, device vanishing). Used by the dip detector and diagnosis tests.
-- **Demo device:** the same fake built into debug builds as a selectable "Demo tuner", so the UI can be built and screenshotted without hardware. Its tuner 3 is held by a made-up player (`192.0.2.20`, a documentation address) on the Wind channel whose stream loses 2 packets a second on the network, for watch mode and the network side of packet errors.
+- **Demo device:** the same fake built into debug builds as a selectable "Demo tuner", so the UI can be built and screenshotted without hardware. Its tuner 3 is held by a made-up player (`192.0.2.20`, a documentation address) on the Wind channel whose stream loses 2 packets a second on the network, for watch mode and the network side of packet errors. It offers firmware `20261107` over `20260326` and serves made-up firmware files itself in SiliconDust's layout, so Device tools never downloads real firmware for it; its channel scan takes 20 s.
 - **Screenshot tests:** Roborazzi for `ArcGauge`, `TriGauge`, the heatmap and the polar plot in light, dark and true-black themes.
 - **Soak test:** a 12-hour Monitor run on a real phone, screen off, on a charger and on battery, to measure gaps and battery drain.
 

@@ -1,7 +1,9 @@
 package io.cosgriff.sightline.protocol
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -11,6 +13,7 @@ import java.io.InputStream
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
+import java.nio.ByteBuffer
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeMark
@@ -25,6 +28,18 @@ sealed interface ControlResult {
 
     /** No answer: can't connect, timed out, the connection dropped, or the reply was malformed. */
     data class Unreachable(val reason: UnreachableReason) : ControlResult
+}
+
+/** The answer to a firmware upload ([ControlClient.upgrade]). */
+sealed interface UpgradeResult {
+    /** The device took the whole image. It now installs it and restarts, off the network for a while. */
+    data object Accepted : UpgradeResult
+
+    /** The device refused the image (tag 0x05), e.g. one built for another model. */
+    data class Rejected(val message: String) : UpgradeResult
+
+    /** The upload didn't finish: can't connect, the connection dropped, or no answer to the end marker. */
+    data class Unreachable(val reason: UnreachableReason) : UpgradeResult
 }
 
 enum class UnreachableReason {
@@ -139,26 +154,88 @@ class ControlClient(
         return mutex.withLock { withContext(io) { exchange(frame) } }
     }
 
+    /**
+     * Sends a firmware [image] the way libhdhomerun's `hdhomerun_control_upgrade` does: [UPGRADE_CHUNK]-byte pieces,
+     * each a big-endian uint32 offset then the bytes, with no reply; then the offset `0xFFFFFFFF` alone, which the
+     * device answers once it has checked the image, within [UPGRADE_TIMEOUT]. [onProgress] gets the bytes sent so
+     * far. Unlike libhdhomerun this forces no tuner free first: callers check every tuner is idle (SPEC "Device
+     * tools"). On [UpgradeResult.Accepted] the connection is closed, as the device is about to restart.
+     */
+    suspend fun upgrade(image: ByteArray, onProgress: (sent: Int) -> Unit = {}): UpgradeResult {
+        require(image.isNotEmpty()) { "empty firmware image" }
+        return mutex.withLock {
+            withContext(io) {
+                val s = connected() ?: return@withContext UpgradeResult.Unreachable(UnreachableReason.CONNECT_FAILED)
+                try {
+                    val out = s.getOutputStream()
+                    var offset = 0
+                    while (offset < image.size) {
+                        coroutineContext.ensureActive()
+                        val length = minOf(UPGRADE_CHUNK, image.size - offset)
+                        val body = ByteBuffer.allocate(4 + length).putInt(offset).put(image, offset, length).array()
+                        out.write(Packet.frame(PacketType.UPGRADE_REQUEST, body))
+                        offset += length
+                        onProgress(offset)
+                    }
+                    out.write(Packet.frame(PacketType.UPGRADE_REQUEST, ByteBuffer.allocate(4).putInt(-1).array()))
+                    out.flush()
+                    s.soTimeout = UPGRADE_TIMEOUT.inWholeMilliseconds.toInt()
+                    val reply = readFrame(s.getInputStream())
+                        ?: return@withContext dropUpgrade(UnreachableReason.CONNECTION_LOST)
+                    val packet = (Packet.decode(reply) as? DecodeResult.Ok)?.packet
+                        ?.takeIf { it.type == PacketType.UPGRADE_REPLY }
+                        ?: return@withContext dropUpgrade(UnreachableReason.MALFORMED_REPLY)
+                    // Either way the device is done with this connection: it restarts, or the upload is over.
+                    closeSocket()
+                    backoff.succeeded()
+                    packet[Tag.ERROR_MESSAGE]?.let { UpgradeResult.Rejected(it.string()) } ?: UpgradeResult.Accepted
+                } catch (_: java.net.SocketTimeoutException) {
+                    dropUpgrade(UnreachableReason.TIMED_OUT)
+                } catch (_: IOException) {
+                    dropUpgrade(UnreachableReason.CONNECTION_LOST)
+                } catch (e: CancellationException) {
+                    // Closing mid-upload leaves the device without the end marker, so it discards what it got.
+                    closeSocket()
+                    throw e
+                }
+            }
+        }
+    }
+
+    private fun dropUpgrade(reason: UnreachableReason): UpgradeResult {
+        closeSocket()
+        backoff.failed()
+        return UpgradeResult.Unreachable(reason)
+    }
+
+    /** The open connection, opening one if needed; null when that fails or [Backoff] says not yet. */
+    private fun connected(): Socket? {
+        if (closed) return null
+        socket?.let { return it }
+        if (!backoff.canAttempt()) return null
+        // Outside apply {}: in there `port` would be the unconnected Socket's own port, 0.
+        val remote = InetSocketAddress(address, port)
+        val millis = timeout.inWholeMilliseconds.toInt()
+        return try {
+            Socket().apply {
+                tcpNoDelay = true
+                connect(remote, millis)
+                soTimeout = millis
+            }.also {
+                socket = it
+                localAddress = it.localAddress
+            }
+        } catch (_: IOException) {
+            backoff.failed()
+            null
+        }
+    }
+
     private fun exchange(frame: ByteArray): ControlResult {
         if (closed) return ControlResult.Unreachable(UnreachableReason.CONNECTION_LOST)
         val s = socket ?: run {
             if (!backoff.canAttempt()) return ControlResult.Unreachable(UnreachableReason.BACKING_OFF)
-            // Outside apply {}: in there `port` would be the unconnected Socket's own port, 0.
-            val remote = InetSocketAddress(address, port)
-            val millis = timeout.inWholeMilliseconds.toInt()
-            try {
-                Socket().apply {
-                    tcpNoDelay = true
-                    connect(remote, millis)
-                    soTimeout = millis
-                }.also {
-                    socket = it
-                    localAddress = it.localAddress
-                }
-            } catch (_: IOException) {
-                backoff.failed()
-                return ControlResult.Unreachable(UnreachableReason.CONNECT_FAILED)
-            }
+            connected() ?: return ControlResult.Unreachable(UnreachableReason.CONNECT_FAILED)
         }
         val reply = try {
             s.getOutputStream().apply { write(frame); flush() }
@@ -199,6 +276,12 @@ class ControlClient(
     }
 
     companion object {
+        /** Firmware bytes per upload packet, as libhdhomerun sends them. */
+        const val UPGRADE_CHUNK = 1024
+
+        /** How long the device may take to check an uploaded image and answer (libhdhomerun's figure). */
+        val UPGRADE_TIMEOUT: Duration = 40.seconds
+
         /** Reads one frame, or null at end of stream. */
         internal fun readFrame(input: InputStream): ByteArray? {
             val header = input.readNBytes(Packet.HEADER)

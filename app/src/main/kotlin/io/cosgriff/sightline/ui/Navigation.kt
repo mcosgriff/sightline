@@ -50,3 +50,7 @@ data class Compare(val a: Long, val b: Long) : NavKey
 /** One device's raw state, counters and who holds each tuner, read-only. Opens from a Devices card. */
 @Serializable
 data class Diagnostics(val deviceId: String) : NavKey
+
+/** One device's channel scan and firmware update, refused while any tuner is in use. Opens from a Devices card. */
+@Serializable
+data class DeviceTools(val deviceId: String) : NavKey

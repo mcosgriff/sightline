@@ -11,6 +11,12 @@ enum class PacketType(val code: Int) {
     DISCOVER_REPLY(0x0003),
     GETSET_REQUEST(0x0004),
     GETSET_REPLY(0x0005),
+
+    /** A piece of a firmware image: a big-endian uint32 offset, then the bytes. Its body is not TLVs. */
+    UPGRADE_REQUEST(0x0006),
+
+    /** The answer to the end-of-upload marker (offset `0xFFFFFFFF`): TLVs, an error message when refused. */
+    UPGRADE_REPLY(0x0007),
     ;
 
     companion object {
@@ -77,12 +83,7 @@ class Packet(val type: PacketType, val tlvs: List<Tlv>) {
             payload.write(encodeVarLen(tlv.value.size))
             payload.write(tlv.value)
         }
-        val body = payload.toByteArray()
-        require(body.size <= MAX_PAYLOAD) { "payload of ${body.size} bytes is over $MAX_PAYLOAD" }
-        val frame = ByteBuffer.allocate(HEADER + body.size + CRC_SIZE)
-        frame.putShort(type.code.toShort()).putShort(body.size.toShort()).put(body)
-        frame.order(ByteOrder.LITTLE_ENDIAN).putInt(crc(frame.array(), HEADER + body.size).toInt())
-        return frame.array()
+        return frame(type, payload.toByteArray())
     }
 
     companion object {
@@ -97,32 +98,49 @@ class Packet(val type: PacketType, val tlvs: List<Tlv>) {
          * running off the end) is a [DecodeResult.Malformed], never an exception: replies come off the network.
          */
         fun decode(bytes: ByteArray): DecodeResult {
-            if (bytes.size < HEADER + CRC_SIZE) return DecodeResult.Malformed(Malformation.TOO_SHORT)
-            val buf = ByteBuffer.wrap(bytes)
-            val typeCode = buf.short.toInt() and 0xFFFF
-            val length = buf.short.toInt() and 0xFFFF
-            if (bytes.size != HEADER + length + CRC_SIZE) return DecodeResult.Malformed(Malformation.LENGTH_MISMATCH)
-            val expected = ByteBuffer.wrap(bytes, HEADER + length, CRC_SIZE).order(ByteOrder.LITTLE_ENDIAN)
-                .int.toLong() and 0xFFFFFFFFL
-            if (crc(bytes, HEADER + length) != expected) return DecodeResult.Malformed(Malformation.BAD_CRC)
-            val type = PacketType.of(typeCode) ?: return DecodeResult.Malformed(Malformation.UNKNOWN_TYPE)
-
+            val (type, body) = when (val f = unframe(bytes)) {
+                is FrameResult.Ok -> f.type to f.body
+                is FrameResult.Malformed -> return DecodeResult.Malformed(f.why)
+            }
             val tlvs = mutableListOf<Tlv>()
-            var i = HEADER
-            val end = HEADER + length
+            var i = 0
+            val end = body.size
             while (i < end) {
-                val tag = bytes[i++].toInt() and 0xFF
+                val tag = body[i++].toInt() and 0xFF
                 if (i >= end) return DecodeResult.Malformed(Malformation.TRUNCATED_TLV)
-                var size = bytes[i++].toInt() and 0xFF
+                var size = body[i++].toInt() and 0xFF
                 if (size and 0x80 != 0) {
                     if (i >= end) return DecodeResult.Malformed(Malformation.TRUNCATED_TLV)
-                    size = (size and 0x7F) or ((bytes[i++].toInt() and 0xFF) shl 7)
+                    size = (size and 0x7F) or ((body[i++].toInt() and 0xFF) shl 7)
                 }
                 if (i + size > end) return DecodeResult.Malformed(Malformation.TRUNCATED_TLV)
-                tlvs += Tlv(tag, bytes.copyOfRange(i, i + size))
+                tlvs += Tlv(tag, body.copyOfRange(i, i + size))
                 i += size
             }
             return DecodeResult.Ok(Packet(type, tlvs))
+        }
+
+        /** Frames [body] as one packet of [type]: type, length, body, then the CRC. For bodies that aren't TLVs. */
+        fun frame(type: PacketType, body: ByteArray): ByteArray {
+            require(body.size <= MAX_PAYLOAD) { "payload of ${body.size} bytes is over $MAX_PAYLOAD" }
+            val frame = ByteBuffer.allocate(HEADER + body.size + CRC_SIZE)
+            frame.putShort(type.code.toShort()).putShort(body.size.toShort()).put(body)
+            frame.order(ByteOrder.LITTLE_ENDIAN).putInt(crc(frame.array(), HEADER + body.size).toInt())
+            return frame.array()
+        }
+
+        /** Checks one frame's length and CRC and returns its type and raw body, never throwing. */
+        fun unframe(bytes: ByteArray): FrameResult {
+            if (bytes.size < HEADER + CRC_SIZE) return FrameResult.Malformed(Malformation.TOO_SHORT)
+            val buf = ByteBuffer.wrap(bytes)
+            val typeCode = buf.short.toInt() and 0xFFFF
+            val length = buf.short.toInt() and 0xFFFF
+            if (bytes.size != HEADER + length + CRC_SIZE) return FrameResult.Malformed(Malformation.LENGTH_MISMATCH)
+            val expected = ByteBuffer.wrap(bytes, HEADER + length, CRC_SIZE).order(ByteOrder.LITTLE_ENDIAN)
+                .int.toLong() and 0xFFFFFFFFL
+            if (crc(bytes, HEADER + length) != expected) return FrameResult.Malformed(Malformation.BAD_CRC)
+            val type = PacketType.of(typeCode) ?: return FrameResult.Malformed(Malformation.UNKNOWN_TYPE)
+            return FrameResult.Ok(type, bytes.copyOfRange(HEADER, HEADER + length))
         }
 
         /**
@@ -145,6 +163,11 @@ class Packet(val type: PacketType, val tlvs: List<Tlv>) {
             return HEADER + length + CRC_SIZE
         }
     }
+}
+
+sealed interface FrameResult {
+    class Ok(val type: PacketType, val body: ByteArray) : FrameResult
+    data class Malformed(val why: Malformation) : FrameResult
 }
 
 sealed interface DecodeResult {

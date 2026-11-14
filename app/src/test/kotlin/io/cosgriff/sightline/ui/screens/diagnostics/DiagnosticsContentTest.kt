@@ -92,7 +92,7 @@ class DiagnosticsContentTest {
     @Test
     fun `an offered update is named`() {
         show(DiagnosticsState.Read(diagnostics(upgrade = "20261020")))
-        compose.onNodeWithText("The tuner offers 20261020. Install it from the HDHomeRun app.").assertExists()
+        compose.onNodeWithText("The tuner offers 20261020. Install it from Device tools (the wrench on its Devices card).").assertExists()
     }
 
     @Test

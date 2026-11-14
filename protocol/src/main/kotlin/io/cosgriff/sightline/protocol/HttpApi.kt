@@ -15,6 +15,7 @@ import okhttp3.Callback
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import java.io.Closeable
 import java.io.IOException
@@ -60,6 +61,28 @@ data class TunerUse(
     @SerialName("Frequency") val frequencyHz: Long? = null,
     @SerialName("TargetIP") val targetIp: String? = null,
 )
+
+/**
+ * `GET /lineup_status.json`: the device's own channel scan, which rewrites its lineup (the one a DVR uses). Idle it
+ * reads `{"ScanInProgress":0,"ScanPossible":1,"Source":"Antenna","SourceList":["Antenna","Cable"]}`; scanning,
+ * `{"ScanInProgress":1,"Progress":10,"Found":24}` (`docs/protocol-captures/lineup-status-idle.json`).
+ */
+@Serializable
+data class LineupStatus(
+    @SerialName("ScanInProgress") val scanInProgress: Int = 0,
+    /** 1 when a scan can start now. Sent only while idle. */
+    @SerialName("ScanPossible") val scanPossible: Int? = null,
+    /** What the last scan looked for: `Antenna` or `Cable`. Sent only while idle. */
+    @SerialName("Source") val source: String? = null,
+    @SerialName("SourceList") val sourceList: List<String> = emptyList(),
+    /** Percent done, while scanning. */
+    @SerialName("Progress") val progress: Int? = null,
+    /** Programs found so far, while scanning. */
+    @SerialName("Found") val found: Int? = null,
+) {
+    val scanning: Boolean get() = scanInProgress != 0
+    val canScan: Boolean get() = !scanning && scanPossible == 1
+}
 
 sealed interface HttpResult<out T> {
     data class Ok<T>(val value: T) : HttpResult<T>
@@ -163,6 +186,33 @@ class HttpApi(
     suspend fun status(baseUrl: String): HttpResult<List<TunerUse>> =
         getJson(baseUrl.trimEnd('/') + "/status.json", ListSerializer(TunerUse.serializer()))
 
+    suspend fun lineupStatus(baseUrl: String): HttpResult<LineupStatus> =
+        getJson(baseUrl.trimEnd('/') + "/lineup_status.json", LineupStatus.serializer())
+
+    /**
+     * Starts the device's channel scan of [source] (one of [LineupStatus.sourceList]), as its web page's "Detect
+     * Channels" does: `POST /lineup.post?scan=start&source=<source>`. The device picks the tuner; it replaces the
+     * lineup when done. Callers check no tuner is in use first (SPEC "Device tools").
+     */
+    suspend fun startLineupScan(baseUrl: String, source: String): HttpResult<Unit> =
+        post(baseUrl, "scan" to "start", "source" to source)
+
+    /** Stops the device's channel scan: `POST /lineup.post?scan=abort`. */
+    suspend fun abortLineupScan(baseUrl: String): HttpResult<Unit> = post(baseUrl, "scan" to "abort")
+
+    private suspend fun post(baseUrl: String, vararg query: Pair<String, String>): HttpResult<Unit> {
+        val url = (baseUrl.trimEnd('/') + "/lineup.post").toHttpUrlOrNull()?.newBuilder()
+            ?.apply { query.forEach { (k, v) -> addQueryParameter(k, v) } }?.build()
+            ?: return HttpResult.Failed(HttpFailure.Unreachable)
+        val request = Request.Builder().url(url).post(ByteArray(0).toRequestBody(null)).build()
+        val response = try {
+            client.newCall(request).await()
+        } catch (_: IOException) {
+            return HttpResult.Failed(HttpFailure.Unreachable)
+        }
+        return response.use { if (it.isSuccessful) HttpResult.Ok(Unit) else HttpResult.Failed(HttpFailure.Status(it.code)) }
+    }
+
     /** Opens the stream at [url] (see [streamUrl]). The caller must [TunerStream.close] an opened stream. */
     suspend fun openStream(url: String): StreamOpen {
         val request = Request.Builder().url(url).build()
@@ -218,7 +268,7 @@ class HttpApi(
     }
 }
 
-private suspend fun Call.await(): Response = suspendCancellableCoroutine { cont ->
+internal suspend fun Call.await(): Response = suspendCancellableCoroutine { cont ->
     cont.invokeOnCancellation { cancel() }
     enqueue(object : Callback {
         override fun onResponse(call: Call, response: Response) = cont.resume(response) { _, r, _ -> r.close() }

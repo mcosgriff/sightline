@@ -21,7 +21,7 @@ object DemoModule {
                     deviceId = it.deviceId,
                     friendlyName = "Demo tuner",
                     model = "HDFX-4K",
-                    firmware = "20260326",
+                    firmware = DemoTuner.firmware,
                     baseUrl = it.baseUrl,
                     lineupUrl = it.lineupUrl,
                     tunerCount = it.tunerCount,
@@ -36,6 +36,10 @@ object DemoModule {
          * Gusts from the Demo wind channel's schedule, taking the session start as its tuning time (true for a
          * session held on that channel), so its dips follow the wind. Mild, dry and 12 °C throughout.
          */
+        override val firmwareBaseUrl: String get() = DemoTuner.firmwareBaseUrl
+
+        override fun stopDemoPlayer() = DemoTuner.stopPlayer()
+
         override fun weather(startMs: Long, endMs: Long): List<WeatherHour> {
             val first = Math.floorDiv(startMs, WeatherHour.HOUR_MS) * WeatherHour.HOUR_MS
             return (first..endMs step WeatherHour.HOUR_MS).map { hour ->

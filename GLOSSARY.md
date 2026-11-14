@@ -41,4 +41,10 @@
 - **Retention** — how many days readings are kept (Settings). Older ones are deleted at app start; summaries,
   events, weather and sweeps stay.
 - **Spare tuner** — the idle tuner the Multi-tuner grid leaves alone on opening, so a DVR recording can start.
+- **Discovery scan** — finding HDHomeRuns on the Wi-Fi (Devices' "Scan again"). Not a channel scan.
+- **Channel scan** — the device's own search for channels (`lineup.post?scan=start`), which replaces its lineup,
+  the one a DVR uses. Started from Device tools. Not a sweep, which reads the lineup's channels without changing it.
+- **Device tools** — the screen that starts a channel scan or a firmware update, refused while any tuner is in use.
+- **Firmware update** — downloading the device's firmware file from SiliconDust and uploading it over the control
+  protocol; the device then installs it and restarts (ADR-0005).
 - **Demo tuner** — the fake HDHomeRun (`FakeHdhr`) built into debug builds, with scripted signal patterns.

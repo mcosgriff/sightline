@@ -76,4 +76,14 @@ class CapturesTest {
         val atsc3 = lineup.first { it.guideNumber == "102.1" }
         assertThat(HttpApi.streamUrl(atsc3.url, 1)).isEqualTo("http://192.168.1.18:5004/tuner1/v102.1")
     }
+
+    @Test
+    fun `the captured idle lineup status parses`() {
+        val status = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+            .decodeFromString(LineupStatus.serializer(), Captures.text("lineup-status-idle.json"))
+        assertThat(status.scanning).isFalse()
+        assertThat(status.canScan).isTrue()
+        assertThat(status.source).isEqualTo("Antenna")
+        assertThat(status.sourceList).containsExactly("Antenna", "Cable").inOrder()
+    }
 }
