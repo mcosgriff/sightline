@@ -30,6 +30,9 @@ sealed interface Occupancy {
      */
     data class Busy(val holder: String?, val channel: TunedChannel) : Occupancy
 
+    /** The device refused to say (`tuner busy`): it uses its tuners itself, as during its own channel scan. */
+    data object DeviceBusy : Occupancy
+
     data object Unknown : Occupancy
 }
 
@@ -113,6 +116,7 @@ class TunerSessions(
         val status = when (val r = control.get("/tuner$tuner/status")) {
             is ControlResult.Value -> (StatusParser.parse(r.value) as? StatusParse.Parsed)?.status
                 ?: return Occupancy.Unknown
+            is ControlResult.Rejected -> return if (r.error is ControlError.TunerBusy) Occupancy.DeviceBusy else Occupancy.Unknown
             else -> return Occupancy.Unknown
         }
         val lockKey = (control.get("/tuner$tuner/lockkey") as? ControlResult.Value)?.value ?: return Occupancy.Unknown

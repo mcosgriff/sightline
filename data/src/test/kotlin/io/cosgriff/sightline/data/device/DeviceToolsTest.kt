@@ -6,6 +6,8 @@ import androidx.room.Room
 import com.google.common.truth.Truth.assertThat
 import io.cosgriff.sightline.data.db.SightlineDatabase
 import io.cosgriff.sightline.data.settings.AppStateRepository
+import io.cosgriff.sightline.protocol.ControlError
+import io.cosgriff.sightline.protocol.ControlResult
 import io.cosgriff.sightline.protocol.Discovery
 import io.cosgriff.sightline.protocol.FirmwareLookup
 import io.cosgriff.sightline.protocol.HttpApi
@@ -102,6 +104,18 @@ class DeviceToolsTest {
         val device = device()
         fake.vanished = true
         assertThat(tools.block(device)).isEqualTo(ToolsBlock.Unreachable)
+    }
+
+    @Test
+    fun `a running scan reads as scanning, not as a silent device`() = runBlocking<Unit> {
+        val device = device()
+        assertThat(tools.startScan(device, "Antenna")).isEqualTo(ScanStart.Started)
+        // The device now answers every tuner get with `tuner busy`, as a FLEX 4K does.
+        assertThat(access.control(device).get("/tuner2/status"))
+            .isEqualTo(ControlResult.Rejected(ControlError.TunerBusy("ERROR: tuner busy")))
+        assertThat(tools.block(device)).isEqualTo(ToolsBlock.Scanning)
+        tools.abortScan(device)
+        assertThat(tools.block(device)).isNull()
     }
 
     @Test

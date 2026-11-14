@@ -402,6 +402,7 @@ private fun HolderChip(holder: TunerHolder) {
             Icons.Rounded.RadioButtonChecked,
         )
         TunerHolder.TunedNoHolder -> Triple(stringResource(R.string.diagnostics_holder_nobody), colors.healthMarginal, Icons.Rounded.Warning)
+        TunerHolder.DeviceBusy -> Triple(stringResource(R.string.diagnostics_holder_device_busy), colors.healthMarginal, Icons.Rounded.Warning)
         TunerHolder.Unknown -> Triple(stringResource(R.string.diagnostics_holder_unknown), colors.outline, Icons.Rounded.HelpOutline)
     }
     Row(
@@ -419,6 +420,7 @@ private fun holderNote(holder: TunerHolder): String? = when (holder) {
     is TunerHolder.ThisPhone ->
         stringResource(if (holder.staleKey) R.string.diagnostics_phone_stale_key else R.string.diagnostics_phone_no_key)
     TunerHolder.TunedNoHolder -> stringResource(R.string.diagnostics_nobody_note)
+    TunerHolder.DeviceBusy -> stringResource(R.string.diagnostics_device_busy_note)
     else -> null
 }
 

@@ -119,8 +119,8 @@ use, on a new screen (SPEC Screens › 12).
 - [x] `:data`: `DeviceTools` (busy guard, scan, update job in the app scope), `DeviceRepository.recordFirmware`, the
   Demo tuner's own firmware files and a Demo-only way to stop its made-up player.
 - [x] `:app`: Device tools screen from a wrench on each Devices card, with confirm dialogs; Diagnostics points to it.
-- [ ] Check against a real unit on the first release build: a channel scan (capture `lineup_status.json` while it
-  runs and how the scanning tuner looks over the control protocol) and, when SiliconDust has a newer build, an
-  update.
+- [x] A real channel scan, run by the user from Device tools 2026-11-14: `lineup_status.json` while it runs, and
+  every tuner getset answers `tuner busy` (now its own `Occupancy`, `TunerUse` and `TunerHolder`).
+- [ ] An update against a real unit, once SiliconDust has a build newer than `20261107`.
 - **Done when:** a scan and an update run end to end against the Demo tuner, and are refused while its made-up
   player holds tuner 3. `DeviceToolsTest` and `DeviceToolsContentTest` cover both against `FakeHdhr`.

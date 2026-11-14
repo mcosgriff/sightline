@@ -65,6 +65,8 @@
     <string name="devices_tuner_sightline">Sightline</string>
     <string name="devices_tuner_in_use">In use</string>
     <string name="devices_tuner_unknown">No answer</string>
+    <string name="devices_tuner_device_busy">Busy</string>
+    <string name="devices_device_busy_note">The HDHomeRun is busy with its own work, such as a channel scan, and won\'t say who has its tuners until it\'s done.</string>
     <string name="devices_tuner_held_by">Tuner %1$d is in use by %2$s. Sightline won\'t touch it.</string>
     <string name="devices_tuner_held_unknown">Tuner %1$d is in use by another client. Sightline won\'t touch it.</string>
     <string name="devices_empty_title">No tuners found</string>
@@ -102,6 +104,7 @@
     <string name="tools_no_device">This device is no longer saved. Go back to Devices.</string>
     <string name="tools_blocked_in_use">Scan and update wait until every tuner is idle, so a recording is never cut off.</string>
     <string name="tools_blocked_app">Sightline is using tuner %1$s (Live, Aim, Sweep, Multi-tuner or Monitor). Close it, then come back.</string>
+    <string name="tools_blocked_device_busy">The HDHomeRun is busy with its own work and won\'t say whether its tuners are free. Try again when it\'s done.</string>
     <string name="tools_blocked_unreachable">The tuner isn\'t answering, so Sightline can\'t tell its tuners are free. Is it on, and on this network?</string>
     <string name="tools_demo_stop_player">Demo: stop the made-up player</string>
     <string name="tools_scan_title">Channel scan</string>
@@ -189,7 +192,7 @@
     <string name="diagnostics_scan_none">None running</string>
     <string name="diagnostics_scan_running">Running, %1$d%%</string>
     <string name="diagnostics_scan_unknown">Unknown: lineup_status.json didn\'t answer</string>
-    <string name="diagnostics_scan_note">The tuner is scanning for channels. The tuner it uses may show as tuned with no holder until it\'s done.</string>
+    <string name="diagnostics_scan_note">The tuner is scanning for channels. Until it\'s done it answers \"tuner busy\" about every tuner.</string>
     <string name="diagnostics_channelmap">Channel map</string>
     <string name="diagnostics_holder_idle">Idle</string>
     <string name="diagnostics_holder_app">In use by Sightline</string>
@@ -198,6 +201,8 @@
     <string name="diagnostics_holder_other_unknown">In use by another client</string>
     <string name="diagnostics_holder_nobody">Tuned, no holder</string>
     <string name="diagnostics_holder_unknown">No answer</string>
+    <string name="diagnostics_holder_device_busy">Busy: the tuner\'s own work</string>
+    <string name="diagnostics_device_busy_note">The device answers \"tuner busy\" and says nothing more. It does this on every tuner while it scans for channels.</string>
     <string name="diagnostics_phone_stale_key">Nothing in Sightline is using it, but Sightline still has its lock key from an earlier claim. Release gives it back.</string>
     <string name="diagnostics_phone_no_key">Nothing in Sightline is using it, and Sightline has no lock key for it. It may be another app on this phone, or a stream that hasn\'t closed. Force-stopping Sightline closes any stream of its own.</string>
     <string name="diagnostics_nobody_note">Tuned with no lock key and no stream. It may still be letting go; if it stays like this, a client left it tuned.</string>
@@ -284,6 +289,7 @@
     <string name="live_busy_held_by">Tuner %1$d: in use by %2$s.</string>
     <string name="live_busy_held">Tuner %1$d: in use by another client.</string>
     <string name="live_busy_unknown">Tuner %1$d: no answer.</string>
+    <string name="live_busy_device">Tuner %1$d: the HDHomeRun is busy with its own work, such as a channel scan.</string>
     <string name="live_lost">Lost tuner %1$d</string>
     <string name="live_lost_taken_by">%1$s is using it now.</string>
     <string name="live_lost_taken">Another client is using it now.</string>
@@ -987,6 +993,8 @@
     <string name="tuners_off_busy_other">In use by another client.</string>
     <string name="tuners_off_unknown">No answer</string>
     <string name="tuners_off_unknown_body">The tuner didn\'t say who has it.</string>
+    <string name="tuners_off_device_busy">Busy</string>
+    <string name="tuners_off_device_busy_body">The HDHomeRun is busy with its own work, such as a channel scan.</string>
     <string name="tuners_claiming">Tuning…</string>
     <string name="tuners_cant_tune">Idle, but it can\'t tune this channel.</string>
     <string name="tuners_waiting">Trying again every %1$d s.</string>

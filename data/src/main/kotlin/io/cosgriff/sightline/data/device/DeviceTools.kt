@@ -35,6 +35,9 @@ sealed interface ToolsBlock {
     /** The device is running a channel scan (no update during one). */
     data object Scanning : ToolsBlock
 
+    /** The device answers `tuner busy` without saying it scans: busy with its own work. */
+    data object DeviceBusy : ToolsBlock
+
     /** A firmware update to this device is under way. */
     data object Updating : ToolsBlock
 }
@@ -124,6 +127,8 @@ class DeviceTools @Inject constructor(
     /** Null when nothing stands in the way of a scan or update; otherwise the first reason. Gets only. */
     suspend fun block(device: Device): ToolsBlock? {
         if (_updates.value[device.deviceId]?.running == true) return ToolsBlock.Updating
+        // Asked first: while the device scans it refuses every tuner get (`tuner busy`), which reads as no answer.
+        if (lineupStatus(device)?.scanning == true) return ToolsBlock.Scanning
         return tunerBlock(device)
     }
 
@@ -134,6 +139,7 @@ class DeviceTools @Inject constructor(
         if (others.isNotEmpty()) return ToolsBlock.InUse(others.associate { it.index to (it.value as TunerUse.Other).holder })
         val ours = uses.withIndex().filter { it.value == TunerUse.Sightline }.map { it.index }
         if (ours.isNotEmpty()) return ToolsBlock.ThisApp(ours)
+        if (uses.any { it == TunerUse.DeviceBusy }) return ToolsBlock.DeviceBusy
         if (uses.any { it == TunerUse.Unknown }) return ToolsBlock.Unreachable
         return null
     }

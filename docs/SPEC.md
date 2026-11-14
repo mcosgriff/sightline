@@ -121,7 +121,7 @@ As libhdhomerun's `hdhomerun_control_upgrade`, over the TCP control connection: 
 | `get /sys/debug`, `get /tunerN/channelmap` | Device memory, per-tuner and Ethernet lines (`eth: link=100f`); the tuner's channel map (`us-bcast`). Diagnostics |
 | `set /tunerN/channel none`, then `set /tunerN/lockkey none` | Release the tuner (always, including on crash recovery) |
 
-`/tunerN/vstatus` does not exist on this firmware (`unknown getset variable`). Errors come back as tag `0x05` alone, e.g. `ERROR: resource locked by 192.168.1.21`, `ERROR: invalid channel`, `ERROR: invalid virtual channel`, `ERROR: unknown getset variable`.
+`/tunerN/vstatus` does not exist on this firmware (`unknown getset variable`). Errors come back as tag `0x05` alone, e.g. `ERROR: resource locked by 192.168.1.21`, `ERROR: invalid channel`, `ERROR: invalid virtual channel`, `ERROR: unknown getset variable`, and `ERROR: tuner busy`, which every tuner getset answers while the device runs its own channel scan. Sightline words that as the device being busy (Devices, Live, Multi-tuner, Diagnostics), never as no answer.
 
 ### ATSC 3.0 (ADR-0004)
 
@@ -156,7 +156,7 @@ RF channel and frequency come from the `ch` field after tuning. Map frequency to
 - `GET /lineup.json` — GuideNumber, GuideName, VideoCodec, AudioCodec, URL per channel; used for the channel picker and, for ATSC 3.0, the stream URL. Its SignalStrength and SignalQuality are from the last channel scan, not live.
 - `GET /status.json` — one entry per tuner; an idle one has only `Resource`, an in-use one adds VctNumber, VctName, Frequency, percentages and TargetIP.
 - `GET /lineup_status.json` — the device's own channel scan. Idle: `{"ScanInProgress":0,"ScanPossible":1,"Source":"Antenna","SourceList":["Antenna","Cable"]}` (captured, `lineup-status-idle.json`). Scanning: `{"ScanInProgress":1,"Progress":10,"Found":24}` (from the device's own web page script; not yet captured).
-- `POST /lineup.post?scan=start&source=<Source>` starts that scan and `POST /lineup.post?scan=abort` stops it, as the device's web page ("Detect Channels") does. The device picks the tuner and replaces `lineup.json` when done. How the scanning tuner looks over the control protocol is not yet captured.
+- `POST /lineup.post?scan=start&source=<Source>` starts that scan and `POST /lineup.post?scan=abort` stops it, as the device's web page ("Detect Channels") does. The device picks the tuner and replaces `lineup.json` when done. While it scans, every tuner getset answers `ERROR: tuner busy` (captured), so the scan state is read first.
 
 ### SiliconDust firmware files (ADR-0005)
 
@@ -341,7 +341,7 @@ The main analysis screen, from top to bottom:
 ### 12. Device tools (no mockup yet)
 
 - For one device, from the wrench on its Devices card. The two things Sightline changes on a device as a whole, each confirmed in a dialog first. Diagnostics stays read-only.
-- **Refused while any tuner is in use:** by another client (named with its IP, as on Devices), or by Sightline itself (Live, Aim, Sweep, Multi-tuner, Monitor), or when the device doesn't answer. A scan takes a tuner and rewrites the lineup a DVR records from; an update restarts the device. Both are checked again just before they start. The Demo tuner shows the refusal for its made-up player and offers a Demo-only button to stop it.
+- **Refused while any tuner is in use:** by another client (named with its IP, as on Devices), or by Sightline itself (Live, Aim, Sweep, Multi-tuner, Monitor), or when the device doesn't answer or answers `tuner busy`. A running scan isn't a refusal message: the scan card shows it. A scan takes a tuner and rewrites the lineup a DVR records from; an update restarts the device. Both are checked again just before they start. The Demo tuner shows the refusal for its made-up player and offers a Demo-only button to stop it.
 - **Channel scan:** the device's own scan (`lineup.post`, above), of a source it lists (Antenna, Cable). Shows the lineup size, then progress and programs found, and Stop. When it ends, the lineup is read again into Room.
 - **Firmware:** installed (`FirmwareVersion`), what the tuner offers (`UpgradeAvailable`), and SiliconDust's newest, asked only when the user taps Check. Install takes SiliconDust's newest when it is newer, else the tuner's offer; it downloads the file, checks the tuners again, uploads it (Firmware upload, above), then waits up to 3 minutes for the device to answer on the new version and records it on the device. No update while the device scans. The update runs in the app scope, so leaving the screen doesn't stop it; a cancelled upload sends no end marker, so the device keeps its firmware.
 - Every failure is worded: a tuner came into use, no firmware name, no such file, download failed, the tuner refused the file (its message), upload didn't finish, or not back on the new version in time.

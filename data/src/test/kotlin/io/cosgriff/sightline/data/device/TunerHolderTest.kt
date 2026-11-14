@@ -1,6 +1,7 @@
 package io.cosgriff.sightline.data.device
 
 import com.google.common.truth.Truth.assertThat
+import io.cosgriff.sightline.protocol.ControlError
 import io.cosgriff.sightline.protocol.ControlResult
 import io.cosgriff.sightline.protocol.Probe
 import io.cosgriff.sightline.protocol.TunerSnapshot
@@ -23,6 +24,15 @@ class TunerHolderTest {
     private val idle = "ch=none lock=none ss=0 snq=0 seq=0 bps=0 pps=0"
 
     private fun of(t: TunerSnapshot, ours: Boolean = false, key: Boolean = false) = DeviceDiagnostics.holderOf(t, phone, ours, key)
+
+    @Test
+    fun `a tuner the device calls busy is the device's own, not silent`() {
+        val busy = TunerSnapshot(
+            0,
+            listOf(Probe("/tuner0/status", ControlResult.Rejected(ControlError.TunerBusy("ERROR: tuner busy")))),
+        )
+        assertThat(of(busy)).isEqualTo(TunerHolder.DeviceBusy)
+    }
 
     @Test
     fun `idle, ours, and other clients`() {
