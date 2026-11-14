@@ -56,6 +56,10 @@ Differences from the first SPEC, now folded into it:
   `eth: link=100f`: the Ethernet link at 100 Mbit/s full duplex. `/tunerN/channelmap` is `us-bcast`, `/tunerN/filter`
   is empty. `/sys/dvbc_modulation`, `/ir/target`, `/lineup/location` and `/tunerN/plotsample` are unknown
   getset variables. The line is kept in `SysDebugTest`.
+- **During the device's own channel scan** (2026-11-14, firmware `20261107`) every tuner getset, on all four
+  tuners, answers `ERROR: tuner busy`, though `status.json` shows only tuners 0 and 1 scanning (with frequency and
+  percentages, no `VctNumber`). `/sys/*` gets still answer. `lineup_status.json` read
+  `{"ScanInProgress":1,"Progress":92,"Found":98}`.
 - HTTP stream errors: `801 Unknown Channel` (404), `804 Tuner In Use` (503), `806 Tune Failed` (503).
 
 ## Capturing more

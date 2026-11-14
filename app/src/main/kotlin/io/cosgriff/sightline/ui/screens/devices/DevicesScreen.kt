@@ -222,6 +222,9 @@ private fun DeviceCardView(card: DeviceCard, onDiagnostics: () -> Unit, onTools:
                     )
                 }
             }
+            if (tuners.any { it == TunerUse.DeviceBusy }) {
+                Text(stringResource(R.string.devices_device_busy_note), style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+            }
         } else if (card.online == false) {
             Text(stringResource(R.string.devices_offline_note), style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
         }
@@ -252,6 +255,7 @@ private fun useLook(use: TunerUse): Pair<Int, Color> {
         TunerUse.Idle -> R.string.devices_tuner_idle to colors.healthGood
         TunerUse.Sightline -> R.string.devices_tuner_sightline to colors.accent
         is TunerUse.Other -> R.string.devices_tuner_in_use to colors.healthNoLock
+        TunerUse.DeviceBusy -> R.string.devices_tuner_device_busy to colors.healthMarginal
         TunerUse.Unknown -> R.string.devices_tuner_unknown to colors.outline
     }
 }

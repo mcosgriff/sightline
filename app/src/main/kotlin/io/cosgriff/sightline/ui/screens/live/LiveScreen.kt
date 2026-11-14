@@ -451,6 +451,7 @@ private fun occupancyLine(tuner: Int, o: Occupancy): String = when (o) {
     Occupancy.Idle -> stringResource(R.string.live_busy_idle_cant, tuner)
     is Occupancy.Busy -> o.holder?.let { stringResource(R.string.live_busy_held_by, tuner, it) }
         ?: stringResource(R.string.live_busy_held, tuner)
+    Occupancy.DeviceBusy -> stringResource(R.string.live_busy_device, tuner)
     Occupancy.Unknown -> stringResource(R.string.live_busy_unknown, tuner)
 }
 

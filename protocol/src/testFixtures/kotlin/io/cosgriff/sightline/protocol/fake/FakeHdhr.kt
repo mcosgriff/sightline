@@ -341,6 +341,8 @@ class FakeHdhr(
         val index = match.groupValues[1].toInt()
         val tuner = tuners.getOrNull(index) ?: return UNKNOWN
         val item = match.groupValues[2]
+        // As a FLEX 4K does while it runs its own channel scan: every tuner, every get and set.
+        if (scanning() != null) return Reply.Error("tuner busy")
 
         if (value == null) {
             return when (item) {

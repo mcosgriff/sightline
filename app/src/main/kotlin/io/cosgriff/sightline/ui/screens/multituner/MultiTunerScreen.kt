@@ -205,6 +205,7 @@ private fun OffCell(cell: TunerCell.Off) {
         TunerUse.Sightline -> stringResource(R.string.tuners_off_idle) to stringResource(R.string.tuners_off_tap)
         is TunerUse.Other -> stringResource(R.string.tuners_off_busy) to
             (use.holder?.let { stringResource(R.string.tuners_off_busy_by, it) } ?: stringResource(R.string.tuners_off_busy_other))
+        TunerUse.DeviceBusy -> stringResource(R.string.tuners_off_device_busy) to stringResource(R.string.tuners_off_device_busy_body)
         TunerUse.Unknown -> stringResource(R.string.tuners_off_unknown) to stringResource(R.string.tuners_off_unknown_body)
     }
     Text(title, style = MaterialTheme.typography.titleMedium)
@@ -243,6 +244,7 @@ private fun ColumnScope.OnCell(cell: TunerCell.On, thresholds: Thresholds) {
             when (val o = live.occupancy[cell.tuner]) {
                 Occupancy.Idle -> stringResource(R.string.tuners_cant_tune)
                 is Occupancy.Busy -> o.holder?.let { stringResource(R.string.tuners_off_busy_by, it) } ?: stringResource(R.string.tuners_off_busy_other)
+                Occupancy.DeviceBusy -> stringResource(R.string.tuners_off_device_busy_body)
                 else -> stringResource(R.string.tuners_off_unknown_body)
             } + "\n" + stringResource(R.string.tuners_waiting, live.retryEvery.inWholeSeconds.toInt()),
         )
