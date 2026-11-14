@@ -32,6 +32,9 @@ sealed interface TunerHolder {
     /** Tuned with no lock and no stream target: someone tuned it and walked away, or it's still letting go. */
     data object TunedNoHolder : TunerHolder
 
+    /** The device refused to say (`tuner busy`): it is using the tuner itself, as during its own channel scan. */
+    data object DeviceBusy : TunerHolder
+
     data object Unknown : TunerHolder
 }
 
@@ -82,6 +85,7 @@ class DeviceDiagnostics @Inject constructor(
     companion object {
         fun holderOf(tuner: TunerSnapshot, localAddress: String?, ours: Boolean, keyRemembered: Boolean): TunerHolder {
             if (ours) return TunerHolder.ThisApp
+            if (tuner.deviceBusy) return TunerHolder.DeviceBusy
             val status = tuner.status ?: return TunerHolder.Unknown
             val lock = tuner.lockHolder
             val streamHost = tuner.target?.let(TunerObserver::streamHost)

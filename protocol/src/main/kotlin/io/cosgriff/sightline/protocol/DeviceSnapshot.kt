@@ -12,6 +12,10 @@ data class TunerSnapshot(
 ) {
     fun value(item: String): String? = (probes.firstOrNull { it.name.endsWith("/$item") }?.result as? ControlResult.Value)?.value
 
+    /** True when the device refused the status get with `tuner busy`, as it does during its own channel scan. */
+    val deviceBusy: Boolean
+        get() = ((probes.firstOrNull { it.name.endsWith("/status") }?.result as? ControlResult.Rejected)?.error is ControlError.TunerBusy)
+
     val status: TunerStatus? get() = value("status")?.let { (StatusParser.parse(it) as? StatusParse.Parsed)?.status }
     val debug: TunerDebug? get() = value("debug")?.let { TunerDebug.parse(it) }
 

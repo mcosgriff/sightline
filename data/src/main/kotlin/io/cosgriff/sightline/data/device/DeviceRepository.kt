@@ -121,6 +121,7 @@ class DeviceRepository @Inject constructor(
             when (val o = sessions.occupancy(tuner)) {
                 Occupancy.Idle -> TunerUse.Idle
                 is Occupancy.Busy -> if ((device.deviceId to tuner) in held) TunerUse.Sightline else TunerUse.Other(o.holder)
+                Occupancy.DeviceBusy -> TunerUse.DeviceBusy
                 Occupancy.Unknown -> TunerUse.Unknown
             }
         }

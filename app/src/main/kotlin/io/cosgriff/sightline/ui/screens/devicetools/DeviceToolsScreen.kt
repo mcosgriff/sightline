@@ -211,6 +211,7 @@ private fun BlockBanner(state: DeviceToolsState, onStopDemoPlayer: () -> Unit) {
             Icons.Rounded.Warning,
         )
         ToolsBlock.Unreachable -> Banner(listOf(stringResource(R.string.tools_blocked_unreachable)), colors.healthNoLock, Icons.Rounded.ErrorOutline)
+        ToolsBlock.DeviceBusy -> Banner(listOf(stringResource(R.string.tools_blocked_device_busy)), colors.healthMarginal, Icons.Rounded.Warning)
         ToolsBlock.Scanning, ToolsBlock.Updating, null -> Unit
     }
 }

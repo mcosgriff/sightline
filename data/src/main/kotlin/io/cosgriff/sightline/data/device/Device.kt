@@ -45,6 +45,9 @@ sealed interface TunerUse {
     /** Held by another client. [holder] is its IP when the tuner says. */
     data class Other(val holder: String?) : TunerUse
 
+    /** The device refused to say (`tuner busy`), as on every tuner during its own channel scan. */
+    data object DeviceBusy : TunerUse
+
     /** The tuner didn't answer. */
     data object Unknown : TunerUse
 }

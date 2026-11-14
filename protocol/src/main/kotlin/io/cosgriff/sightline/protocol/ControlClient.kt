@@ -67,6 +67,12 @@ sealed interface ControlError {
     /** `ERROR: invalid virtual channel`: not in the lineup, or an ATSC 3.0 channel, which only HTTP can tune. */
     data class InvalidVirtualChannel(override val message: String) : ControlError
 
+    /**
+     * `ERROR: tuner busy`: the device itself is using its tuners. A FLEX 4K answers every tuner get with it, on all
+     * four tuners, while it runs its own channel scan (captured 2026-11-14).
+     */
+    data class TunerBusy(override val message: String) : ControlError
+
     data class Other(override val message: String) : ControlError
 
     companion object {
@@ -77,6 +83,7 @@ sealed interface ControlError {
                 text == "unknown getset variable" -> UnknownVariable(message)
                 text == "invalid virtual channel" -> InvalidVirtualChannel(message)
                 text == "invalid channel" -> InvalidChannel(message)
+                text == "tuner busy" -> TunerBusy(message)
                 else -> Other(message)
             }
         }
