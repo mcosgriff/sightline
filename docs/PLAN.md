@@ -124,3 +124,40 @@ use, on a new screen (SPEC Screens › 12).
 - [ ] An update against a real unit, once SiliconDust has a build newer than `20261107`.
 - **Done when:** a scan and an update run end to end against the Demo tuner, and are refused while its made-up
   player holds tuner 3. `DeviceToolsTest` and `DeviceToolsContentTest` cover both against `FakeHdhr`.
+
+## Milestone 8 — Whole-picture monitoring
+
+Asked for 2026-11-14: catch dropouts during real DVR recordings, tell one unit's fault from a shared one, and tell
+the phone's Wi-Fi from the tuner. Three additions to Monitor; SPEC sections come with each before it is built.
+
+- [ ] **Watch a whole device.** A Monitor mode that watches every tuner on one or both devices at once, gets only
+  (as watch mode on one tuner: `status` and `debug` each poll, the rest when a channel changes), so every recording
+  the DVR makes is logged with its signal and packet errors. Each tuner keeps its own dip detector and packet error
+  baseline; an idle tuner pauses, as in watch mode. One control connection per device, all tuners read each poll.
+  - `:analysis`: the detector and `PacketErrorCounter` per tuner, keyed by device and tuner.
+  - `:data`: a session over several devices and tuners (Room migration), readings and events keyed by both.
+  - `:app`: setup choice, a running view with one row per tuner (who holds it, channel, health), and Session
+    detail grouped by tuner.
+  - Ask first: poll interval with 8 tuners (1 s default?), and whether Session detail's charts show one tuner at a
+    time or all.
+- [ ] **Compare the two units.** Tune the same channel on an idle tuner of each device at once, so a dip on both
+  points to the antenna, splitter or amplifier, and a dip on one to that unit or its coax branch. Uses lock keys
+  and only idle tuners; released on every exit path, as Monitor.
+  - `:analysis`: a cross-device Common path rule (dips starting within 2 s on both units) and a One unit rule
+    (one unit dips, the other doesn't), with tests and numbers in `docs/rules/diagnosis.md`.
+  - `:app`: Monitor setup picks two devices and channels; Session detail shows both traces on one timeline.
+  - Ask first: whether to keep one tuner idle per unit for the DVR, as Multi-tuner does, and whether this is its
+    own mode or a second device in hold and rotate modes.
+- [ ] **Record the phone's Wi-Fi with each session.** Signal strength (RSSI), link speed, frequency band and access
+  point changes from the platform (`ConnectivityManager` network callback, `WifiInfo` from `NetworkCapabilities`;
+  no Google APIs), stored with readings, so a "device unreachable" event can be laid against the phone roaming or
+  its signal falling.
+  - `:data`: Wi-Fi samples in Room, written with the 10 s batch; the BSSID only when the app already has location
+    permission, and never sent anywhere.
+  - `:analysis`: a Phone Wi-Fi rule (device-unreachable events that start within a few seconds of a roam, a
+    disconnect or RSSI below a threshold), with tests.
+  - `:app`: a Wi-Fi lane on `SignalTimeline` in Session detail, and the rule's finding.
+  - Ask first: whether to show the BSSID at all (it identifies the user's access point in shared reports and CSV).
+- **Done when:** against two Demo tuners (a second `FakeHdhr` in debug builds), a whole-device watch logs a made-up
+  player's channel changes on every tuner; a two-unit session with a fault on one unit gives the One unit finding;
+  and a scripted Wi-Fi drop gives the Phone Wi-Fi finding instead of Not RF.
