@@ -177,6 +177,20 @@
     <string name="diagnostics_device_id">Device ID</string>
     <string name="diagnostics_phone_address">This phone</string>
     <string name="diagnostics_features">Features</string>
+    <string name="diagnostics_reply_time">Reply time</string>
+    <string name="diagnostics_ms">%1$d ms</string>
+    <string name="diagnostics_reply_slow">Slow for a home network. If this stays high, the phone\'s Wi-Fi is weak or busy; readings may come late or be missed.</string>
+    <string name="diagnostics_ethernet">Ethernet</string>
+    <string name="diagnostics_ethernet_full">%1$s Mbit/s, full duplex</string>
+    <string name="diagnostics_ethernet_half">%1$s Mbit/s, half duplex</string>
+    <string name="diagnostics_ethernet_none">No link</string>
+    <string name="diagnostics_ethernet_limiting">This link can drop streams on the way out (network errors). Check the cable and the switch or router port: it should be full duplex at 100 Mbit/s or faster.</string>
+    <string name="diagnostics_scan">Channel scan</string>
+    <string name="diagnostics_scan_none">None running</string>
+    <string name="diagnostics_scan_running">Running, %1$d%%</string>
+    <string name="diagnostics_scan_unknown">Unknown: lineup_status.json didn\'t answer</string>
+    <string name="diagnostics_scan_note">The tuner is scanning for channels. The tuner it uses may show as tuned with no holder until it\'s done.</string>
+    <string name="diagnostics_channelmap">Channel map</string>
     <string name="diagnostics_holder_idle">Idle</string>
     <string name="diagnostics_holder_app">In use by Sightline</string>
     <string name="diagnostics_holder_phone">Held by this phone</string>
@@ -219,6 +233,7 @@
     <string name="diagnostics_footer">Read %1$s, every 2 s. Only reads: nothing here changes a tuner except Release. Counters run from each tuner\'s last tune.</string>
     <string name="diagnostics_report_title">Sightline %1$s diagnostics</string>
     <string name="diagnostics_report_phone">This phone: %1$s</string>
+    <string name="diagnostics_report_reply">Reply time, ms: %1$s</string>
     <string name="diagnostics_report_keys">Lock keys Sightline remembers, by tuner: %1$s</string>
 
     <!-- Live -->

@@ -5,6 +5,7 @@ import io.cosgriff.sightline.protocol.DeviceInfo
 import io.cosgriff.sightline.protocol.DeviceSnapshot
 import io.cosgriff.sightline.protocol.HttpApi
 import io.cosgriff.sightline.protocol.HttpResult
+import io.cosgriff.sightline.protocol.LineupStatus
 import io.cosgriff.sightline.protocol.TunerObserver
 import io.cosgriff.sightline.protocol.TunerSnapshot
 import java.time.Clock
@@ -44,6 +45,8 @@ data class Diagnostics(
     /** Tuners this device has a lock key remembered for (claimed now, or left by a killed process). */
     val rememberedKeys: Set<Int>,
     val readAtMs: Long,
+    /** The device's own channel scan (`lineup_status.json`); null when it didn't answer. A scan holds a tuner. */
+    val lineup: LineupStatus? = null,
 )
 
 /**
@@ -62,10 +65,11 @@ class DeviceDiagnostics @Inject constructor(
     suspend fun read(device: Device): Diagnostics {
         val snapshot = DeviceSnapshot.read(access.control(device), device.tunerCount)
         val info = (http.deviceInfo(device.baseUrl) as? HttpResult.Ok)?.value
+        val lineup = (http.lineupStatus(device.baseUrl) as? HttpResult.Ok)?.value
         val keys = appState.heldLocks().filter { it.deviceId == device.deviceId }.map { it.tuner }.toSet()
         val ours = leases.held.value.filter { it.first == device.deviceId }.map { it.second }.toSet()
         val holders = snapshot.tuners.map { holderOf(it, snapshot.localAddress, it.tuner in ours, it.tuner in keys) }
-        return Diagnostics(device, snapshot, info, holders, keys, clock.millis())
+        return Diagnostics(device, snapshot, info, holders, keys, clock.millis(), lineup)
     }
 
     /** Releases the lock key Sightline remembers for [tuner], if it isn't in use by this app. True when done. */

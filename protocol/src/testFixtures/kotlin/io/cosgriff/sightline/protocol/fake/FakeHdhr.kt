@@ -131,6 +131,10 @@ class FakeHdhr(
     @Volatile
     private var pendingFirmware: String? = null
 
+    /** The Ethernet link `/sys/debug` reports (`<Mbit/s><f|h>`), as on the captured unit by default. */
+    @Volatile
+    var ethernetLink: String = "100f"
+
     /** How long the device's own channel scan runs. A real FLEX 4K takes minutes; the Demo is quicker. */
     @Volatile
     var scanMs: Long = 20_000
@@ -331,6 +335,7 @@ class FakeHdhr(
             "/sys/hwmodel" -> return Reply.Value("HDFX-4K")
             "/sys/version" -> return Reply.Value(firmwareVersion)
             "/sys/features" -> return Reply.Value(FEATURES)
+            "/sys/debug" -> return Reply.Value(sysDebug())
         }
         val match = TUNER_PATH.matchEntire(name) ?: return UNKNOWN
         val index = match.groupValues[1].toInt()
@@ -348,6 +353,7 @@ class FakeHdhr(
                 "program" -> Reply.Value(if (tuner.channel == null) "none" else "1")
                 "debug" -> Reply.Value(debugText(tuner))
                 "plpinfo" -> Reply.Value("")
+                "channelmap" -> Reply.Value("us-bcast")
                 else -> UNKNOWN
             }
         }
@@ -396,6 +402,10 @@ class FakeHdhr(
             else -> return UNKNOWN
         }
     }
+
+    /** As a FLEX 4K sends it (20261107); only the `eth` line means anything Sightline knows. */
+    private fun sysDebug() = "mem: ddr=256 nbk=3 dmk=377 fet=0\nloop: pkt=0\n" +
+        (0 until tunerCount).joinToString("") { "t$it: pt=12 cal=82\n" } + "eth: link=$ethernetLink\n"
 
     private fun channelField(tuner: TunerState): String {
         val channel = tuner.channel ?: return "none"

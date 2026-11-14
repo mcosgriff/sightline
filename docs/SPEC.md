@@ -118,6 +118,7 @@ As libhdhomerun's `hdhomerun_control_upgrade`, over the TCP control connection: 
 | `get /tunerN/vchannel`, `get /tunerN/program` | The guide number tuned (`none` when tuned by RF), and the program number being sent. Watch mode names another client's channel with them |
 | `get /tunerN/debug` | Four lines, `tun:` (ch, lock, ss, snq, seq, `dbg`), `dev:` (bps, `resync`, `overflow`), `ts:` (bps, `te` transport errors, `crc`) and `net:` (bps, pps, `err`, `stop`). The counters run from the last tune. Diagnostics shows them |
 | `get /sys/features`, `get /tunerN/plpinfo` | Channel maps and modulations; ATSC 3.0 PLPs (empty when none). Diagnostics shows them raw |
+| `get /sys/debug`, `get /tunerN/channelmap` | Device memory, per-tuner and Ethernet lines (`eth: link=100f`); the tuner's channel map (`us-bcast`). Diagnostics |
 | `set /tunerN/channel none`, then `set /tunerN/lockkey none` | Release the tuner (always, including on crash recovery) |
 
 `/tunerN/vstatus` does not exist on this firmware (`unknown getset variable`). Errors come back as tag `0x05` alone, e.g. `ERROR: resource locked by 192.168.1.21`, `ERROR: invalid channel`, `ERROR: invalid virtual channel`, `ERROR: unknown getset variable`.
@@ -328,8 +329,9 @@ The main analysis screen, from top to bottom:
 
 - For one device, in release builds too: what the tuner says about itself, to see what holds a tuner and to paste into a bug report. Opens from a Devices card's info button.
 - **Device:** model (`/sys/hwmodel`), firmware (`/sys/version`) and firmware name (`/sys/model`), whether the tuner offers an update, address, device ID, this phone's address on the control connection, and `/sys/features`.
+- **Network and scan:** how long the first get took (a warning from 250 ms: the phone's Wi-Fi, not the tuner); the Ethernet link from `/sys/debug`'s `eth: link=<Mbit/s><f|h>` (captured `100f`), with a warning for half duplex, under 100 Mbit/s or no link, which can drop streams on the way out; and whether the device is running its own channel scan (`lineup_status.json`), whose tuner may show as tuned with no holder. The rest of `/sys/debug` is undocumented and shown raw.
 - **Update:** `discover.json`'s `UpgradeAvailable`, which the tuner fills from its own check with SiliconDust; this screen asks nobody but the tuner. Absent means none offered. Not yet seen in a capture. Installing is on Device tools.
-- **Each tuner:** who holds it, the status line, the `/tunerN/debug` counters (transport and CRC errors, resyncs, overflows, network errors and stops, with a warning icon when not zero), stream target, channel and programs, and every raw reply behind a toggle.
+- **Each tuner:** who holds it, the status line, its channel map (`/tunerN/channelmap`, `us-bcast`), the `/tunerN/debug` counters (transport and CRC errors, resyncs, overflows, network errors and stops, with a warning icon when not zero), stream target, channel and programs, and every raw reply behind a toggle.
 - **Where the errors are:** under the counters, when any are above zero: came in damaged from the antenna (transport, CRC, resyncs), failed to go out on the network (`net err`, naming the stream target's host), or both. The counts run from the tune, so this describes the whole tune.
 - **Watch this tuner in Monitor** on a tuner another client holds: opens Monitor's setup in watch mode on that tuner.
 - **Who holds it:** idle; in use by Sightline (a screen or the monitor holds it now); held by this phone (the lock or stream target is this phone's address but nothing in Sightline holds it: a tuner left behind, or another app on the phone); another client by IP; tuned with no holder; no answer.

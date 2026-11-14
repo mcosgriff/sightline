@@ -52,6 +52,10 @@ Differences from the first SPEC, now folded into it:
 - **With `lock=none` the tuner still reports `ss`** (`auto:34`: `ss=100 snq=0`).
 - **Discovery replies come several times per device**, once per address the request reached.
 - **`/sys/features`** (139 bytes) is the one reply here with a two-byte TLV size.
+- **`/sys/debug`** (2026-11-14, firmware `20261107`) is `mem:`, `loop:`, one `tN: pt= cal=` line per tuner and
+  `eth: link=100f`: the Ethernet link at 100 Mbit/s full duplex. `/tunerN/channelmap` is `us-bcast`, `/tunerN/filter`
+  is empty. `/sys/dvbc_modulation`, `/ir/target`, `/lineup/location` and `/tunerN/plotsample` are unknown
+  getset variables. The line is kept in `SysDebugTest`.
 - HTTP stream errors: `801 Unknown Channel` (404), `804 Tuner In Use` (503), `806 Tune Failed` (503).
 
 ## Capturing more
