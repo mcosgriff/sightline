@@ -24,6 +24,7 @@ error texts and private LAN addresses are as captured. Do the same with any new 
 | `control-status-atsc3-http.txt` | Status of a tuner held by an HTTP stream of ATSC 3.0 channel 102.1. |
 | `discover-18.json`, `discover-32.json` | `GET /discover.json` from each unit. |
 | `lineup.json` | `GET /lineup.json` from 1A2B3C4D, cut to four channels (two ATSC 1.0, two ATSC 3.0). |
+| `lineup-status-idle.json` | `GET /lineup_status.json` with no scan running, captured 2026-11-14 (firmware `20261107`); the same on both units. |
 
 Packet files: `> hex` is sent by the client, `< hex` by the device, and the `#` line above says what it was.
 
@@ -51,6 +52,10 @@ Differences from the first SPEC, now folded into it:
 - **With `lock=none` the tuner still reports `ss`** (`auto:34`: `ss=100 snq=0`).
 - **Discovery replies come several times per device**, once per address the request reached.
 - **`/sys/features`** (139 bytes) is the one reply here with a two-byte TLV size.
+- **`/sys/debug`** (2026-11-14, firmware `20261107`) is `mem:`, `loop:`, one `tN: pt= cal=` line per tuner and
+  `eth: link=100f`: the Ethernet link at 100 Mbit/s full duplex. `/tunerN/channelmap` is `us-bcast`, `/tunerN/filter`
+  is empty. `/sys/dvbc_modulation`, `/ir/target`, `/lineup/location` and `/tunerN/plotsample` are unknown
+  getset variables. The line is kept in `SysDebugTest`.
 - HTTP stream errors: `801 Unknown Channel` (404), `804 Tuner In Use` (503), `806 Tune Failed` (503).
 
 ## Capturing more

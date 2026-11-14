@@ -15,4 +15,13 @@ interface DemoDevice {
      * channels' scripted signals (the wind channel's gusts). Never fetched from Open-Meteo, and shown as Demo.
      */
     fun weather(startMs: Long, endMs: Long): List<WeatherHour> = emptyList()
+
+    /** Where the Demo tuner serves its made-up firmware files, in SiliconDust's layout. Never SiliconDust. */
+    val firmwareBaseUrl: String? get() = null
+
+    /**
+     * Ends the made-up player's hold on a Demo tuner, so Device tools (refused while any tuner is in use) can be
+     * tried. It comes back when the app restarts.
+     */
+    fun stopDemoPlayer() {}
 }

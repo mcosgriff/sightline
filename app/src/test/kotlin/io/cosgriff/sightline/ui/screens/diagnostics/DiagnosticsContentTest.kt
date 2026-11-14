@@ -15,6 +15,7 @@ import io.cosgriff.sightline.data.device.TunerHolder
 import io.cosgriff.sightline.protocol.ControlResult
 import io.cosgriff.sightline.protocol.DeviceInfo
 import io.cosgriff.sightline.protocol.DeviceSnapshot
+import io.cosgriff.sightline.protocol.LineupStatus
 import io.cosgriff.sightline.protocol.Probe
 import io.cosgriff.sightline.protocol.TunerSnapshot
 import io.cosgriff.sightline.protocol.UnreachableReason
@@ -92,7 +93,7 @@ class DiagnosticsContentTest {
     @Test
     fun `an offered update is named`() {
         show(DiagnosticsState.Read(diagnostics(upgrade = "20261020")))
-        compose.onNodeWithText("The tuner offers 20261020. Install it from the HDHomeRun app.").assertExists()
+        compose.onNodeWithText("The tuner offers 20261020. Install it from Device tools (the wrench on its Devices card).").assertExists()
     }
 
     @Test
@@ -136,5 +137,25 @@ class DiagnosticsContentTest {
         ).performScrollTo().assertExists()
         compose.onNodeWithText("Watch this tuner in Monitor").performScrollTo().performClick()
         assertThat(calls).containsExactly("watch 2")
+    }
+
+    @Test
+    fun `a slow reply, a half-duplex link and a running scan are flagged`() {
+        val base = diagnostics()
+        val system = base.snapshot.system.map {
+            if (it.name == "/sys/debug") Probe(it.name, v("mem: ddr=256\neth: link=100h\n")) else it
+        }
+        val d = base.copy(
+            snapshot = base.snapshot.copy(system = system, replyMs = 420),
+            lineup = LineupStatus(scanInProgress = 1, progress = 40, found = 9),
+        )
+        show(DiagnosticsState.Read(d))
+        compose.onNodeWithText("420 ms").performScrollTo().assertExists()
+        compose.onNodeWithText("100 Mbit/s, half duplex").performScrollTo().assertExists()
+        compose.onNodeWithText(
+            "This link can drop streams on the way out (network errors). Check the cable and the switch or router port: " +
+                "it should be full duplex at 100 Mbit/s or faster.",
+        ).performScrollTo().assertExists()
+        compose.onNodeWithText("Running, 40%").performScrollTo().assertExists()
     }
 }

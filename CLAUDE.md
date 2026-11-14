@@ -31,9 +31,11 @@ and Analysis (`SessionStats` and the diagnosis rules in `:analysis`, rules in `d
 `SessionRepository`, `OpenMeteo` and Room v4 session summaries in `:data`; Session detail and History).
 Milestone 6 is built: Settings (theme, units, thresholds, tone range, retention), CSV and PDF export
 (`SessionExport`, `session/Report.kt`), the Multi-tuner grid (`MultiTunerPlan`), the Glance widget
-(`widget/`), History compare, and Roborazzi screenshots (`app/src/test/screenshots`). What's left is merging
-the release PR for `v0.1.0`. Nothing has run against a real unit yet: the user tests release builds only (not
-debug), so real-hardware checks wait for the first release.
+(`widget/`), History compare, and Roborazzi screenshots (`app/src/test/screenshots`). Releases through
+`v0.3.0` are out. Device tools (milestone 7, `feat/channel-scan-firmware-update`): the device's own channel scan
+and firmware updates from SiliconDust (`DeviceTools` in `:data`, `SiliconDustFirmware` and
+`ControlClient.upgrade` in `:protocol`, `ui/screens/devicetools`). Nothing has run against a real unit yet: the
+user tests release builds only (not debug), so real-hardware checks wait for the first release.
 The user has two **HDHomeRun FLEX 4K** units (`HDFX-4K`, 4 tuners, ATSC 3.0 on tuners 0 and 1 only), and a DVR
 records from them. Captures and what they showed: `docs/protocol-captures/README.md`.
 
@@ -83,9 +85,13 @@ suppress that one case with a comment saying why.
 - **ATSC 3.0 is tuned with an HTTP stream** on an idle tuner, read and discarded; ATSC 1.0 and QAM with a lock
   key ([ADR-0004](docs/adr/0004-atsc3-tuned-by-http-stream.md)). The firmware can't tune ATSC 3.0 otherwise.
 - **Never store, log or commit DeviceAuth** (UDP tag `0x2B`, `discover.json`): it is a cloud credential.
-- **No analytics or third-party network calls** besides the HDHomeRun and optional Open-Meteo. **No Google Play
-  services or Google SDKs** ([ADR-0002](docs/adr/0002-no-google-play-services.md)): bundled fonts, platform
-  sensors and `LocationManager`.
+- **Scan and firmware update only with every tuner idle** (Device tools), checked again right before each; never
+  force a tuner free as libhdhomerun's upgrade does.
+- **No analytics or third-party network calls** besides the HDHomeRun, optional Open-Meteo, and SiliconDust's
+  download server when the user asks Device tools to check for or install firmware
+  ([ADR-0005](docs/adr/0005-firmware-from-silicondust-over-control-protocol.md)). Send it the firmware name only.
+  **No Google Play services or Google SDKs** ([ADR-0002](docs/adr/0002-no-google-play-services.md)): bundled
+  fonts, platform sensors and `LocationManager`.
 - **Every screen works against the debug-only Demo tuner (`FakeHdhr`)**, so nothing needs real hardware to build
   or test.
 - **applicationId `io.cosgriff.sightline` must never change. The release signing key must never change**

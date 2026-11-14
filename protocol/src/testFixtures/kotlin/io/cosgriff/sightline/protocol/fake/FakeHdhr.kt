@@ -2,12 +2,14 @@ package io.cosgriff.sightline.protocol.fake
 
 import io.cosgriff.sightline.protocol.DecodeResult
 import io.cosgriff.sightline.protocol.DeviceType
+import io.cosgriff.sightline.protocol.FrameResult
 import io.cosgriff.sightline.protocol.Packet
 import io.cosgriff.sightline.protocol.PacketType
 import io.cosgriff.sightline.protocol.RfChannels
 import io.cosgriff.sightline.protocol.Tag
 import io.cosgriff.sightline.protocol.Tlv
 import java.io.BufferedReader
+import java.io.ByteArrayOutputStream
 import java.io.Closeable
 import java.io.IOException
 import java.io.InputStreamReader
@@ -18,6 +20,8 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
+import java.net.URLDecoder
+import java.nio.ByteBuffer
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.concurrent.thread
 
@@ -106,6 +110,42 @@ class FakeHdhr(
     /** Makes the next discover.json offer [version] as `UpgradeAvailable`; null takes it away. */
     @Volatile
     var upgradeAvailable: String? = null
+
+    /** The firmware running now (`/sys/version`, `FirmwareVersion`). An accepted upload changes it after a restart. */
+    @Volatile
+    var firmwareVersion: String = "20260326"
+
+    /** The newest firmware the fake download server (paths under `/hdhomerun/`, as SiliconDust's) offers. */
+    @Volatile
+    var latestFirmware: String = "20261107"
+
+    /** How long an accepted upload keeps the device off the network while it "installs and restarts". */
+    @Volatile
+    var restartMs: Long = 3_000
+
+    /** Complete uploads received, accepted or not, so tests can check one was or wasn't sent. */
+    @Volatile
+    var uploadsReceived: Int = 0
+        private set
+
+    @Volatile
+    private var pendingFirmware: String? = null
+
+    /** The Ethernet link `/sys/debug` reports (`<Mbit/s><f|h>`), as on the captured unit by default. */
+    @Volatile
+    var ethernetLink: String = "100f"
+
+    /** How long the device's own channel scan runs. A real FLEX 4K takes minutes; the Demo is quicker. */
+    @Volatile
+    var scanMs: Long = 20_000
+
+    /** Channel scans started with `lineup.post`, so tests can check one was or wasn't. */
+    @Volatile
+    var scansStarted: Int = 0
+        private set
+
+    private var scanStartedAt: Long? = null
+    private var scanSource = "Antenna"
 
     init {
         thread(isDaemon = true, name = "fake-hdhr-udp") { serveDiscovery() }
@@ -206,11 +246,23 @@ class FakeHdhr(
         val input = socket.getInputStream()
         val output = socket.getOutputStream()
         val client = socket.inetAddress.hostAddress
+        val upload = Upload()
         while (running) {
             val header = input.readNBytes(Packet.HEADER)
             if (header.size < Packet.HEADER) return
             val rest = input.readNBytes(Packet.frameSize(header) - Packet.HEADER)
             if (vanished) return
+            val frame = Packet.unframe(header + rest) as? FrameResult.Ok ?: return
+            if (frame.type == PacketType.UPGRADE_REQUEST) {
+                // Pieces get no reply; the end marker gets one once the image is checked.
+                val image = upload.take(frame.body) ?: continue
+                val error = acceptUpload(image)
+                val tlvs = error?.let { listOf(Tlv.string(Tag.ERROR_MESSAGE, "ERROR: $it")) } ?: emptyList()
+                output.write(Packet(PacketType.UPGRADE_REPLY, tlvs).encode())
+                output.flush()
+                if (error == null) restart()
+                continue
+            }
             val request = (Packet.decode(header + rest) as? DecodeResult.Ok)?.packet ?: return
             val name = request[Tag.GETSET_NAME]?.string() ?: return
             val value = request[Tag.GETSET_VALUE]?.string()
@@ -224,6 +276,54 @@ class FakeHdhr(
         }
     }
 
+    /** One connection's firmware upload: pieces in order, each a uint32 offset then bytes, ended by `0xFFFFFFFF`. */
+    private class Upload {
+        private val bytes = ByteArrayOutputStream()
+        private var broken = false
+
+        /** Adds one piece; returns the whole image at the end marker (empty when a piece came out of order). */
+        fun take(body: ByteArray): ByteArray? {
+            if (body.size < 4) return null
+            val offset = ByteBuffer.wrap(body, 0, 4).int
+            if (offset == -1 && body.size == 4) {
+                val image = if (broken) ByteArray(0) else bytes.toByteArray()
+                bytes.reset()
+                broken = false
+                return image
+            }
+            if (offset != bytes.size()) broken = true
+            bytes.write(body, 4, body.size - 4)
+            return null
+        }
+    }
+
+    /** Checks an uploaded image the way the fake's own files are built ([firmwareImage]); null when accepted. */
+    private fun acceptUpload(image: ByteArray): String? {
+        uploadsReceived++
+        val header = String(image, 0, minOf(image.size, 96), Charsets.US_ASCII).substringBefore('\n').split(' ')
+        if (header.size != 3 || header[0] != IMAGE_MAGIC || header[1] != FIRMWARE_NAME) return "invalid image"
+        if (!image.contentEquals(firmwareImage(header[1], header[2]))) return "invalid image"
+        pendingFirmware = header[2]
+        return null
+    }
+
+    /** Like a real unit after an upload: off the network for [restartMs], back on the new firmware, tuners idle. */
+    private fun restart() {
+        thread(isDaemon = true, name = "fake-hdhr-restart") {
+            Thread.sleep(200)
+            vanished = true
+            synchronized(lock) {
+                tuners.forEach(::clearTuner)
+                scanStartedAt = null
+            }
+            Thread.sleep(restartMs)
+            pendingFirmware?.let { firmwareVersion = it }
+            pendingFirmware = null
+            upgradeAvailable = null
+            vanished = false
+        }
+    }
+
     private sealed interface Reply {
         data class Value(val value: String) : Reply
         data class Error(val message: String) : Reply
@@ -233,8 +333,9 @@ class FakeHdhr(
         when (name) {
             "/sys/model" -> return Reply.Value("hdhomerun_dvr_atsc3")
             "/sys/hwmodel" -> return Reply.Value("HDFX-4K")
-            "/sys/version" -> return Reply.Value("20260326")
+            "/sys/version" -> return Reply.Value(firmwareVersion)
             "/sys/features" -> return Reply.Value(FEATURES)
+            "/sys/debug" -> return Reply.Value(sysDebug())
         }
         val match = TUNER_PATH.matchEntire(name) ?: return UNKNOWN
         val index = match.groupValues[1].toInt()
@@ -252,6 +353,7 @@ class FakeHdhr(
                 "program" -> Reply.Value(if (tuner.channel == null) "none" else "1")
                 "debug" -> Reply.Value(debugText(tuner))
                 "plpinfo" -> Reply.Value("")
+                "channelmap" -> Reply.Value("us-bcast")
                 else -> UNKNOWN
             }
         }
@@ -300,6 +402,10 @@ class FakeHdhr(
             else -> return UNKNOWN
         }
     }
+
+    /** As a FLEX 4K sends it (20261107); only the `eth` line means anything Sightline knows. */
+    private fun sysDebug() = "mem: ddr=256 nbk=3 dmk=377 fet=0\nloop: pkt=0\n" +
+        (0 until tunerCount).joinToString("") { "t$it: pt=12 cal=82\n" } + "eth: link=$ethernetLink\n"
 
     private fun channelField(tuner: TunerState): String {
         val channel = tuner.channel ?: return "none"
@@ -382,12 +488,24 @@ class FakeHdhr(
         while (true) {
             if (reader.readLine().isNullOrEmpty()) break
         }
-        val path = requestLine.split(' ').getOrNull(1)?.substringBefore('?') ?: return
+        val parts = requestLine.split(' ')
+        val method = parts.getOrNull(0) ?: return
+        val target = parts.getOrNull(1) ?: return
+        val path = target.substringBefore('?')
+        val query = target.substringAfter('?', "").split('&').filter { '=' in it }
+            .associate { it.substringBefore('=') to URLDecoder.decode(it.substringAfter('='), Charsets.UTF_8) }
         val out = socket.getOutputStream()
+        val file = FIRMWARE_FILE.matchEntire(path)
         when {
             path == "/discover.json" -> json(out, discoverJson())
             path == "/lineup.json" -> json(out, lineupJson())
             path == "/status.json" -> json(out, statusJson())
+            path == "/lineup_status.json" -> json(out, lineupStatusJson())
+            path == "/lineup.post" && method == "POST" -> lineupPost(out, query)
+            path == "/hdhomerun/${FIRMWARE_NAME}_firmware.bin" ->
+                redirect(out, "$baseUrl/hdhomerun/${FIRMWARE_NAME}_firmware_$latestFirmware.bin")
+            file != null && file.groupValues[1] == FIRMWARE_NAME && file.groupValues[2] in setOf(latestFirmware, firmwareVersion) ->
+                binary(out, firmwareImage(FIRMWARE_NAME, file.groupValues[2]), headOnly = method == "HEAD")
             STREAM_PATH.matches(path) -> stream(socket, out, STREAM_PATH.matchEntire(path)!!)
             else -> respond(out, 404, "Not Found", null)
         }
@@ -434,6 +552,60 @@ class FakeHdhr(
         }
     }
 
+    private fun lineupPost(out: OutputStream, query: Map<String, String>) {
+        synchronized(lock) {
+            when (query["scan"]) {
+                "start" -> {
+                    val source = query["source"] ?: scanSource
+                    if (source !in SOURCES) return respond(out, 400, "Bad Request", null)
+                    if (scanning() == null) {
+                        scansStarted++
+                        scanSource = source
+                        scanStartedAt = clock()
+                    }
+                }
+                "abort" -> scanStartedAt = null
+                else -> return respond(out, 400, "Bad Request", null)
+            }
+        }
+        respond(out, 200, "OK", null)
+    }
+
+    /** Milliseconds into the running scan, or null when none runs (clearing a finished one). */
+    private fun scanning(): Long? {
+        val started = scanStartedAt ?: return null
+        val elapsed = clock() - started
+        if (elapsed >= scanMs) scanStartedAt = null
+        return elapsed.takeIf { it < scanMs }
+    }
+
+    /** As captured from a FLEX 4K: idle shows what a scan could look for, scanning shows progress and found. */
+    private fun lineupStatusJson() = synchronized(lock) {
+        val elapsed = scanning()
+        if (elapsed != null) {
+            val progress = (elapsed * 100 / scanMs).toInt()
+            val programs = channels.size + channels.sumOf { it.subchannels.size }
+            """{"ScanInProgress":1,"Progress":$progress,"Found":${programs * progress / 100}}"""
+        } else {
+            val possible = if (tuners.any { it.channel == null && it.lockKey == null }) 1 else 0
+            val sources = SOURCES.joinToString(",", "[", "]") { "\"$it\"" }
+            """{"ScanInProgress":0,"ScanPossible":$possible,"Source":"$scanSource","SourceList":$sources}"""
+        }
+    }
+
+    private fun redirect(out: OutputStream, location: String) {
+        out.write("HTTP/1.1 302 Found\r\nLocation: $location\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray())
+        out.flush()
+    }
+
+    private fun binary(out: OutputStream, body: ByteArray, headOnly: Boolean) {
+        val headers = "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: ${body.size}\r\n" +
+            "Connection: close\r\n\r\n"
+        out.write(headers.toByteArray())
+        if (!headOnly) out.write(body)
+        out.flush()
+    }
+
     private fun respond(out: OutputStream, code: Int, text: String, hdhrError: String?) {
         val headers = buildString {
             append("HTTP/1.1 $code $text\r\nServer: HDHomeRun/1.0\r\nConnection: close\r\nContent-Length: 0\r\n")
@@ -453,7 +625,7 @@ class FakeHdhr(
 
     private fun discoverJson() =
         """{"FriendlyName":"Demo tuner","ModelNumber":"HDFX-4K","FirmwareName":"hdhomerun_dvr_atsc3",""" +
-            """"FirmwareVersion":"20260326","DeviceID":"$deviceIdHex","DeviceAuth":"DEMODEMODEMODEMODEMODEMO",""" +
+            """"FirmwareVersion":"$firmwareVersion","DeviceID":"$deviceIdHex","DeviceAuth":"DEMODEMODEMODEMODEMODEMO",""" +
             """"BaseURL":"$baseUrl","LineupURL":"$baseUrl/lineup.json","TunerCount":$tunerCount""" +
             (upgradeAvailable?.let { ""","UpgradeAvailable":"$it"""" } ?: "") + "}"
 
@@ -479,6 +651,22 @@ class FakeHdhr(
 
         private val TUNER_PATH = Regex("/tuner(\\d+)/(\\w+)")
         private val STREAM_PATH = Regex("/(auto|tuner\\d+)/v([\\d.]+)")
+        private val FIRMWARE_FILE = Regex("/hdhomerun/([a-z0-9_]+)_firmware_(\\w+)\\.bin")
+        private val SOURCES = listOf("Antenna", "Cable")
+
+        /** `/sys/model` and `FirmwareName`, as on a FLEX 4K. */
+        const val FIRMWARE_NAME = "hdhomerun_dvr_atsc3"
+
+        private const val IMAGE_MAGIC = "FAKEHDHR-FIRMWARE"
+
+        /**
+         * A made-up firmware file for [version]: a text header the fake checks, then filler, over three upload pieces
+         * long so uploads are split as on a real unit. Not a real image; a real unit would refuse it.
+         */
+        fun firmwareImage(name: String = FIRMWARE_NAME, version: String): ByteArray {
+            val header = "$IMAGE_MAGIC $name $version\n".toByteArray(Charsets.US_ASCII)
+            return header + ByteArray(3_000) { (it % 251).toByte() }
+        }
 
         /** The Demo tuner's channels: one per pattern, names that can't pass for real stations. */
         fun demoLineup() = listOf(

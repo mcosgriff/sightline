@@ -30,7 +30,7 @@ turbine = "1.2.1"
 # upgrade, take the version from its `AndroidSdk` list.
 robolectric = "4.17"
 # Screenshot tests of the custom components (app/src/test/.../ui/components), drawn by Robolectric.
-roborazzi = "1.77.0"
+roborazzi = "1.78.0"
 robolectric-androidAll-sdk35 = "15-robolectric-13954326-i7"
 
 [libraries]

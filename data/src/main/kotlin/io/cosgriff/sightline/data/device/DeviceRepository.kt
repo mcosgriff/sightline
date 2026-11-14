@@ -108,6 +108,11 @@ class DeviceRepository @Inject constructor(
 
     suspend fun forget(deviceId: String) = devices.delete(deviceId)
 
+    /** Notes the firmware a device now runs (after an update), so cards and new sessions show it. */
+    suspend fun recordFirmware(deviceId: String, version: String) {
+        devices.get(deviceId)?.let { devices.upsert(it.copy(firmware = version, lastSeen = clock.millis())) }
+    }
+
     /** Who has each tuner. Read-only: two gets per tuner. Null when the device doesn't answer. */
     suspend fun tunerUse(device: Device): List<TunerUse>? {
         val sessions = access.sessions(device)

@@ -105,3 +105,22 @@ Work milestone by milestone, in order. Each milestone ends with the app building
 - [x] Release: set up the keystore and the `release` environment secrets (README › Releasing); the workflows already exist from M0. Check the Obtainium notes in README.
   - Keystore and the four secrets in the `release` environment (v* tags only, reviewer required), done by the user.
 - **Done when:** merging the release-please PR for `v0.1.0` produces a signed APK on the GitHub release page.
+
+## Milestone 7 — Device tools
+
+Asked for 2026-11-14: start a channel scan, see whether a tuner needs a firmware update, and install it. The user
+chose the device's own scan, firmware downloaded from SiliconDust (ADR-0005), both refused while any tuner is in
+use, on a new screen (SPEC Screens › 12).
+
+- [x] `:protocol`: `LineupStatus`, `HttpApi.lineupStatus`/`startLineupScan`/`abortLineupScan`; upgrade packet types and
+  raw-body frames; `ControlClient.upgrade`; `SiliconDustFirmware` (newest by redirect, download) and
+  `FirmwareVersions`. `FakeHdhr` answers all of it and restarts on a new version. Golden test from the captured idle
+  `lineup_status.json`.
+- [x] `:data`: `DeviceTools` (busy guard, scan, update job in the app scope), `DeviceRepository.recordFirmware`, the
+  Demo tuner's own firmware files and a Demo-only way to stop its made-up player.
+- [x] `:app`: Device tools screen from a wrench on each Devices card, with confirm dialogs; Diagnostics points to it.
+- [ ] Check against a real unit on the first release build: a channel scan (capture `lineup_status.json` while it
+  runs and how the scanning tuner looks over the control protocol) and, when SiliconDust has a newer build, an
+  update.
+- **Done when:** a scan and an update run end to end against the Demo tuner, and are refused while its made-up
+  player holds tuner 3. `DeviceToolsTest` and `DeviceToolsContentTest` cover both against `FakeHdhr`.

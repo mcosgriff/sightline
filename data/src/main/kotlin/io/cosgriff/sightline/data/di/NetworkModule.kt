@@ -5,6 +5,8 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import io.cosgriff.sightline.data.device.DefaultFirmwareFiles
+import io.cosgriff.sightline.data.device.FirmwareFiles
 import io.cosgriff.sightline.data.net.AndroidDiscoveryEnvironment
 import io.cosgriff.sightline.data.weather.OpenMeteo
 import io.cosgriff.sightline.data.weather.WeatherSource
@@ -15,7 +17,10 @@ import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
-/** The protocol pieces, with their Android parts filled in. Only the tuner and Open-Meteo are ever called. */
+/**
+ * The protocol pieces, with their Android parts filled in. Only the tuner, Open-Meteo and, when the user asks for a
+ * firmware update, SiliconDust's download server (ADR-0005) are ever called.
+ */
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class NetworkModule {
@@ -24,6 +29,9 @@ abstract class NetworkModule {
 
     @Binds
     abstract fun weatherSource(impl: OpenMeteo): WeatherSource
+
+    @Binds
+    abstract fun firmwareFiles(impl: DefaultFirmwareFiles): FirmwareFiles
 
     companion object {
         @Provides

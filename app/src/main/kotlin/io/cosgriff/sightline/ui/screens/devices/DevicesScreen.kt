@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.Button
@@ -67,6 +68,7 @@ fun DevicesScreen(
     onOpenLive: () -> Unit,
     onOpenProtocolDebug: (() -> Unit)?,
     onOpenDiagnostics: (deviceId: String) -> Unit = {},
+    onOpenTools: (deviceId: String) -> Unit = {},
     viewModel: DevicesViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -86,6 +88,7 @@ fun DevicesScreen(
         onOpen = { viewModel.openLive(it, onOpenLive) },
         onOpenProtocolDebug = onOpenProtocolDebug,
         onOpenDiagnostics = onOpenDiagnostics,
+        onOpenTools = onOpenTools,
     )
 }
 
@@ -101,6 +104,7 @@ fun DevicesContent(
     onOpenProtocolDebug: (() -> Unit)?,
     modifier: Modifier = Modifier,
     onOpenDiagnostics: (deviceId: String) -> Unit = {},
+    onOpenTools: (deviceId: String) -> Unit = {},
 ) {
     val colors = MaterialTheme.sightlineColors
     PullToRefreshBox(isRefreshing = state.scanning, onRefresh = onRescan, modifier = modifier.fillMaxSize()) {
@@ -110,7 +114,13 @@ fun DevicesContent(
         ) {
             item { Header(state, nowMs, onRescan) }
             if (networkCard != null) item { networkCard() }
-            items(state.cards, key = { it.device.deviceId }) { card -> DeviceCardView(card, onDiagnostics = { onOpenDiagnostics(card.device.deviceId) }) { onOpen(card.device.deviceId) } }
+            items(state.cards, key = { it.device.deviceId }) { card ->
+                DeviceCardView(
+                    card,
+                    onDiagnostics = { onOpenDiagnostics(card.device.deviceId) },
+                    onTools = { onOpenTools(card.device.deviceId) },
+                ) { onOpen(card.device.deviceId) }
+            }
             if (state.cards.isEmpty() && !state.scanning && networkCard == null) item { EmptyState(onRescan) }
             item { AddByAddress(state, onAdd) }
             item { Legend() }
@@ -149,7 +159,7 @@ private fun Header(state: DevicesUiState, nowMs: Long, onRescan: () -> Unit) {
 }
 
 @Composable
-private fun DeviceCardView(card: DeviceCard, onDiagnostics: () -> Unit, onOpen: () -> Unit) {
+private fun DeviceCardView(card: DeviceCard, onDiagnostics: () -> Unit, onTools: () -> Unit, onOpen: () -> Unit) {
     val colors = MaterialTheme.sightlineColors
     val device = card.device
     Column(
@@ -179,12 +189,21 @@ private fun DeviceCardView(card: DeviceCard, onDiagnostics: () -> Unit, onOpen: 
             }
             Column(horizontalAlignment = Alignment.End) {
                 Status(card)
-                IconButton(onClick = onDiagnostics) {
-                    Icon(
-                        Icons.Outlined.Info,
-                        contentDescription = stringResource(R.string.devices_open_diagnostics, device.friendlyName),
-                        tint = colors.textSecondary,
-                    )
+                Row {
+                    IconButton(onClick = onTools) {
+                        Icon(
+                            Icons.Outlined.Build,
+                            contentDescription = stringResource(R.string.devices_open_tools, device.friendlyName),
+                            tint = colors.textSecondary,
+                        )
+                    }
+                    IconButton(onClick = onDiagnostics) {
+                        Icon(
+                            Icons.Outlined.Info,
+                            contentDescription = stringResource(R.string.devices_open_diagnostics, device.friendlyName),
+                            tint = colors.textSecondary,
+                        )
+                    }
                 }
             }
         }

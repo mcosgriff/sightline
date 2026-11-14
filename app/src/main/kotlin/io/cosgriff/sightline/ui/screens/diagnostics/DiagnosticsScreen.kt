@@ -202,12 +202,51 @@ private fun DeviceCard(d: Diagnostics) {
         Fact(stringResource(R.string.diagnostics_address), d.device.address)
         Fact(stringResource(R.string.diagnostics_device_id), d.device.deviceId)
         Fact(stringResource(R.string.diagnostics_phone_address), d.snapshot.localAddress ?: dash)
+        Fact(
+            stringResource(R.string.diagnostics_reply_time),
+            d.snapshot.replyMs?.let { stringResource(R.string.diagnostics_ms, it) } ?: dash,
+            tint = if ((d.snapshot.replyMs ?: 0) >= SLOW_REPLY_MS) colors.healthMarginal else null,
+        )
+        d.snapshot.replyMs?.takeIf { it >= SLOW_REPLY_MS }?.let {
+            Warning(stringResource(R.string.diagnostics_reply_slow))
+        }
+        d.snapshot.sysDebug?.link?.let { link ->
+            val text = if (link.speedMbps != null && link.fullDuplex != null) {
+                stringResource(if (link.fullDuplex == true) R.string.diagnostics_ethernet_full else R.string.diagnostics_ethernet_half, link.speedMbps.toString())
+            } else if (link.raw == "none") {
+                stringResource(R.string.diagnostics_ethernet_none)
+            } else {
+                link.raw
+            }
+            Fact(stringResource(R.string.diagnostics_ethernet), text, tint = if (link.limiting) colors.healthMarginal else null)
+            if (link.limiting) Warning(stringResource(R.string.diagnostics_ethernet_limiting))
+        }
+        val scan = d.lineup
+        val scanText = when {
+            scan == null -> stringResource(R.string.diagnostics_scan_unknown)
+            scan.scanning -> stringResource(R.string.diagnostics_scan_running, scan.progress ?: 0)
+            else -> stringResource(R.string.diagnostics_scan_none)
+        }
+        Fact(stringResource(R.string.diagnostics_scan), scanText, mono = false, tint = if (scan?.scanning == true) colors.healthMarginal else null)
+        if (scan?.scanning == true) Warning(stringResource(R.string.diagnostics_scan_note))
         d.snapshot.system.valueOf("/sys/features")?.let { features ->
             Text(stringResource(R.string.diagnostics_features), style = MaterialTheme.typography.labelSmall, color = colors.textSecondary)
             Text(features.trimEnd(), style = Numbers.info.copy(fontSize = Numbers.info.fontSize * 0.85f), color = colors.textSecondary)
         }
     }
 }
+
+/** A warning line under a fact: icon and words, never colour alone. */
+@Composable
+private fun Warning(text: String) {
+    Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Icon(Icons.Rounded.Warning, contentDescription = null, tint = MaterialTheme.sightlineColors.healthMarginal, modifier = Modifier.size(16.dp).padding(top = 2.dp))
+        Text(text, style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+/** A first reply this slow on a LAN points at the phone's Wi-Fi rather than the tuner. */
+private const val SLOW_REPLY_MS = 250L
 
 @Composable
 private fun Fact(label: String, value: String, mono: Boolean = true, tint: Color? = null) {
@@ -262,6 +301,7 @@ private fun TunerCard(
         }
         tuner.target?.let { Fact(stringResource(R.string.diagnostics_target), it) }
         tuner.value("vchannel")?.takeIf { it != "none" }?.let { Fact(stringResource(R.string.diagnostics_vchannel), it) }
+        tuner.value("channelmap")?.trim()?.takeIf { it.isNotEmpty() }?.let { Fact(stringResource(R.string.diagnostics_channelmap), it) }
         tuner.value("streaminfo")?.trim()?.takeIf { it.isNotEmpty() && it != "none" }?.let {
             Fact(stringResource(R.string.diagnostics_programs), it)
         }
@@ -403,6 +443,8 @@ internal fun diagnosticsReport(context: Context, d: Diagnostics, appVersion: Str
     appendLine("discover.json UpgradeAvailable: ${d.info?.upgradeAvailable ?: "-"}")
     appendLine(context.getString(R.string.diagnostics_report_phone, d.snapshot.localAddress ?: noAnswer))
     appendLine(context.getString(R.string.diagnostics_report_keys, d.rememberedKeys.sorted().joinToString().ifEmpty { "-" }))
+    appendLine(context.getString(R.string.diagnostics_report_reply, d.snapshot.replyMs?.toString() ?: noAnswer))
+    appendLine("lineup_status.json: ${d.lineup ?: noAnswer}")
     d.snapshot.system.forEach { appendLine("${it.name}: ${rawText(it.result, noAnswer).replace("\n", "\n    ")}") }
     d.snapshot.tuners.forEach { t ->
         appendLine()
