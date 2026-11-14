@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/mcosgriff/sightline/compare/v0.3.0...v0.4.0) (2026-11-14)
+
+
+### Features
+
+* device tools for channel scan and firmware update ([#18](https://github.com/mcosgriff/sightline/issues/18)) ([2643150](https://github.com/mcosgriff/sightline/commit/26431505e282633dffb0d8ac77ffaddc18e0e749))
+
 ## [0.3.0](https://github.com/mcosgriff/sightline/compare/v0.2.0...v0.3.0) (2026-11-06)
 
 
