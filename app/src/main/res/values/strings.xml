@@ -475,6 +475,13 @@
         <item quantity="other">All %1$d devices</item>
     </plurals>
     <string name="monitor_setup_watch_all_note">Logs every recording on every tuner, with its signal and packet errors. Sightline only reads the tuners: it never changes a channel or takes a tuner, and records nothing for a tuner nobody is using.</string>
+    <string name="monitor_setup_compare">Compare two units</string>
+    <string name="monitor_setup_compare_with">Compare with</string>
+    <string name="monitor_setup_compare_channel">Channel, on both</string>
+    <string name="monitor_setup_compare_none">These two units carry no channel in common.</string>
+    <string name="monitor_setup_compare_note">Tunes the same channel on an idle tuner of each unit at once. A dip on both points to what they share: the antenna, amplifier or splitter. A dip on one points to that unit or its cable. Each unit keeps one tuner idle for recordings, and gives its tuner back if a recording needs it.</string>
+    <string name="monitor_estimate_compare">About %1$s readings, %2$s, from both units.</string>
+    <string name="monitor_estimate_compare_hourly">About %1$s readings and %2$s an hour, from both units.</string>
     <string name="monitor_estimate_most">At most %1$s readings, %2$s, if every tuner is in use the whole time.</string>
     <string name="monitor_estimate_most_hourly">At most %1$s readings and %2$s an hour, if every tuner is in use.</string>
     <string name="monitor_setup_tuner_chip">%1$d</string>
@@ -538,6 +545,20 @@
     <string name="monitor_event_tuner_on">%1$s · tuner %2$d</string>
     <string name="monitor_subtitle_tuner">%1$s · tuner %2$d · %3$s</string>
     <string name="monitor_subtitle">%1$s · %2$s</string>
+    <string name="monitor_title_compare">Comparing %1$s on two units</string>
+    <string name="monitor_subtitle_compare">%1$s and %2$s · %3$s</string>
+    <string name="monitor_units_title">Units</string>
+    <string name="monitor_unit_claiming">Finding an idle tuner…</string>
+    <string name="monitor_unit_holding">Tuner %1$d</string>
+    <string name="monitor_unit_holding_stream">Tuner %1$d · held by a stream (ATSC 3.0)</string>
+    <plurals name="monitor_unit_missed">
+        <item quantity="one">Tuner %2$d · %1$d poll without an answer</item>
+        <item quantity="other">Tuner %2$d · %1$d polls without an answer</item>
+    </plurals>
+    <string name="monitor_unit_no_spare">Waiting: no tuner to spare, as one stays idle for recordings. Trying again within %1$d s.</string>
+    <string name="monitor_unit_paused">Paused: its tuner was taken. Trying again every %1$d s.</string>
+    <string name="monitor_unit_paused_by">Paused: %1$s took its tuner. Trying again every %2$d s.</string>
+    <string name="monitor_unit_unreachable">Not answering. Trying again in %1$d s.</string>
     <string name="monitor_rate_1s">1 reading per second</string>
     <string name="monitor_rate_every">1 reading every %1$d s</string>
     <string name="monitor_phase_claiming">Finding an idle tuner…</string>
@@ -610,6 +631,9 @@
     <string name="monitor_ended_where">The charts and diagnosis are in the session, and it stays in History.</string>
     <string name="monitor_ended_open">Open session</string>
     <string name="monitor_ended_done">Done</string>
+    <string name="monitor_ended_not_started">Didn\'t start</string>
+    <string name="monitor_ended_no_spare">%1$s has no idle tuner to spare. Sightline keeps one tuner free on each unit for recordings, so it needs two idle there.</string>
+    <string name="monitor_ended_no_answer">%1$s didn\'t answer, so Sightline couldn\'t check it has a tuner to spare.</string>
 
     <!-- Monitor: notifications -->
     <string name="monitor_channel_ongoing">Monitoring</string>
@@ -638,6 +662,13 @@
         <item quantity="other">%1$d dips</item>
     </plurals>
     <string name="monitor_notification_device_unreachable">%1$s isn\'t answering</string>
+    <!-- A two-unit compare: each unit's name and reading (monitor_notification_unit_*), then its dips (monitor_notification_dips). -->
+    <string name="monitor_notification_compare">%1$s · %2$s · %3$s</string>
+    <!-- A two-unit compare's units without the dips, for the widget. -->
+    <string name="monitor_notification_compare_units">%1$s · %2$s</string>
+    <string name="monitor_notification_unit_quality">%1$s %2$d</string>
+    <string name="monitor_notification_unit_no_lock">%1$s no lock</string>
+    <string name="monitor_notification_unit_waiting">%1$s waiting</string>
     <string name="monitor_alert_title">Signal dips</string>
     <plurals name="monitor_alert_one_channel">
         <item quantity="one">%1$d dip on %2$s in the last hour</item>
@@ -806,7 +837,26 @@
     </plurals>
     <string name="session_fix_common_path">Fix: check the shared cable, splitter, amplifier power, or the tuner.</string>
 
+    <string name="session_finding_two_unit_common_path">Both units drop together</string>
+    <plurals name="session_evidence_two_unit_common_path">
+        <item quantity="one">%1$d of %2$d dip started within %3$d seconds of one on the other unit.</item>
+        <item quantity="other">%1$d of %2$d dips started within %3$d seconds of one on the other unit.</item>
+    </plurals>
+    <string name="session_fix_two_unit_common_path">Fix: check what both units share: the antenna and its connectors, the amplifier and its power supply, the splitter, and the cable before it.</string>
+
+    <string name="session_finding_one_unit">%1$s drops, %2$s doesn\'t</string>
+    <plurals name="session_evidence_one_unit_only">
+        <item quantity="one">%1$s dipped %2$d time; %3$s, on the same channel at the same time, never did.</item>
+        <item quantity="other">%1$s dipped %2$d times; %3$s, on the same channel at the same time, never did.</item>
+    </plurals>
+    <plurals name="session_evidence_one_unit">
+        <item quantity="one">%1$s dipped %2$s× as often as %3$s on the same channel at the same time: %4$d dip against %5$d.</item>
+        <item quantity="other">%1$s dipped %2$s× as often as %3$s on the same channel at the same time: %4$d dips against %5$d.</item>
+    </plurals>
+    <string name="session_fix_one_unit">Fix: swap the two units\' cables at the splitter. If the dips follow the cable, it\'s that cable or its splitter port; if they stay, it\'s the unit.</string>
+
     <string name="session_finding_one_tuner">Possible tuner fault</string>
+    <string name="session_finding_one_tuner_on">Possible tuner fault on %1$s</string>
     <plurals name="session_evidence_one_tuner_only">
         <item quantity="one">%1$s dipped %2$d time on tuner %3$d and never on tuner %4$s.</item>
         <item quantity="other">%1$s dipped %2$d times on tuner %3$d and never on tuner %4$s.</item>
@@ -932,6 +982,7 @@
     <string name="session_watched_by">Watched while %2$s used tuner %1$d; Sightline didn\'t tune it.</string>
     <string name="session_watched_all">Watched every tuner on %1$s; Sightline didn\'t tune any. No client was seen using them.</string>
     <string name="session_watched_all_by">Watched every tuner on %1$s; Sightline didn\'t tune any. Clients seen: %2$s.</string>
+    <string name="session_compared">Compared %1$s and %2$s: the same channel on a tuner of each at once.</string>
     <string name="session_tuners_title">Tuners</string>
     <string name="session_tuners_subtitle">Each tuner that recorded anything, with the channels it carried.</string>
     <string name="session_tuner">Tuner %1$d</string>

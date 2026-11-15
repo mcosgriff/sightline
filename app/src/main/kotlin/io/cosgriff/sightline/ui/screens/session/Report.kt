@@ -61,7 +61,7 @@ fun reportText(detail: SessionDetail, units: Units, zone: ZoneId): ReportText {
         noPatternText(detail).let { listOf(ReportFinding(it.title, null, it.evidence, it.fix)) }
     } else {
         detail.findings.map { f ->
-            val t = f.text(units, zone)
+            val t = f.text(units, zone, detail.deviceNames)
             val badge = stringResource(if (f.strength == Strength.LIKELY) R.string.session_likely else R.string.session_possible)
             ReportFinding(t.title, badge, t.evidence, t.fix)
         }
@@ -76,7 +76,9 @@ fun reportText(detail: SessionDetail, units: Units, zone: ZoneId): ReportText {
         diagnosisHeading = stringResource(R.string.session_diagnosis),
         findings = findings,
         timelineHeading = stringResource(R.string.session_timeline_title),
-        legend = detail.data.guideNumbers.map { stringResource(R.string.session_timeline_line, it) },
+        // A two-unit compare draws a line per unit; every other session one per channel.
+        legend = (if (detail.info.compare) detail.info.devices.map { detail.deviceNames[it] ?: it } else detail.data.guideNumbers)
+            .map { stringResource(R.string.session_timeline_line, it) },
         eventsHeading = stringResource(R.string.session_events_title),
         events = detail.data.events.sortedBy { it.startMs }.map { e ->
             val w = eventWords(e, detail, units, zone)

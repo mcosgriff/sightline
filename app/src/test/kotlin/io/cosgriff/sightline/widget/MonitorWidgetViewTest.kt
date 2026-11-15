@@ -9,10 +9,12 @@ import io.cosgriff.sightline.analysis.Thresholds
 import io.cosgriff.sightline.analysis.TimelineSeries
 import io.cosgriff.sightline.data.device.Channel
 import io.cosgriff.sightline.data.device.Device
+import io.cosgriff.sightline.data.monitor.ComparedUnit
 import io.cosgriff.sightline.data.monitor.MonitorEnd
 import io.cosgriff.sightline.data.monitor.MonitorPhase
 import io.cosgriff.sightline.data.monitor.MonitorPlan
 import io.cosgriff.sightline.data.monitor.MonitorStatus
+import io.cosgriff.sightline.data.monitor.UnitState
 import io.cosgriff.sightline.data.monitor.WatchedTuner
 import io.cosgriff.sightline.data.monitor.WatchedUse
 import io.cosgriff.sightline.protocol.LostReason
@@ -90,5 +92,22 @@ class MonitorWidgetViewTest {
         assertThat(v.healthWord).isEqualTo("1 tuner in use")
         val down = view(running.copy(phase = MonitorPhase.WatchingAll(setOf("D")))) as MonitorWidgetView.Running
         assertThat(down.healthWord).isEqualTo("Roof isn't answering")
+    }
+
+    @Test
+    fun `a two-unit compare gives each unit's quality, or that it's waiting`() {
+        val garage = device.copy(deviceId = "E", friendlyName = "Garage")
+        val compare = plan.copy(channels = listOf(channel, channel.copy(deviceId = "E")), compareUnits = listOf(device, garage))
+        val locked = (StatusParser.parse("ch=8vsb:189000000 lock=8vsb ss=88 snq=84 seq=100 bps=1 pps=0") as StatusParse.Parsed).status
+        val units = listOf(
+            ComparedUnit("D", "Roof", TimelineSeries(START, 1_000), UnitState.Holding(3, false), locked),
+            ComparedUnit("E", "Garage", TimelineSeries(START, 1_000), UnitState.NoSpare(30.seconds)),
+        )
+        val running = status("ch=none lock=none ss=0 snq=0 seq=0 bps=0 pps=0", MonitorPhase.Comparing).copy(plan = compare, units = units)
+        val v = view(running) as MonitorWidgetView.Running
+        assertThat(v.title).isEqualTo("Comparing 9.1 on two units")
+        assertThat(v.quality).isNull()
+        assertThat(v.healthWord).isEqualTo("Roof 84 · Garage waiting")
+        assertThat(v.detail).isEqualTo("2 dips · 2 h 05 min")
     }
 }

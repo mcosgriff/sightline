@@ -4,6 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import io.cosgriff.sightline.protocol.ControlClient
 import io.cosgriff.sightline.protocol.ControlResult
 import io.cosgriff.sightline.protocol.fake.FakeHdhr
+import io.cosgriff.sightline.protocol.fake.Signal
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import java.net.InetAddress
@@ -39,5 +40,14 @@ class DemoTunerDevicesTest {
             first.close()
             second.close()
         }
+    }
+
+    @Test
+    fun `Demo tuner 2 drops every tuner for 20 s every 15 minutes, as a coax fault on one unit`() {
+        val good = Signal(true, 80, 84, 100)
+        val period = 15 * 60_000L
+        assertThat(DemoTuner.DEMO_FAULT.at(period * 100 + period - 20_001, good)).isEqualTo(good)
+        assertThat(DemoTuner.DEMO_FAULT.at(period * 100 + period - 20_000, good)).isEqualTo(Signal.NONE)
+        assertThat(DemoTuner.DEMO_FAULT.at(period * 101, good)).isEqualTo(good)
     }
 }

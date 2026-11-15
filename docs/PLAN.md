@@ -148,14 +148,23 @@ the phone's Wi-Fi from the tuner. Three additions to Monitor; SPEC sections come
     channel, health), and Session detail's Tuners section with an All tuners / One tuner toggle on the timeline.
   - Decided 2026-11-14: the poll interval is the other modes' (Settings' "How often to read", changeable in
     setup); Session detail toggles between one tuner and all.
-- [ ] **Compare the two units.** Tune the same channel on an idle tuner of each device at once, so a dip on both
-  points to the antenna, splitter or amplifier, and a dip on one to that unit or its coax branch. Uses lock keys
-  and only idle tuners; released on every exit path, as Monitor.
-  - `:analysis`: a cross-device Common path rule (dips starting within 2 s on both units) and a One unit rule
-    (one unit dips, the other doesn't), with tests and numbers in `docs/rules/diagnosis.md`.
-  - `:app`: Monitor setup picks two devices and channels; Session detail shows both traces on one timeline.
-  - Ask first: whether to keep one tuner idle per unit for the DVR, as Multi-tuner does, and whether this is its
-    own mode or a second device in hold and rotate modes.
+- [x] **Compare the two units** (#26). Monitor's fifth mode, "Compare two units": the same channel on an idle
+  tuner of each device at once, so a dip on both points to the antenna, splitter or amplifier, and a dip on one to
+  that unit or its coax branch. Lock keys (ATSC 3.0 by stream, tuners 0 and 1) on idle tuners only, each unit
+  keeping one more idle for the DVR; released on every exit path, and both lock keys covered by the stale lock-key
+  recovery. Refused at start when a unit can't spare a tuner; a unit whose last idle tuner a recording takes gives
+  its own back and waits.
+  - `:analysis`: Common path (two units) and One unit rules (`TwoUnitCommonPathRule`, `OneUnitRule`,
+    `Diagnosable.comparedUnits`), One tuner keyed by device and tuner, Flutter per device; numbers in
+    `docs/rules/diagnosis.md`. `DiagnosisTest`.
+  - `:data`: `MonitorPlan.compareUnits`, `MonitorRunner.compare` (a loop per unit, `UnitState`, `ComparedUnit`,
+    `MonitorEnd.NO_SPARE_TUNER`), `SessionInfo.compare`; no Room change. `TwoUnitCompareTest` (both Demo tuners: a
+    fault on one gives One unit, on both Common path; stop, ATSC 3.0, refusal, giving a tuner back),
+    `CompareRecoveryTest` (process death on two devices).
+  - `:app`: setup (second unit, a channel both carry), a running view with a row per unit and both lines on one
+    timeline, Session detail with a line per unit, notification and widget; Demo tuner 2's Demo fault
+    (`UnitFault.recurring`, 20 s every 15 min) so a debug build shows One unit.
+  - Decided 2026-11-15: one tuner stays idle per unit for the DVR, as Multi-tuner does; its own Monitor mode.
 - [ ] **Record the phone's Wi-Fi with each session.** Signal strength (RSSI), link speed, frequency band and access
   point changes from the platform (`ConnectivityManager` network callback, `WifiInfo` from `NetworkCapabilities`;
   no Google APIs), stored with readings, so a "device unreachable" event can be laid against the phone roaming or

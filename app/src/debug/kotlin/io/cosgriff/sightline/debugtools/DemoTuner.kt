@@ -2,6 +2,7 @@ package io.cosgriff.sightline.debugtools
 
 import io.cosgriff.sightline.protocol.DiscoveredDevice
 import io.cosgriff.sightline.protocol.fake.FakeHdhr
+import io.cosgriff.sightline.protocol.fake.UnitFault
 import java.net.InetAddress
 
 /**
@@ -43,8 +44,17 @@ class DemoTuner private constructor(private val playerTuner: Int, start: () -> F
         /** The first Demo tuner: the made-up player on tuner 3, an update on offer ([FakeHdhr.demo]). */
         val first = DemoTuner(FakeHdhr.DEMO_PLAYER_TUNER) { FakeHdhr.demo() }
 
-        /** The second: weaker signal, the player on tuner 0, firmware up to date ([FakeHdhr.secondDemo]). */
-        val second = DemoTuner(FakeHdhr.SECOND_DEMO_PLAYER_TUNER) { FakeHdhr.secondDemo() }
+        /**
+         * The second: weaker signal, the player on tuner 0, firmware up to date ([FakeHdhr.secondDemo]), and a Demo
+         * fault of its own ([DEMO_FAULT]), so a two-unit compare of the two shows the One unit finding.
+         */
+        val second = DemoTuner(FakeHdhr.SECOND_DEMO_PLAYER_TUNER) { FakeHdhr.secondDemo().apply { fault = DEMO_FAULT } }
+
+        /**
+         * Demo tuner 2's made-up coax fault: every tuner on it loses lock for 20 s every 15 minutes of clock time,
+         * while "Demo tuner" carries on. Demo only (SPEC "Testing", Demo devices).
+         */
+        val DEMO_FAULT: UnitFault = UnitFault.recurring(everyMs = 15 * 60_000L, lengthMs = 20_000L)
 
         /** Both, in the order Devices lists them. */
         val all: List<DemoTuner> = listOf(first, second)

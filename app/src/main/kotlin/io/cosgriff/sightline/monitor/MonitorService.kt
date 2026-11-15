@@ -11,6 +11,7 @@ import androidx.core.app.ServiceCompat
 import dagger.hilt.android.AndroidEntryPoint
 import io.cosgriff.sightline.data.monitor.MonitorPhase
 import io.cosgriff.sightline.data.monitor.MonitorStatus
+import io.cosgriff.sightline.data.monitor.UnitState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -71,7 +72,11 @@ class MonitorService : Service() {
             if (wakeLock == null) acquireLocks(s)
             val phase = s.phase
             if (phase is MonitorPhase.Paused && last?.phase !is MonitorPhase.Paused) notifications.paused(phase.reason)
-            val changed = last == null || s.phase::class != last?.phase?.let { it::class } || s.allEvents.size != last?.allEvents?.size
+            // A two-unit compare pauses one unit at a time; said once when one does.
+            val unitPaused = s.units.firstNotNullOfOrNull { (it.state as? UnitState.Paused)?.reason }
+            if (unitPaused != null && last?.units?.none { it.state is UnitState.Paused } != false) notifications.paused(unitPaused)
+            val changed = last == null || s.phase::class != last?.phase?.let { it::class } || s.allEvents.size != last?.allEvents?.size ||
+                s.units.map { it.state::class } != last?.units?.map { it.state::class }
             if (changed || shownAt.elapsedNow().inWholeMilliseconds >= REFRESH_MS) {
                 notifications.update(s)
                 shownAt = TimeSource.Monotonic.markNow()

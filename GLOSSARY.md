@@ -29,6 +29,9 @@
 - **Whole-device watch** — Monitor's "Watch every tuner": watch mode on every tuner of one device or of both at
   once, gets only, so each recording the DVR makes is logged. Each tuner has its own dip detector and packet error
   baseline, keyed by device and tuner (a **tuner key**); device unreachable and gap are the device's.
+- **Two-unit compare** — Monitor's "Compare two units": the same channel on an idle tuner of each of two devices
+  at once, each unit keeping another tuner idle for the DVR. A dip on both (**common path**) points to what they
+  share; a dip on one (**one unit**) to that unit or its cable.
 - **Signal side / network side** — where packet errors happened: arriving damaged from the antenna (transport,
   CRC, resyncs), or failing to go out on the network to the client (network errors).
 - **Sweep** — tuning each lineup channel in turn for a **dwell** time and summarising each.
@@ -43,7 +46,8 @@
 - **Weather hour** — one clock hour of Open-Meteo history at home (temperature, wind, gusts, precipitation), metric.
 - **Retention** — how many days readings are kept (Settings). Older ones are deleted at app start; summaries,
   events, weather and sweeps stay.
-- **Spare tuner** — the idle tuner the Multi-tuner grid leaves alone on opening, so a DVR recording can start.
+- **Spare tuner** — the idle tuner left alone for a DVR recording: by the Multi-tuner grid on opening, and on each
+  unit for the whole of a two-unit compare.
 - **Discovery scan** — finding HDHomeRuns on the Wi-Fi (Devices' "Scan again"). Not a channel scan.
 - **Channel scan** — the device's own search for channels (`lineup.post?scan=start`), which replaces its lineup,
   the one a DVR uses. Started from Device tools. Not a sweep, which reads the lineup's channels without changing it.
@@ -53,4 +57,5 @@
 - **Demo tuner** — a fake HDHomeRun (`FakeHdhr`) built into debug builds, with scripted signal patterns. There
   are two, "Demo tuner" and "Demo tuner 2", as the user has two units.
 - **Unit fault** — a fault scripted on one Demo tuner alone (`FakeHdhr.fault`), as a failing coax branch or front
-  end: every tuner on that unit drops, the other unit doesn't. Not an antenna fault, which both units share.
+  end: every tuner on that unit drops, the other unit doesn't. Not an antenna fault, which both units share. Demo
+  tuner 2 has one of its own in debug builds (20 s every 15 minutes).

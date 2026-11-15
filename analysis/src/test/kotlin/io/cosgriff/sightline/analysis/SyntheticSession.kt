@@ -15,12 +15,24 @@ class SyntheticSession(
     val channels = mutableMapOf<String, ChannelInfo>()
     var endMs = startMs
 
-    /** [guide] read on [tuner] from [fromMs] to [toMs] after the start, every [pollMs], following [pattern]. */
-    fun read(guide: String, pattern: SignalPattern, fromMs: Long = 0, toMs: Long, tuner: Int = 0, rf: Int? = null, band: Band? = null) {
+    /**
+     * [guide] read on [tuner] from [fromMs] to [toMs] after the start, every [pollMs], following [pattern]. [device]
+     * names the tuner's device in a session over two (empty: the session's device), as a two-unit compare stores it.
+     */
+    fun read(
+        guide: String,
+        pattern: SignalPattern,
+        fromMs: Long = 0,
+        toMs: Long,
+        tuner: Int = 0,
+        rf: Int? = null,
+        band: Band? = null,
+        device: String = "",
+    ) {
         var t = fromMs
         while (t < toMs) {
             val s = pattern.at(t)
-            readings += LoggedReading(startMs + t, guide, tuner, SignalSample(s.locked, s.ss, s.snq, s.seq))
+            readings += LoggedReading(startMs + t, guide, tuner, SignalSample(s.locked, s.ss, s.snq, s.seq), deviceId = device)
             t += pollMs
         }
         if (rf != null || band != null) channels[guide] = ChannelInfo(rf, band)
@@ -31,10 +43,14 @@ class SyntheticSession(
         weather += WeatherHour(startMs + index * HOUR, tempC, gustKph?.let { it / 2 }, gustKph, precipMm)
     }
 
-    /** The dip detector run over each channel's readings, as a monitor holding each would record. */
-    fun events(): List<SignalEvent> = readings.groupBy { it.guideNumber }.flatMap { (_, rs) ->
+    /**
+     * The dip detector run over each channel's readings, as a monitor holding each would record; one detector per
+     * device and channel, each event naming its device when the readings do (as a two-unit compare's do).
+     */
+    fun events(): List<SignalEvent> = readings.groupBy { it.deviceId to it.guideNumber }.flatMap { (key, rs) ->
         val d = DipDetector(thresholds)
-        rs.flatMap { d.reading(it.atMs, it.guideNumber, it.sample) } + d.finish(rs.last().atMs)
+        val events = rs.flatMap { d.reading(it.atMs, it.guideNumber, it.sample) } + d.finish(rs.last().atMs)
+        if (key.first.isEmpty()) events else events.map { it.copy(deviceId = key.first) }
     }
 
     fun data(): SessionData {

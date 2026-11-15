@@ -60,15 +60,35 @@ data class MonitorSetup(
     /** Watch every tuner instead (GLOSSARY "Whole-device watch"): of [device] only, or of every device when [allDevices]. */
     val wholeDevice: Boolean = false,
     val allDevices: Boolean = false,
+    /** Compare two units instead (GLOSSARY "Two-unit compare"): [device] and [otherId], on the one channel picked. */
+    val compare: Boolean = false,
+    /** The compare's second unit: with two devices, the other one. */
+    val otherId: String? = null,
+    /** The second unit's lineup, read when it's picked; null until read. Only channels both carry can be compared. */
+    val otherChannels: List<Channel>? = null,
 ) {
     val canStart: Boolean get() = when {
         wholeDevice -> true
         watch -> tuner != null
+        compare -> other != null && selected.singleOrNull()?.let { g -> compareChannels.any { it.guideNumber == g } } == true
         else -> selected.isNotEmpty()
     }
 
     /** The devices a whole-device watch would read, [device] first. */
     val watchedDevices: List<Device> get() = if (allDevices) listOf(device) + devices.filter { it.deviceId != device.deviceId } else listOf(device)
+
+    /** The compare's second unit, never [device] itself. */
+    val other: Device? get() = devices.firstOrNull { it.deviceId == otherId && it.deviceId != device.deviceId }
+
+    /** The devices a compare can pair with [device]. */
+    val others: List<Device> get() = devices.filter { it.deviceId != device.deviceId }
+
+    /** The channels both units of a compare carry, by guide number, in [device]'s lineup order. */
+    val compareChannels: List<Channel>
+        get() = otherChannels?.let { theirs ->
+            val guides = theirs.map { it.guideNumber }.toSet()
+            channels.filter { it.guideNumber in guides }
+        }.orEmpty()
 }
 
 /** What the setup form can show. */
@@ -152,13 +172,49 @@ class MonitorViewModel @Inject constructor(
 
     /** Watch mode picks a tuner, not channels; with it on, who holds each tuner is read (gets only). */
     fun setWatch(on: Boolean) {
-        edit { it.copy(watch = on, rotate = false, wholeDevice = false, tuner = if (on) it.tuner else null, selected = it.selected.take(1)) }
+        edit { it.copy(watch = on, rotate = false, wholeDevice = false, compare = false, tuner = if (on) it.tuner else null, selected = it.selected.take(1)) }
         if (on) refreshHolders()
     }
 
     /** A watch of every tuner picks neither a tuner nor channels. */
     fun setWholeDevice(on: Boolean) =
-        edit { it.copy(wholeDevice = on, watch = false, rotate = false, tuner = null, selected = it.selected.take(1)) }
+        edit { it.copy(wholeDevice = on, watch = false, rotate = false, compare = false, tuner = null, selected = it.selected.take(1)) }
+
+    /** A two-unit compare picks a second unit and one channel both carry, no tuner; the second unit's lineup is read. */
+    fun setCompare(on: Boolean) {
+        edit { s ->
+            val other = s.other?.deviceId ?: s.others.firstOrNull()?.deviceId
+            s.copy(
+                compare = on, watch = false, rotate = false, wholeDevice = false, tuner = null, selected = s.selected.take(1),
+                otherId = other, otherChannels = s.otherChannels.takeIf { other == s.otherId },
+            )
+        }
+        if (on) loadOther()
+    }
+
+    /** The compare's second unit. */
+    fun selectOther(deviceId: String) {
+        edit { it.copy(otherId = deviceId, otherChannels = null) }
+        loadOther()
+    }
+
+    /** Reads the second unit's lineup, then keeps the picked channel when both carry it, else the first both carry. */
+    private fun loadOther() {
+        val id = (setup.value as? SetupState.Ready)?.setup?.other?.deviceId ?: return
+        viewModelScope.launch {
+            val device = devices.device(id) ?: return@launch
+            val channels = devices.channelList(id).ifEmpty {
+                devices.refreshLineup(device)
+                devices.channelList(id)
+            }
+            edit { s ->
+                if (s.otherId != id) return@edit s
+                val loaded = s.copy(otherChannels = channels)
+                val both = loaded.compareChannels.map { it.guideNumber }
+                if (loaded.selected.singleOrNull() in both) loaded else loaded.copy(selected = both.take(1))
+            }
+        }
+    }
 
     /** A whole-device watch of every device, or of the picked one only. */
     fun setAllDevices(all: Boolean) = edit { it.copy(allDevices = all) }
@@ -192,6 +248,8 @@ class MonitorViewModel @Inject constructor(
                 SetupState.Ready(current.copy(device = device, channels = channels, selected = listOf(channels.first().guideNumber), tuner = null, holders = null))
             }
             if (current.watch) refreshHolders()
+            // The second unit can't be the first: pick another, and match the channel to both lineups again.
+            if (current.compare) setCompare(true)
         }
     }
 
@@ -206,7 +264,7 @@ class MonitorViewModel @Inject constructor(
 
     /** Back to holding one channel keeps the first picked. */
     fun setRotate(rotate: Boolean) =
-        edit { s -> s.copy(rotate = rotate, watch = false, wholeDevice = false, selected = if (rotate) s.selected else s.selected.take(1)) }
+        edit { s -> s.copy(rotate = rotate, watch = false, wholeDevice = false, compare = false, selected = if (rotate) s.selected else s.selected.take(1)) }
 
     fun setTuner(tuner: Int?) = edit { it.copy(tuner = tuner) }
     fun setDwell(seconds: Int) = edit { it.copy(dwellS = seconds) }
@@ -242,6 +300,26 @@ class MonitorViewModel @Inject constructor(
                     ),
                 )
             }
+            return
+        }
+        if (s.compare) {
+            val other = s.other ?: return
+            val guide = s.selected.single()
+            controller.start(
+                MonitorPlan(
+                    device = s.device,
+                    // The channel on each unit, each with its own stream URL.
+                    channels = listOf(s.channels.first { it.guideNumber == guide }, s.otherChannels.orEmpty().first { it.guideNumber == guide }),
+                    tuner = null,
+                    dwellMs = s.dwellS * 1_000L,
+                    durationMs = s.duration.hours?.let { it * 3_600_000L },
+                    pollIntervalMs = s.pollMs,
+                    thresholds = thresholds.copy(snqMarginal = s.dipSnq),
+                    fetchWeather = s.fetchWeather,
+                    notifyDips = s.notifyDips,
+                    compareUnits = listOf(s.device, other),
+                ),
+            )
             return
         }
         val byGuide = s.channels.associateBy { it.guideNumber }

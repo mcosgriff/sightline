@@ -277,6 +277,131 @@ class DiagnosisTest {
     }
 
     @Test
+    fun `one tuner doesn't compare tuners of two units, so tuner 0 of each is two tuners`() {
+        // Unit A's tuner 0 dips while unit B, on its tuner 1, reads the same channel cleanly: a unit difference.
+        val s = SyntheticSession().apply {
+            read("9.1", dips(), toMs = 2 * HOUR, tuner = 0, device = "A")
+            read("9.1", good, toMs = 2 * HOUR, tuner = 1, device = "B")
+        }.diagnose()
+        assertThat(s.find<Finding.OneTuner>()).isNull()
+        assertThat(s.find<Finding.OneUnit>()!!.deviceId).isEqualTo("A")
+    }
+
+    @Test
+    fun `one tuner keyed by device names the device whose tuner dips`() {
+        // Tuner 0 on both units; only B's dips. Grouped by number alone, A's clean tuner 0 would hide B's.
+        val f = SyntheticSession().apply {
+            read("9.1", good, toMs = 4 * HOUR, tuner = 0, device = "A")
+            read("9.1", dips(), toMs = 2 * HOUR, tuner = 0, device = "B")
+            read("9.1", good, fromMs = 2 * HOUR, toMs = 4 * HOUR, tuner = 2, device = "B")
+        }.diagnose().find<Finding.OneTuner>()
+        assertThat(f!!.deviceId).isEqualTo("B")
+        assertThat(f.tuner).isEqualTo(0)
+        assertThat(f.otherTuners).containsExactly(2)
+        assertThat(f.dips).isEqualTo(12)
+        assertThat(f.strength).isEqualTo(Strength.LIKELY)
+    }
+
+    @Test
+    fun `two-unit common path fires when both units dip together`() {
+        val f = SyntheticSession().apply {
+            read("9.1", dips(), toMs = HOUR, tuner = 2, device = "A")
+            read("9.1", dips(), toMs = HOUR, tuner = 3, device = "B")
+        }.diagnose().find<Finding.TwoUnitCommonPath>()
+        assertThat(f!!.sharedDips).isEqualTo(12)
+        assertThat(f.totalDips).isEqualTo(12)
+        assertThat(f.strength).isEqualTo(Strength.LIKELY)
+    }
+
+    @Test
+    fun `two-unit common path widens its window to the poll interval and a second`() {
+        // Polls 5 s apart, the second unit's a poll later: starts up to 5 s apart still count as together.
+        val f = SyntheticSession(pollMs = 5_000).apply {
+            read("9.1", dips(), toMs = HOUR, tuner = 2, device = "A")
+            read("9.1", SignalPattern { t -> dips().at(t - 5_000) }, toMs = HOUR, tuner = 3, device = "B")
+        }.diagnose().find<Finding.TwoUnitCommonPath>()
+        assertThat(f!!.windowMs).isEqualTo(6_000)
+        assertThat(f.sharedDips).isEqualTo(f.totalDips)
+    }
+
+    @Test
+    fun `two-unit common path doesn't fire when the units dip at different times`() {
+        val later = SignalPattern { t -> dips().at(t + 5 * MINUTE) }
+        val s = SyntheticSession().apply {
+            read("9.1", dips(), toMs = HOUR, tuner = 2, device = "A")
+            read("9.1", later, toMs = HOUR, tuner = 3, device = "B")
+        }.diagnose()
+        assertThat(s.find<Finding.TwoUnitCommonPath>()).isNull()
+        assertThat(s.find<Finding.CommonPath>()).isNull()
+    }
+
+    @Test
+    fun `two-unit rules need both units on the same channel at the same time`() {
+        // In turn, not side by side: nothing to compare.
+        val inTurn = SyntheticSession().apply {
+            read("9.1", dips(), toMs = 2 * HOUR, tuner = 2, device = "A")
+            read("9.1", good, fromMs = 2 * HOUR, toMs = 4 * HOUR, tuner = 3, device = "B")
+        }.diagnose()
+        assertThat(inTurn.find<Finding.OneUnit>()).isNull()
+        assertThat(inTurn.find<Finding.TwoUnitCommonPath>()).isNull()
+        // Side by side on different channels (a whole-device watch's tuners, say): not a compare either.
+        val apart = SyntheticSession().apply {
+            read("9.1", dips(), toMs = 2 * HOUR, tuner = 2, device = "A")
+            read("4.1", good, toMs = 2 * HOUR, tuner = 3, device = "B")
+        }.diagnose()
+        assertThat(apart.find<Finding.OneUnit>()).isNull()
+    }
+
+    @Test
+    fun `one unit fires when only one unit dips`() {
+        val f = SyntheticSession().apply {
+            read("9.1", good, toMs = 2 * HOUR, tuner = 2, device = "A")
+            read("9.1", dips(), toMs = 2 * HOUR, tuner = 3, device = "B")
+        }.diagnose().find<Finding.OneUnit>()
+        assertThat(f!!.deviceId).isEqualTo("B")
+        assertThat(f.otherDeviceId).isEqualTo("A")
+        assertThat(f.dips).isEqualTo(12)
+        assertThat(f.otherDips).isEqualTo(0)
+        assertThat(f.ratio).isNull()
+        assertThat(f.strength).isEqualTo(Strength.LIKELY)
+    }
+
+    @Test
+    fun `one unit is only possible when the other unit dips too, and quiet when both dip alike`() {
+        val rarely = dipping(good, bad, everyMs = 60 * MINUTE)
+        val possible = SyntheticSession().apply {
+            read("9.1", rarely, toMs = 2 * HOUR, tuner = 2, device = "A")
+            read("9.1", dips(), toMs = 2 * HOUR, tuner = 3, device = "B")
+        }.diagnose().find<Finding.OneUnit>()
+        assertThat(possible!!.ratio).isWithin(0.01).of(6.0)
+        assertThat(possible.strength).isEqualTo(Strength.POSSIBLE)
+        val alike = SyntheticSession().apply {
+            read("9.1", dips(), toMs = 2 * HOUR, tuner = 2, device = "A")
+            read("9.1", dips(), toMs = 2 * HOUR, tuner = 3, device = "B")
+        }.diagnose()
+        assertThat(alike.find<Finding.OneUnit>()).isNull()
+        assertThat(alike.find<Finding.TwoUnitCommonPath>()).isNotNull()
+    }
+
+    @Test
+    fun `one unit needs an hour of each unit`() {
+        val f = SyntheticSession().apply {
+            read("9.1", good, toMs = 50 * MINUTE, tuner = 2, device = "A")
+            read("9.1", dips(everyMs = 5 * MINUTE), toMs = 50 * MINUTE, tuner = 3, device = "B")
+        }.diagnose().find<Finding.OneUnit>()
+        assertThat(f).isNull()
+    }
+
+    @Test
+    fun `flutter doesn't take two units a few points apart for swings`() {
+        val f = SyntheticSession().apply {
+            read("9.1", fixed(80, 86), toMs = 2 * HOUR, tuner = 2, device = "A")
+            read("9.1", fixed(70, 62), toMs = 2 * HOUR, tuner = 3, device = "B")
+        }.diagnose().find<Finding.Flutter>()
+        assertThat(f).isNull()
+    }
+
+    @Test
     fun `impulse noise fires on symbol errors with quality still good`() {
         val f = SyntheticSession().apply { read("9.1", dipping(good, fixed(80, 86, seq = 82), 10 * MINUTE), toMs = HOUR) }
             .diagnose().find<Finding.ImpulseNoise>()

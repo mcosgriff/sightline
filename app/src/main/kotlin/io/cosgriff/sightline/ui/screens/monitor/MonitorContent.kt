@@ -68,6 +68,8 @@ import io.cosgriff.sightline.data.device.TunerHolder
 import io.cosgriff.sightline.monitor.monitorTitle
 import io.cosgriff.sightline.data.monitor.MonitorPhase
 import io.cosgriff.sightline.data.monitor.MonitorStatus
+import io.cosgriff.sightline.data.monitor.ComparedUnit
+import io.cosgriff.sightline.data.monitor.UnitState
 import io.cosgriff.sightline.data.monitor.WatchedTuner
 import io.cosgriff.sightline.data.monitor.WatchedUse
 import io.cosgriff.sightline.analysis.SignalSample
@@ -93,6 +95,9 @@ data class MonitorActions(
     /** Watch every tuner (true), and of every device or the picked one only. */
     val onWholeDevice: (Boolean) -> Unit = {},
     val onAllDevices: (Boolean) -> Unit = {},
+    /** Compare two units (true), and with which device. */
+    val onCompare: (Boolean) -> Unit = {},
+    val onCompareWith: (String) -> Unit = {},
     val onTuner: (Int?) -> Unit,
     val onDwell: (Int) -> Unit,
     val onDuration: (MonitorDuration) -> Unit,
@@ -170,14 +175,17 @@ private fun Setup(setup: SetupState, actions: MonitorActions) {
 
                 Field(stringResource(R.string.monitor_setup_mode)) {
                     Choices {
-                        Choice(stringResource(R.string.monitor_setup_hold), !s.rotate && !s.watch && !s.wholeDevice) { actions.onRotate(false) }
+                        Choice(stringResource(R.string.monitor_setup_hold), !s.rotate && !s.watch && !s.wholeDevice && !s.compare) { actions.onRotate(false) }
                         Choice(stringResource(R.string.monitor_setup_rotate), s.rotate) { actions.onRotate(true) }
                         Choice(stringResource(R.string.monitor_setup_watch), s.watch) { actions.onWatch(true) }
                         Choice(stringResource(R.string.monitor_setup_watch_all), s.wholeDevice) { actions.onWholeDevice(true) }
+                        if (s.devices.size > 1) Choice(stringResource(R.string.monitor_setup_compare), s.compare) { actions.onCompare(true) }
                     }
                 }
                 if (s.wholeDevice) {
                     WatchAll(s, actions.onAllDevices)
+                } else if (s.compare) {
+                    CompareUnits(s, actions)
                 } else if (s.watch) {
                     WatchTuner(s, actions.onTuner)
                 } else Field(stringResource(if (s.rotate) R.string.monitor_setup_channels else R.string.monitor_setup_channel)) {
@@ -198,7 +206,7 @@ private fun Setup(setup: SetupState, actions: MonitorActions) {
                         }
                     }
                 }
-                if (!s.watch && !s.wholeDevice) {
+                if (!s.watch && !s.wholeDevice && !s.compare) {
                     Field(stringResource(R.string.monitor_setup_tuner)) {
                         Choices {
                             Choice(stringResource(R.string.monitor_setup_any_tuner), s.tuner == null) { actions.onTuner(null) }
@@ -255,6 +263,36 @@ private fun WatchAll(s: MonitorSetup, onAllDevices: (Boolean) -> Unit) {
         }
     }
     Text(stringResource(R.string.monitor_setup_watch_all_note), style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+}
+
+/**
+ * A two-unit compare: the second unit, and one channel both lineups carry (none until the second unit's lineup is
+ * read). No tuner pick: each unit takes an idle one and keeps another idle for recordings.
+ */
+@Composable
+private fun CompareUnits(s: MonitorSetup, actions: MonitorActions) {
+    val colors = MaterialTheme.sightlineColors
+    Field(stringResource(R.string.monitor_setup_compare_with)) {
+        Choices {
+            s.others.forEach { d -> Choice(d.friendlyName, d.deviceId == s.other?.deviceId) { actions.onCompareWith(d.deviceId) } }
+        }
+    }
+    if (s.otherChannels != null) {
+        Field(stringResource(R.string.monitor_setup_compare_channel)) {
+            val both = s.compareChannels
+            if (both.isEmpty()) {
+                Text(stringResource(R.string.monitor_setup_compare_none), style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary)
+            }
+            Choices {
+                both.forEach { c ->
+                    Choice(stringResource(R.string.monitor_setup_channel_chip, c.guideNumber, c.guideName), c.guideNumber in s.selected) {
+                        actions.onToggleChannel(c.guideNumber)
+                    }
+                }
+            }
+        }
+    }
+    Text(stringResource(R.string.monitor_setup_compare_note), style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
 }
 
 /** Watch mode's tuner pick: each tuner with who is using it, read when the mode was picked. */
@@ -349,10 +387,16 @@ private fun Estimate(s: MonitorSetup) {
     val numbers = NumberFormat.getIntegerInstance()
     val hours = s.duration.hours
     // A watch of every tuner stores at most a reading per tuner per poll: every tuner in use the whole time.
-    val tuners = if (s.wholeDevice) s.watchedDevices.sumOf { it.tunerCount } else 1
+    val tuners = when {
+        s.wholeDevice -> s.watchedDevices.sumOf { it.tunerCount }
+        s.compare -> 2
+        else -> 1
+    }
     val e = MonitorEstimate.of((hours ?: 1) * 3_600_000L, s.pollMs, tuners)
     val size = Formatter.formatShortFileSize(context, e.bytes)
     val text = when {
+        s.compare && hours != null -> stringResource(R.string.monitor_estimate_compare, numbers.format(e.readings), size)
+        s.compare -> stringResource(R.string.monitor_estimate_compare_hourly, numbers.format(e.readings), size)
         s.wholeDevice && hours != null -> stringResource(R.string.monitor_estimate_most, numbers.format(e.readings), size)
         s.wholeDevice -> stringResource(R.string.monitor_estimate_most_hourly, numbers.format(e.readings), size)
         hours != null -> stringResource(R.string.monitor_estimate, numbers.format(e.readings), size)
@@ -370,8 +414,17 @@ private fun Ended(status: MonitorStatus, onDismiss: () -> Unit, onOpen: (Long) -
     val colors = MaterialTheme.sightlineColors
     val ran = elapsedText(((status.endedAt ?: status.startedAt) - status.startedAt).coerceAtLeast(0))
     val dips = status.events.dipCount()
+    val notStarted = status.ended == MonitorEnd.NO_SPARE_TUNER
     val text = when (status.ended) {
         MonitorEnd.NO_CHANNEL -> stringResource(R.string.monitor_ended_refused)
+        // Which unit couldn't spare a tuner, and why; nothing was claimed or saved.
+        MonitorEnd.NO_SPARE_TUNER -> status.units.mapNotNull { u ->
+            when (u.state) {
+                is UnitState.NoSpare -> stringResource(R.string.monitor_ended_no_spare, u.deviceName)
+                is UnitState.Unreachable -> stringResource(R.string.monitor_ended_no_answer, u.deviceName)
+                else -> null
+            }
+        }.joinToString("\n")
         MonitorEnd.TIME_UP -> pluralStringResource(R.plurals.monitor_ended_time_up, dips, dips, ran)
         else -> pluralStringResource(R.plurals.monitor_ended_stopped, dips, dips, ran)
     }
@@ -380,12 +433,12 @@ private fun Ended(status: MonitorStatus, onDismiss: () -> Unit, onOpen: (Long) -
             .background(colors.surface, MaterialTheme.shapes.medium).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Text(stringResource(R.string.monitor_ended_title), style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(if (notStarted) R.string.monitor_ended_not_started else R.string.monitor_ended_title), style = MaterialTheme.typography.titleMedium)
         Text(text, style = MaterialTheme.typography.bodyMedium)
-        Text(stringResource(R.string.monitor_ended_where), style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+        if (!notStarted) Text(stringResource(R.string.monitor_ended_where), style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            // Refused every channel: nothing was read, so there is no session worth opening.
-            if (status.ended != MonitorEnd.NO_CHANNEL) {
+            // Refused every channel, or never started: nothing was read, so there is no session worth opening.
+            if (status.ended != MonitorEnd.NO_CHANNEL && !notStarted) {
                 TextButton(onClick = { onOpen(status.sessionId) }) { Text(stringResource(R.string.monitor_ended_open)) }
             }
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.monitor_ended_done)) }
@@ -411,6 +464,7 @@ private fun ColumnScope.Running(status: MonitorStatus, thresholds: Thresholds, n
         else -> null
     }
     val subtitle = when {
+        plan.compare -> stringResource(R.string.monitor_subtitle_compare, plan.compareUnits[0].friendlyName, plan.compareUnits[1].friendlyName, rate)
         plan.wholeDevice -> pluralStringResource(R.plurals.monitor_subtitle_tuners, status.tuners.size, status.tuners.size, rate)
         tuner != null -> stringResource(R.string.monitor_subtitle_tuner, plan.device.friendlyName, tuner, rate)
         else -> stringResource(R.string.monitor_subtitle, plan.device.friendlyName, rate)
@@ -422,7 +476,16 @@ private fun ColumnScope.Running(status: MonitorStatus, thresholds: Thresholds, n
         PhaseLine(status)
         Progress(status, nowMs, zone)
         Stats(events, status)
-        if (plan.wholeDevice) {
+        if (plan.compare) {
+            UnitRows(status, thresholds)
+            CompareChart(status, events, thresholds, nowMs, zone)
+            Text(
+                stringResource(R.string.monitor_recent),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 6.dp),
+            )
+            RecentEvents(status, events, thresholds, zone)
+        } else if (plan.wholeDevice) {
             TunerRows(status, thresholds)
             Text(
                 stringResource(R.string.monitor_recent),
@@ -525,6 +588,8 @@ private fun PhaseLine(status: MonitorStatus) {
                 ?: stringResource(R.string.monitor_phase_observing)
         }
         is MonitorPhase.ObservingIdle -> stringResource(R.string.monitor_phase_observing_idle, p.tuner)
+        // Each unit's row says what it's doing.
+        MonitorPhase.Comparing -> null
         is MonitorPhase.WatchingAll -> {
             val down = p.unreachable.firstOrNull()
             val inUse = status.tuners.count { it.use is WatchedUse.InUse }
@@ -645,9 +710,17 @@ private fun RecentEvents(status: MonitorStatus, events: List<SignalEvent>, thres
     }
 }
 
-/** Where a whole-device watch's event happened: its tuner, or its device for a device-wide one; null in the other modes. */
+/**
+ * Where a whole-device watch's or a compare's event happened: its tuner (with its unit in a compare), or its device
+ * for a device-wide one; null in the other modes.
+ */
 @Composable
 private fun whereText(e: SignalEvent, status: MonitorStatus): String? {
+    if (status.plan.compare) {
+        val name = status.units.firstOrNull { it.deviceId == e.deviceId }?.deviceName ?: return null
+        val tuner = e.tuner
+        return if (tuner != null) stringResource(R.string.monitor_event_tuner_on, name, tuner) else name
+    }
     if (!status.plan.wholeDevice) return null
     val name = status.tuners.firstOrNull { it.deviceId == e.deviceId }?.deviceName
     val several = status.plan.wholeDevices.size > 1
@@ -732,6 +805,103 @@ private fun TunerRow(t: WatchedTuner, thresholds: Thresholds) {
                 HealthChip(thresholds.assess(SignalSample(latest.isLocked, latest.ss, latest.snq, latest.seq)).health)
             }
         }
+    }
+}
+
+/**
+ * A two-unit compare's units, one row each: the unit, the tuner it holds or what it's waiting for, and the latest
+ * reading's quality and health in a word with its icon (never colour alone).
+ */
+@Composable
+private fun UnitRows(status: MonitorStatus, thresholds: Thresholds) {
+    val colors = MaterialTheme.sightlineColors
+    Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp)) {
+        Text(
+            stringResource(R.string.monitor_units_title),
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.padding(start = 4.dp, bottom = 6.dp).semantics { heading() },
+        )
+        Column(Modifier.fillMaxWidth().background(colors.surface, MaterialTheme.shapes.medium).padding(horizontal = 12.dp, vertical = 4.dp)) {
+            status.units.forEachIndexed { i, u ->
+                if (i > 0) HorizontalDivider(color = colors.outline)
+                UnitRow(u, thresholds)
+            }
+        }
+    }
+}
+
+@Composable
+private fun UnitRow(u: ComparedUnit, thresholds: Thresholds) {
+    val colors = MaterialTheme.sightlineColors
+    val detail = when (val st = u.state) {
+        UnitState.Claiming -> stringResource(R.string.monitor_unit_claiming)
+        is UnitState.Holding -> when {
+            st.missedPolls > 0 -> pluralStringResource(R.plurals.monitor_unit_missed, st.missedPolls, st.missedPolls, st.tuner)
+            st.stream -> stringResource(R.string.monitor_unit_holding_stream, st.tuner)
+            else -> stringResource(R.string.monitor_unit_holding, st.tuner)
+        }
+        is UnitState.NoSpare -> stringResource(R.string.monitor_unit_no_spare, st.retryEvery.inWholeSeconds.toInt())
+        is UnitState.Paused -> (st.reason as? LostReason.TakenBy)?.holder
+            ?.let { stringResource(R.string.monitor_unit_paused_by, it, st.retryEvery.inWholeSeconds.toInt()) }
+            ?: stringResource(R.string.monitor_unit_paused, st.retryEvery.inWholeSeconds.toInt())
+        is UnitState.Unreachable -> stringResource(R.string.monitor_unit_unreachable, st.retryIn.inWholeSeconds.toInt().coerceAtLeast(1))
+    }
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(vertical = 8.dp).semantics(mergeDescendants = true) {},
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Text(u.deviceName, style = MaterialTheme.typography.bodyLarge)
+            Text(detail, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+        }
+        val latest = u.latest
+        if (u.state is UnitState.Holding) {
+            if (latest == null) {
+                Text(stringResource(R.string.monitor_tuner_settling), style = MaterialTheme.typography.labelMedium, color = colors.textSecondary)
+            } else {
+                if (latest.isLocked) {
+                    Text(stringResource(R.string.monitor_tuner_quality, latest.snq), style = Numbers.info, color = colors.textPrimary)
+                }
+                HealthChip(thresholds.assess(SignalSample(latest.isLocked, latest.ss, latest.snq, latest.seq)).health)
+            }
+        }
+    }
+}
+
+/** Both units' lines on one timeline, each named in the legend by its unit (colour and name together). */
+@Composable
+private fun CompareChart(status: MonitorStatus, events: List<SignalEvent>, thresholds: Thresholds, nowMs: Long, zone: ZoneId) {
+    val colors = MaterialTheme.sightlineColors
+    Column(
+        Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp).fillMaxWidth()
+            .background(colors.surface, MaterialTheme.shapes.medium).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.monitor_chart_title), style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary, modifier = Modifier.weight(1f))
+            Legend(colors.healthPoor.copy(alpha = 0.35f), stringResource(R.string.monitor_chart_dip))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            status.units.forEachIndexed { i, u ->
+                val c = if (i == 0) colors.accent else colors.chartLines[(i - 1) % colors.chartLines.size]
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Box(Modifier.size(width = 14.dp, height = 2.dp).background(c))
+                    Text(u.deviceName, style = MaterialTheme.typography.labelMedium, color = colors.textSecondary)
+                }
+            }
+        }
+        val end = status.endsAt
+        SignalTimeline(
+            lines = status.units.map { it.timeline },
+            events = events,
+            nowMs = nowMs,
+            endMs = end,
+            threshold = thresholds.snqGood,
+            timeLabels = timeLabels(status.startedAt, end ?: nowMs, zone),
+            stillToCome = stringResource(R.string.monitor_chart_still_to_come),
+            description = pluralStringResource(R.plurals.monitor_chart_description, events.dipCount(), events.dipCount()),
+        )
     }
 }
 

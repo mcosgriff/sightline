@@ -5,6 +5,8 @@ import io.cosgriff.sightline.analysis.DipAlerts
 import io.cosgriff.sightline.analysis.DeviceWatch
 import io.cosgriff.sightline.analysis.DipDetector
 import io.cosgriff.sightline.analysis.ErrorCounters
+import io.cosgriff.sightline.analysis.EventKind
+import io.cosgriff.sightline.analysis.TunerKey
 import io.cosgriff.sightline.analysis.PacketErrorCounter
 import io.cosgriff.sightline.analysis.PacketErrors
 import io.cosgriff.sightline.analysis.Health
@@ -34,11 +36,13 @@ import io.cosgriff.sightline.protocol.TunerDebug
 import io.cosgriff.sightline.protocol.TunerObserver
 import io.cosgriff.sightline.protocol.TunerSessions
 import io.cosgriff.sightline.protocol.TunerStatus
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -60,6 +64,10 @@ import kotlin.time.TimeSource
  *
  * [wholeDevices]: watch every tuner of these devices the same way (GLOSSARY "Whole-device watch"); [device] is the
  * first of them, [tuner] null, and [channels] every device's lineup, each channel naming its device.
+ *
+ * [compareUnits]: a two-unit compare (GLOSSARY "Two-unit compare"): the same channel on an idle tuner of each of these
+ * two devices at once, [device] the first, [tuner] null, and [channels] that channel on each device, one apiece with
+ * the same guide number. A tuner is only claimed on a unit while another of its tuners stays idle, for the DVR.
  */
 data class MonitorPlan(
     val device: Device,
@@ -73,6 +81,7 @@ data class MonitorPlan(
     val notifyDips: Boolean,
     val watch: Boolean = false,
     val wholeDevices: List<Device> = emptyList(),
+    val compareUnits: List<Device> = emptyList(),
 ) {
     init {
         require(watch || wholeDevice || channels.isNotEmpty()) { "a monitor needs a channel" }
@@ -80,12 +89,23 @@ data class MonitorPlan(
         require(!wholeDevice || (!watch && tuner == null && wholeDevices.first().deviceId == device.deviceId)) {
             "a whole-device watch picks no tuner, and its device is the first watched"
         }
+        require(
+            !compare || (
+                compareUnits.size == 2 && !watch && !wholeDevice && tuner == null &&
+                    compareUnits.first().deviceId == device.deviceId && compareUnits[0].deviceId != compareUnits[1].deviceId &&
+                    compareUnits.all { d -> channels.count { it.deviceId == d.deviceId } == 1 } && channels.size == 2 &&
+                    channels.map { it.guideNumber }.distinct().size == 1
+                ),
+        ) { "a two-unit compare is one channel on each of two devices, its device the first" }
     }
 
     /** A watch of every tuner of [wholeDevices]. */
     val wholeDevice: Boolean get() = wholeDevices.isNotEmpty()
 
-    val rotate: Boolean get() = !watch && !wholeDevice && channels.size > 1
+    /** A two-unit compare of [compareUnits]. */
+    val compare: Boolean get() = compareUnits.isNotEmpty()
+
+    val rotate: Boolean get() = !watch && !wholeDevice && !compare && channels.size > 1
 }
 
 /** What one tuner of a whole-device watch is doing, as the running view shows it. */
@@ -108,6 +128,36 @@ sealed interface WatchedUse {
 
 /** One tuner of a whole-device watch: which device ([deviceId], [deviceName]), which tuner, and what it's doing. */
 data class WatchedTuner(val deviceId: String, val deviceName: String, val tuner: Int, val use: WatchedUse = WatchedUse.Unknown)
+
+/** What one unit of a two-unit compare is doing (SPEC Screens › Monitor running, "Compare two units"). */
+sealed interface UnitState {
+    /** Checking for a spare tuner and claiming one. */
+    data object Claiming : UnitState
+
+    /** Holding [tuner] and reading it; [stream] when held by an HTTP stream (ATSC 3.0). [missedPolls] in a row got no answer. */
+    data class Holding(val tuner: Int, val stream: Boolean, val missedPolls: Int = 0) : UnitState
+
+    /**
+     * Fewer than two of its tuners are idle, so none can be taken while one stays free for the DVR; tried again every
+     * [retryEvery]. At the start of a session this refuses it.
+     */
+    data class NoSpare(val retryEvery: Duration) : UnitState
+
+    /** Its tuner was taken and no other could be had; waiting (SPEC "Tuner lost"). */
+    data class Paused(val reason: LostReason, val retryEvery: Duration) : UnitState
+
+    /** The unit didn't answer; tried again after [retryIn]. At the start of a session this refuses it. */
+    data class Unreachable(val retryIn: Duration) : UnitState
+}
+
+/** One unit of a two-unit compare: which device, what it's doing, its line on the timeline and its last reading. */
+data class ComparedUnit(
+    val deviceId: String,
+    val deviceName: String,
+    val timeline: TimelineSeries,
+    val state: UnitState = UnitState.Claiming,
+    val latest: TunerStatus? = null,
+)
 
 /** What the monitor is doing right now. */
 sealed interface MonitorPhase {
@@ -140,6 +190,9 @@ sealed interface MonitorPhase {
      * the devices that didn't answer at their last poll.
      */
     data class WatchingAll(val unreachable: Set<String> = emptySet()) : MonitorPhase
+
+    /** Comparing two units ([MonitorStatus.units] says what each is doing). */
+    data object Comparing : MonitorPhase
 }
 
 /** Why a monitor session ended. */
@@ -152,6 +205,12 @@ enum class MonitorEnd {
 
     /** The device refused every channel. */
     NO_CHANNEL,
+
+    /**
+     * A two-unit compare didn't start: a unit had no idle tuner to spare for it, or didn't answer
+     * ([MonitorStatus.units] says which). Nothing was claimed and no session was saved.
+     */
+    NO_SPARE_TUNER,
 }
 
 /**
@@ -175,6 +234,8 @@ data class MonitorStatus(
     val countersRead: Boolean = false,
     /** A whole-device watch's tuners, by device in the plan's order then by tuner; empty in the other modes. */
     val tuners: List<WatchedTuner> = emptyList(),
+    /** A two-unit compare's units, in the plan's order; empty in the other modes. */
+    val units: List<ComparedUnit> = emptyList(),
     val ended: MonitorEnd? = null,
     /** When it ended, once [ended] is set. */
     val endedAt: Long? = null,
@@ -237,28 +298,44 @@ class MonitorRunner(
     private val errorCounter = PacketErrorCounter()
     private var lastTuner: Int? = null
     private val deviceWatches = mutableListOf<DeviceWatch>()
+    private val units = mutableListOf<UnitRun>()
 
     /** Runs the session until its time is up or the caller cancels it. Always ends the session and releases the tuner. */
     suspend fun run(plan: MonitorPlan): MonitorEnd {
         this.plan = plan
         detector = DipDetector(plan.thresholds)
         val startedAt = clock.millis()
-        sessionId = log.begin(plan, startedAt)
-        _status.value = MonitorStatus(
-            plan, sessionId, startedAt, (if (plan.wholeDevice) null else plan.channels.firstOrNull()) ?: unknownChannel(""),
+        val initial = MonitorStatus(
+            plan, 0, startedAt, (if (plan.wholeDevice) null else plan.channels.firstOrNull()) ?: unknownChannel(""),
             when {
                 plan.watch -> MonitorPhase.ObservingIdle(plan.tuner!!)
                 plan.wholeDevice -> MonitorPhase.WatchingAll()
+                plan.compare -> MonitorPhase.Comparing
                 else -> MonitorPhase.Claiming
             },
             TimelineSeries.forPlan(startedAt, plan.durationMs, plan.pollIntervalMs),
             tuners = plan.wholeDevices.flatMap { d -> (0 until d.tunerCount).map { WatchedTuner(d.deviceId, d.friendlyName, it) } },
+            units = plan.compareUnits.map { d -> ComparedUnit(d.deviceId, d.friendlyName, TimelineSeries.forPlan(startedAt, plan.durationMs, plan.pollIntervalMs)) },
         )
+        if (plan.compare) {
+            units += plan.compareUnits.map { d -> UnitRun(d, sessionsFor(d), plan.channels.single { it.deviceId == d.deviceId }, DipDetector(plan.thresholds)) }
+            _status.value = initial
+            // Refused before anything is claimed or saved when a unit can't spare a tuner (SPEC Screens › Monitor setup).
+            val refused = refusals()
+            if (refused.isNotEmpty()) {
+                val at = clock.millis()
+                _status.update { s -> s?.copy(units = s.units.map { u -> refused[u.deviceId]?.let { u.copy(state = it) } ?: u }, ended = MonitorEnd.NO_SPARE_TUNER, endedAt = at) }
+                return MonitorEnd.NO_SPARE_TUNER
+            }
+        }
+        sessionId = log.begin(plan, startedAt)
+        _status.value = (_status.value?.takeIf { plan.compare } ?: initial).copy(sessionId = sessionId)
         var end = MonitorEnd.STOPPED
         try {
             end = when {
                 plan.watch -> observe(startedAt)
                 plan.wholeDevice -> observeAll(startedAt)
+                plan.compare -> compare(startedAt)
                 else -> loop(startedAt)
             }
             return end
@@ -267,6 +344,7 @@ class MonitorRunner(
                 val at = clock.millis()
                 add(detector.finish(at), at)
                 deviceWatches.forEach { add(it.finish(at), at) }
+                units.forEach { addFor(it, it.detector.finish(at), at) }
                 flush()
                 log.end(sessionId, at, tunersUsed.singleOrNull())
                 _status.update { it?.copy(open = emptyList(), ended = end, endedAt = at) }
@@ -547,6 +625,283 @@ class MonitorRunner(
             }
             if (sinceFlush.elapsedNow() >= flushEvery) flush()
         }
+    }
+
+    /** One unit of a two-unit compare: its device, control connection, channel there and dip detector. */
+    private class UnitRun(val device: Device, val sessions: TunerSessions, val channel: Channel, val detector: DipDetector) {
+        /** The tuner it holds, or last held: its events name it. */
+        var tuner: Int? = null
+    }
+
+    /** A unit refused the channel: the whole compare ends. */
+    private class ChannelRefused : RuntimeException()
+
+    private fun sessionsFor(d: Device) = if (d.deviceId == plan.device.deviceId) sessions else sessionsOf(d)
+
+    /**
+     * A two-unit compare (SPEC Screens › Monitor setup, "Compare two units"): each unit claims and holds a tuner on its
+     * own, side by side, each keeping one tuner of its device idle for the DVR. Both run on one thread, so the shared
+     * buffer and status need no locks; the control connections' I/O happens elsewhere. A unit that refuses the
+     * channel ends both, and its failure cancels the other, whose release runs as on every exit.
+     */
+    private suspend fun compare(startedAt: Long): MonitorEnd {
+        val deadline = plan.durationMs?.let { startedAt + it }
+        return try {
+            withContext(serial) { coroutineScope { for (u in units) launch { holdUnit(u, deadline) } } }
+            MonitorEnd.TIME_UP
+        } catch (_: ChannelRefused) {
+            MonitorEnd.NO_CHANNEL
+        }
+    }
+
+    /** One thread for a compare's two units; I/O moves off it, so neither waits for the other. */
+    private val serial = Dispatchers.Default.limitedParallelism(1)
+
+    /**
+     * Who can't spare a tuner at the start, by device ID: fewer than two idle tuners, or no answer. Sightline's own
+     * tuners on a unit (Live letting go as Monitor starts) are waited for once.
+     */
+    private suspend fun refusals(): Map<String, UnitState> {
+        val out = linkedMapOf<String, UnitState>()
+        for (u in units) {
+            val held = leases.held.value
+            var idle = idleTuners(u)
+            if (idle != null && idle.size < 2 && leases.holdsAny(u.device.deviceId)) {
+                leases.awaitChange(held, OWN_RELEASE_WAIT)
+                idle = idleTuners(u)
+            }
+            when {
+                idle == null -> out[u.device.deviceId] = UnitState.Unreachable(Duration.ZERO)
+                idle.size < 2 -> out[u.device.deviceId] = UnitState.NoSpare(busyRetry)
+            }
+        }
+        return out
+    }
+
+    /** The unit's idle tuners (`ch=none` and no lock key), gets only; null when it answered for none. */
+    private suspend fun idleTuners(u: UnitRun): List<Int>? {
+        val seen = (0 until u.device.tunerCount).map { u.sessions.occupancy(it) }
+        if (seen.all { it == Occupancy.Unknown }) return null
+        return seen.indices.filter { seen[it] == Occupancy.Idle }
+    }
+
+    /**
+     * Whether a tuner other than [mine] is idle, so the DVR still finds one: gets only, stopping at the first idle one.
+     * A tuner that doesn't answer counts as maybe idle, so a missed reply never gives the tuner back.
+     */
+    private suspend fun spareLeft(u: UnitRun, mine: Int): Boolean {
+        for (t in 0 until u.device.tunerCount) {
+            if (t == mine) continue
+            when (u.sessions.occupancy(t)) {
+                Occupancy.Idle, Occupancy.Unknown -> return true
+                is Occupancy.Busy, Occupancy.DeviceBusy -> Unit
+            }
+        }
+        return false
+    }
+
+    private sealed interface UnitHold {
+        /** Held until the end of the session. */
+        data object Done : UnitHold
+
+        data object Refused : UnitHold
+
+        /** The unit's last idle tuner was taken: the DVR needs it more, so this one went back. */
+        data object GaveBack : UnitHold
+
+        data class Lost(val tuner: Int, val reason: LostReason) : UnitHold
+    }
+
+    /**
+     * One unit of a compare until [until] (null: until cancelled): a tuner is claimed only while another stays idle,
+     * from the highest-numbered down (0 and 1 are the FLEX 4K's ATSC 3.0 tuners, best left to the DVR), or from 0 up
+     * for a channel known to be ATSC 3.0. Waits when it can't spare one; a lost tuner tries another once, then waits.
+     */
+    private suspend fun holdUnit(u: UnitRun, until: Long?) {
+        var unreachable = 0
+        var lost: LostReason? = null
+        var triedAnother = false
+        var exclude: Int? = null
+        while (timeLeft(until) > Duration.ZERO) {
+            val held = leases.held.value
+            setUnit(u) { UnitState.Claiming }
+            val idle = idleTuners(u)
+            val free = idle?.filter { it != exclude }.orEmpty()
+            val result: UnitHold? = when {
+                idle == null -> {
+                    val at = clock.millis()
+                    addFor(u, u.detector.missedPoll(at), at)
+                    val wait = minOf(Backoff.delayAfter(++unreachable), timeLeft(until))
+                    setUnit(u) { UnitState.Unreachable(wait) }
+                    flush()
+                    delay(wait)
+                    null
+                }
+                idle.size < 2 || free.isEmpty() -> {
+                    unreachable = 0
+                    waitForSpare(u, lost, held, until)
+                    exclude = null
+                    null
+                }
+                else -> coroutineScope {
+                    unreachable = 0
+                    val order = if (u.channel.atsc3) free.sorted() else free.sortedDescending()
+                    when (val claim = u.sessions.claim(this, u.channel.target, order)) {
+                        is ClaimResult.Claimed -> {
+                            lost = null
+                            holdTuner(u, claim.tuner, until)
+                        }
+                        is ClaimResult.NoneFree -> {
+                            waitForSpare(u, lost, held, until)
+                            exclude = null
+                            null
+                        }
+                        ClaimResult.UnknownChannel -> UnitHold.Refused
+                        ClaimResult.Unreachable -> {
+                            val at = clock.millis()
+                            addFor(u, u.detector.missedPoll(at), at)
+                            val wait = minOf(Backoff.delayAfter(++unreachable), timeLeft(until))
+                            setUnit(u) { UnitState.Unreachable(wait) }
+                            flush()
+                            delay(wait)
+                            null
+                        }
+                    }
+                }
+            }
+            when (result) {
+                null, UnitHold.GaveBack -> Unit
+                UnitHold.Done -> return
+                UnitHold.Refused -> throw ChannelRefused()
+                is UnitHold.Lost -> {
+                    val at = clock.millis()
+                    addFor(u, u.detector.tunerLost(at, u.channel.guideNumber), at)
+                    lost = result.reason
+                    if (!triedAnother) {
+                        triedAnother = true
+                        exclude = result.tuner
+                    } else {
+                        setUnit(u) { UnitState.Paused(result.reason, busyRetry) }
+                        flush()
+                        delay(minOf(busyRetry, timeLeft(until)))
+                    }
+                }
+            }
+        }
+    }
+
+    /** No tuner to spare on [u]: its detector pauses (on purpose, so no gap) until one may be free. */
+    private suspend fun waitForSpare(u: UnitRun, lost: LostReason?, held: Set<Pair<String, Int>>, until: Long?) {
+        val at = clock.millis()
+        addFor(u, u.detector.pause(at), at)
+        setUnit(u) { lost?.let { UnitState.Paused(it, busyRetry) } ?: UnitState.NoSpare(busyRetry) }
+        flush()
+        leases.awaitChange(held, minOf(busyRetry, timeLeft(until)))
+    }
+
+    /** Holds [tuner] for [u] as hold mode's watch does, giving it back when the unit's last other idle tuner is taken. */
+    private suspend fun holdTuner(u: UnitRun, tuner: ClaimedTuner, until: Long?): UnitHold {
+        u.tuner = tuner.tuner
+        val key = TunerKey(u.device.deviceId, tuner.tuner)
+        errorCounter.retuned(key)
+        leases.add(u.device.deviceId, tuner.tuner)
+        val stream = tuner.hold is Hold.Stream
+        setUnit(u) { UnitState.Holding(tuner.tuner, stream) }
+        try {
+            // Checked again now it's held: a recording may have taken the other idle tuner in the meantime.
+            if (!spareLeft(u, tuner.tuner)) return UnitHold.GaveBack
+            when (val waited = awaitLock(tuner)) {
+                is LockWait.Lost -> return UnitHold.Lost(tuner.tuner, waited.reason)
+                is LockWait.Locked -> {
+                    val s = waited.status
+                    val rf = RfChannels.of(s.channel)
+                    sink.tuned(u.channel, rf?.number, rf?.centerHz, rf?.band?.name, (s.lock as? Lock.Locked)?.modulation == Modulation.ATSC3)
+                    recordFor(u, tuner.tuner, s, tuner.debug())
+                }
+                is LockWait.NoLock -> waited.status?.let { recordFor(u, tuner.tuner, it, tuner.debug()) }
+            }
+            var missed = 0
+            val interval = plan.pollIntervalMs.milliseconds
+            var next = TimeSource.Monotonic.markNow() + interval
+            while (true) {
+                val wait = minOf(-next.elapsedNow(), timeLeft(until))
+                if (wait > Duration.ZERO) delay(wait)
+                if (timeLeft(until) <= Duration.ZERO) return UnitHold.Done
+                next += interval
+                if (next.hasPassedNow()) next = TimeSource.Monotonic.markNow() + interval
+                when (val poll = tuner.poll()) {
+                    is Poll.Reading -> {
+                        missed = 0
+                        recordFor(u, tuner.tuner, poll.status, tuner.debug())
+                    }
+                    is Poll.Unparseable -> {
+                        missed = 0
+                        buffer += ReadingEntity(
+                            sessionId = sessionId, ts = clock.millis(), guideNumber = u.channel.guideNumber, tuner = tuner.tuner,
+                            ss = 0, snq = 0, seq = 0, bps = null, pps = null, lock = LOCK_UNREAD, rawStatus = poll.raw, deviceId = u.device.deviceId,
+                        )
+                    }
+                    is Poll.Unreachable -> {
+                        val at = clock.millis()
+                        addFor(u, u.detector.missedPoll(at), at)
+                        missed++
+                    }
+                    is Poll.Lost -> return UnitHold.Lost(tuner.tuner, poll.reason)
+                }
+                if (!spareLeft(u, tuner.tuner)) return UnitHold.GaveBack
+                val count = missed
+                setUnit(u) { UnitState.Holding(tuner.tuner, stream, count) }
+                if (sinceFlush.elapsedNow() >= flushEvery) flush()
+            }
+        } finally {
+            withContext(NonCancellable) {
+                tuner.release()
+                leases.remove(u.device.deviceId, tuner.tuner)
+                val at = clock.millis()
+                addFor(u, u.detector.pause(at), at)
+            }
+        }
+    }
+
+    private fun setUnit(u: UnitRun, state: () -> UnitState) = publish { s ->
+        s.copy(units = s.units.map { if (it.deviceId == u.device.deviceId) it.copy(state = state()) else it })
+    }
+
+    /** Buffers one reading of a compare's unit, feeds its detector, and adds it to its line. */
+    private fun recordFor(u: UnitRun, tuner: Int, s: TunerStatus, debug: TunerDebug?) {
+        val at = clock.millis()
+        val sample = s.sample()
+        buffer += reading(u.channel, tuner, s, debug, at).copy(deviceId = u.device.deviceId)
+        val added = debug?.let { errorCounter.add(TunerKey(u.device.deviceId, tuner), u.channel.guideNumber, it.counters()) }
+        addFor(u, u.detector.reading(at, u.channel.guideNumber, sample), at)
+        val good = plan.thresholds.assess(sample).health == Health.GOOD
+        publish {
+            it.copy(
+                readings = it.readings + 1,
+                goodReadings = it.goodReadings + if (good) 1 else 0,
+                errors = added?.let { a -> it.errors + a } ?: it.errors,
+                countersRead = it.countersRead || added != null,
+                units = it.units.map { c -> if (c.deviceId == u.device.deviceId) c.copy(timeline = c.timeline + (at to sample), latest = s) else c },
+                open = unitsOpen(),
+            )
+        }
+    }
+
+    /** A compare's unit event: its device, and for its own (not unreachable or gap) the tuner it held. */
+    private fun SignalEvent.on(u: UnitRun) = when (kind) {
+        EventKind.DEVICE_UNREACHABLE, EventKind.GAP -> copy(deviceId = u.device.deviceId)
+        else -> copy(deviceId = u.device.deviceId, tuner = u.tuner)
+    }
+
+    private fun unitsOpen() = units.flatMap { u -> u.detector.open.map { it.on(u) } }.sortedBy { it.startMs }
+
+    /** [add] for a compare's unit: its events tagged with where they happened. */
+    private fun addFor(u: UnitRun, events: List<SignalEvent>, at: Long) {
+        if (events.isEmpty()) return
+        val tagged = events.map { it.on(u) }
+        finished += tagged
+        publish { it.copy(events = it.events + tagged, open = unitsOpen()) }
+        if (plan.notifyDips) tagged.forEach { e -> alerts.onEvent(e, at)?.let(onAlert) }
     }
 
     /** One device of a whole-device watch: its tuners' observers on its one control connection, and its watch. */

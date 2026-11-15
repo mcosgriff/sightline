@@ -16,7 +16,9 @@ import io.cosgriff.sightline.MainActivity
 import io.cosgriff.sightline.R
 import io.cosgriff.sightline.analysis.DipAlert
 import io.cosgriff.sightline.analysis.dipCount
+import io.cosgriff.sightline.data.monitor.ComparedUnit
 import io.cosgriff.sightline.data.monitor.MonitorPhase
+import io.cosgriff.sightline.data.monitor.UnitState
 import io.cosgriff.sightline.data.monitor.WatchedUse
 import io.cosgriff.sightline.data.monitor.MonitorStatus
 import io.cosgriff.sightline.protocol.LostReason
@@ -59,6 +61,14 @@ class MonitorNotifications @Inject constructor(@param:ApplicationContext private
                 is MonitorPhase.Paused -> context.getString(R.string.monitor_notification_paused)
                 is MonitorPhase.Unreachable -> context.getString(R.string.monitor_notification_unreachable)
                 is MonitorPhase.ObservingIdle -> context.getString(R.string.monitor_notification_watch_idle)
+                MonitorPhase.Comparing -> {
+                    val units = it.units.map { u -> unitText(context, u) }
+                    context.getString(
+                        R.string.monitor_notification_compare,
+                        units.getOrElse(0) { "" }, units.getOrElse(1) { "" },
+                        res.getQuantityString(R.plurals.monitor_notification_dips, dips, dips),
+                    )
+                }
                 is MonitorPhase.WatchingAll -> {
                     val down = phase.unreachable.firstOrNull()
                     if (down != null) {
@@ -143,5 +153,15 @@ class MonitorNotifications @Inject constructor(@param:ApplicationContext private
         private const val CHANNEL_ALERTS = "monitor_alerts"
         private const val REQUEST_STOP = 1
         private const val REQUEST_OPEN = 2
+    }
+}
+
+/** One unit of a two-unit compare in a few words, for the notification and widget: "Garage 84", "Den no lock", "Den waiting". */
+internal fun unitText(context: Context, u: ComparedUnit): String {
+    val latest = u.latest
+    return when {
+        u.state !is UnitState.Holding || latest == null -> context.getString(R.string.monitor_notification_unit_waiting, u.deviceName)
+        latest.isLocked -> context.getString(R.string.monitor_notification_unit_quality, u.deviceName, latest.snq)
+        else -> context.getString(R.string.monitor_notification_unit_no_lock, u.deviceName)
     }
 }
