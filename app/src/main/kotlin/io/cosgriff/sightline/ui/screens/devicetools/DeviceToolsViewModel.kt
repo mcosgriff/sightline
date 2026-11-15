@@ -6,7 +6,7 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
-import io.cosgriff.sightline.data.device.DemoDevice
+import io.cosgriff.sightline.data.device.DemoDevices
 import io.cosgriff.sightline.data.device.Device
 import io.cosgriff.sightline.data.device.DeviceRepository
 import io.cosgriff.sightline.data.device.DeviceTools
@@ -85,7 +85,7 @@ class DeviceToolsViewModel @AssistedInject constructor(
     private val devices: DeviceRepository,
     private val tools: DeviceTools,
     private val http: HttpApi,
-    private val demo: Optional<DemoDevice>,
+    private val demo: Optional<DemoDevices>,
 ) : ViewModel() {
     @AssistedFactory
     interface Factory {
@@ -203,7 +203,7 @@ class DeviceToolsViewModel @AssistedInject constructor(
     /** Demo only: ends the made-up player's hold so the tools can be tried. */
     fun stopDemoPlayer() {
         if (_state.value.device?.demo != true) return
-        demo.orElse(null)?.stopDemoPlayer()
+        demo.orElse(null)?.stopDemoPlayer(deviceId)
         viewModelScope.launch { read() }
     }
 

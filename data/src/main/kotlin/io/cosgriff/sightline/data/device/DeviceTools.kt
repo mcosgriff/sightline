@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import java.util.Optional
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -92,13 +93,18 @@ fun interface FirmwareFiles {
     fun forDevice(device: Device): SiliconDustFirmware
 }
 
-/** SiliconDust for real units (ADR-0005); the Demo tuner serves its own made-up files. */
+/** SiliconDust for real units (ADR-0005); each Demo tuner serves its own made-up files. */
 @Singleton
-class DefaultFirmwareFiles @Inject constructor(client: OkHttpClient, demo: Optional<DemoDevice>) : FirmwareFiles {
+class DefaultFirmwareFiles @Inject constructor(private val client: OkHttpClient, demo: Optional<DemoDevices>) : FirmwareFiles {
     private val siliconDust = SiliconDustFirmware(client)
-    private val demoFiles = demo.orElse(null)?.firmwareBaseUrl?.let { SiliconDustFirmware(client, it) }
+    private val demos = demo.orElse(null)
+    private val demoFiles = ConcurrentHashMap<String, SiliconDustFirmware>()
 
-    override fun forDevice(device: Device) = if (device.demo && demoFiles != null) demoFiles else siliconDust
+    override fun forDevice(device: Device): SiliconDustFirmware {
+        if (!device.demo) return siliconDust
+        val base = demos?.firmwareBaseUrl(device.deviceId) ?: return siliconDust
+        return demoFiles.getOrPut(device.deviceId) { SiliconDustFirmware(client, base) }
+    }
 }
 
 /**

@@ -67,8 +67,8 @@ suppress that one case with a comment saying why.
 - `:protocol` — pure Kotlin/JVM, **no Android**. Packet codec, CRC, discovery, control client, status parser,
   HTTP helpers (OkHttp + kotlinx.serialization), `TunerSessions`. Android pieces (MulticastLock, broadcast
   address) are injected from outside (`:data`'s `AndroidDiscoveryEnvironment`). `FakeHdhr` is in its
-  `testFixtures`, used by its tests and, as the Demo tuner, by debug builds of `:app` (`src/debug`; `src/release`
-  has empty stand-ins).
+  `testFixtures`, used by its tests and, as the two Demo tuners, by debug builds of `:app` (`src/debug`;
+  `src/release` has empty stand-ins).
 - `:analysis` — pure Kotlin/JVM, **no Android**. Health from thresholds, the dip detector, aggregations for the
   charts, the diagnosis rules. Every rule gets a test.
 - `:data` — Android library. Room (readings, sessions, events, weather), DataStore settings, repositories, CSV

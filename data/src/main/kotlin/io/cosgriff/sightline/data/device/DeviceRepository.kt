@@ -30,7 +30,7 @@ sealed interface AddResult {
     data object NotFound : AddResult
 }
 
-/** Devices: found by discovery or added by address, kept in Room, with the Demo tuner in debug builds. */
+/** Devices: found by discovery or added by address, kept in Room, with the two Demo tuners in debug builds. */
 @Singleton
 class DeviceRepository @Inject constructor(
     private val devices: DeviceDao,
@@ -40,21 +40,23 @@ class DeviceRepository @Inject constructor(
     private val access: TunerAccess,
     private val leases: TunerLeases,
     private val clock: Clock,
-    demoDevice: Optional<DemoDevice>,
+    demoDevices: Optional<DemoDevices>,
 ) {
-    private val demo: Device? = demoDevice.orElse(null)?.device
+    private val demos: DemoDevices? = demoDevices.orElse(null)
 
-    /** Every known device, the Demo tuner last. */
-    val all: Flow<List<Device>> = devices.observeAll().map { stored -> stored.map { it.toDevice() } + listOfNotNull(demo) }
+    private fun demoList(): List<Device> = demos?.devices.orEmpty()
+
+    /** Every known device, the Demo tuners last. */
+    val all: Flow<List<Device>> = devices.observeAll().map { stored -> stored.map { it.toDevice() } + demoList() }
 
     suspend fun device(deviceId: String): Device? =
-        if (deviceId == demo?.deviceId) demo else devices.get(deviceId)?.toDevice()
+        demoList().firstOrNull { it.deviceId == deviceId } ?: devices.get(deviceId)?.toDevice()
 
     /** Broadcast discovery, then each device's `discover.json`. Returns the IDs that answered. */
     suspend fun scan(): Set<String> {
         val found = discovery.discover()
         for (d in found) save(d, addedAs = null)
-        return found.map { it.deviceId }.toSet() + listOfNotNull(demo?.deviceId)
+        return found.map { it.deviceId }.toSet() + demoList().map { it.deviceId }
     }
 
     /**

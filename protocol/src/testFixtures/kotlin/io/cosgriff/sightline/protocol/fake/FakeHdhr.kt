@@ -42,10 +42,10 @@ data class FakeChannel(
  * rules, ATSC 3.0 only over HTTP and only on the first [atsc3Tuners] tuners. Signals follow each channel's
  * [SignalPattern] from the moment it was tuned, on [clock] (milliseconds).
  *
- * Used by the protocol tests and, in debug builds, as the Demo tuner.
+ * Used by the protocol tests and, in debug builds, as the two Demo tuners ([demo], [secondDemo]).
  */
 class FakeHdhr(
-    val deviceId: Long = 0x1D3E0001,
+    val deviceId: Long = DEMO_ID,
     val tunerCount: Int = 4,
     val atsc3Tuners: Int = 2,
     val channels: List<FakeChannel> = demoLineup(),
@@ -54,6 +54,8 @@ class FakeHdhr(
     private val bindAddress: InetAddress = InetAddress.getByName("127.0.0.1"),
     /** 0 uses the control port's number, as a real unit does. */
     discoveryPort: Int = 0,
+    /** `FriendlyName` in discover.json. */
+    val friendlyName: String = "Demo tuner",
 ) : Closeable {
     private val control = ServerSocket(0, 50, bindAddress)
 
@@ -101,6 +103,13 @@ class FakeHdhr(
         var networkLossPerSecond: Long = 0
         var networkErrors: Long = 0
     }
+
+    /**
+     * A fault on this unit alone, on top of every channel's pattern (its coax branch, not the antenna); null for
+     * none. A test sets it on one of two fakes to give a fault the other doesn't share.
+     */
+    @Volatile
+    var fault: UnitFault? = null
 
     /** How many sets reached the device, so read-only callers can be checked. */
     @Volatile
@@ -418,8 +427,9 @@ class FakeHdhr(
 
     private fun statusLine(tuner: TunerState): String {
         val channel = tuner.channel ?: return "ch=none lock=none ss=0 snq=0 seq=0 bps=0 pps=0"
-        val elapsed = clock() - tuner.tunedAt
-        val signal = channel.pattern.at(elapsed)
+        val now = clock()
+        val elapsed = now - tuner.tunedAt
+        val signal = signalAt(channel, tuner.tunedAt, now)
         val streaming = tuner.stream != null
         val lockText = when {
             !signal.locked -> "none"
@@ -441,7 +451,7 @@ class FakeHdhr(
             ?: return "tun: ch=none lock=none ss=0 snq=0 seq=0 dbg=0\ndev: bps=0 resync=0 overflow=0\n" +
                 "ts:  bps=0 te=0 crc=0\nnet: bps=0 pps=0 err=0 stop=0\n"
         val now = clock()
-        val signal = channel.pattern.at(now - tuner.tunedAt)
+        val signal = signalAt(channel, tuner.tunedAt, now)
         if (tuner.countedAt < tuner.tunedAt) {
             tuner.countedAt = tuner.tunedAt
             tuner.transportErrors = 0
@@ -462,6 +472,12 @@ class FakeHdhr(
             "dev: bps=${if (signal.locked) 19_636_224 else 0} resync=0 overflow=0\n" +
             "ts:  bps=$tsBps te=${tuner.transportErrors} crc=${tuner.transportErrors / 4}\n" +
             "net: bps=$netBps pps=${if (netBps > 0) 280 else 0} err=${tuner.networkErrors} stop=0\n"
+    }
+
+    /** What [channel], tuned at [tunedAt], reports at [now]: its pattern, through this unit's [fault]. */
+    private fun signalAt(channel: FakeChannel, tunedAt: Long, now: Long): Signal {
+        val signal = channel.pattern.at(now - tunedAt)
+        return fault?.at(now, signal) ?: signal
     }
 
     private fun streamInfo(tuner: TunerState): String {
@@ -626,7 +642,7 @@ class FakeHdhr(
     }
 
     private fun discoverJson() =
-        """{"FriendlyName":"Demo tuner","ModelNumber":"HDFX-4K","FirmwareName":"hdhomerun_dvr_atsc3",""" +
+        """{"FriendlyName":"$friendlyName","ModelNumber":"HDFX-4K","FirmwareName":"hdhomerun_dvr_atsc3",""" +
             """"FirmwareVersion":"$firmwareVersion","DeviceID":"$deviceIdHex","DeviceAuth":"DEMODEMODEMODEMODEMODEMO",""" +
             """"BaseURL":"$baseUrl","LineupURL":"$baseUrl/lineup.json","TunerCount":$tunerCount""" +
             (upgradeAvailable?.let { ""","UpgradeAvailable":"$it"""" } ?: "") + "}"
@@ -670,8 +686,12 @@ class FakeHdhr(
             return header + ByteArray(3_000) { (it % 251).toByte() }
         }
 
-        /** The Demo tuner's channels: one per pattern, names that can't pass for real stations. */
-        fun demoLineup() = listOf(
+        /**
+         * The Demo tuners' channels: one per pattern, names that can't pass for real stations. Both Demo tuners
+         * carry the same stations, as two units on one antenna do; [weakerBy] takes ss and snq down that many
+         * points on every channel, as a longer coax branch would.
+         */
+        fun demoLineup(weakerBy: Int = 0) = listOf(
             FakeChannel("2.1", "DEMO Steady", 7, SignalPattern.steady(), subchannels = listOf("2.2 DEMO Two")),
             FakeChannel("4.1", "DEMO Flutter", 9, SignalPattern.flutter()),
             FakeChannel("5.1", "DEMO Wind", 11, SignalPattern.windy()),
@@ -679,6 +699,45 @@ class FakeHdhr(
             FakeChannel("9.1", "DEMO Dropout", 21, SignalPattern.dropouts()),
             FakeChannel("14.1", "DEMO Weak", 27, SignalPattern.steady(ss = 64, snq = 58)),
             FakeChannel("102.1", "DEMO 3.0", 34, SignalPattern.steady(ss = 95, snq = 90), atsc3 = true),
-        )
+        ).map { if (weakerBy == 0) it else it.copy(pattern = it.pattern.weaker(weakerBy)) }
+
+        /**
+         * The first Demo tuner's device ID. Neither Demo ID passes the check digit every real HDHomeRun ID carries
+         * (libhdhomerun's `hdhomerun_discover_validate_device_id`), so neither can be a real unit's.
+         */
+        const val DEMO_ID = 0x1D3E0001L
+
+        /** The second Demo tuner's device ID; see [DEMO_ID]. */
+        const val SECOND_DEMO_ID = 0x1D3E0002L
+
+        /**
+         * The made-up player (a DVR) holding a tuner on each Demo tuner, as one DVR records from both of the user's
+         * units. A documentation-range address (RFC 5737), so it can't be anyone's real player.
+         */
+        const val DEMO_PLAYER = "192.0.2.20"
+
+        /** Where the made-up player sits on the first Demo tuner, and on the second ([secondDemo]). */
+        const val DEMO_PLAYER_TUNER = 3
+        const val SECOND_DEMO_PLAYER_TUNER = 0
+
+        /**
+         * The first Demo tuner, as debug builds start it (SPEC "Testing", Demo device): the made-up player on tuner 3
+         * on the Wind channel, its stream losing 2 packets a second on the network, and a firmware update on offer.
+         */
+        fun demo(clock: () -> Long = System::currentTimeMillis): FakeHdhr = FakeHdhr(clock = clock).apply {
+            takeTuner(DEMO_PLAYER_TUNER, DEMO_PLAYER, channels.first { it.guideNumber == "5.1" }, networkLossPerSecond = 2)
+            upgradeAvailable = latestFirmware
+        }
+
+        /**
+         * The second Demo tuner, as the user's second unit: the same stations 4 points weaker (another splitter
+         * port), the made-up player on tuner 0 on the Flutter channel with a clean stream, and already on the latest
+         * firmware, so Device tools has nothing to install. No fault of its own: a test scripts one with [fault].
+         */
+        fun secondDemo(clock: () -> Long = System::currentTimeMillis): FakeHdhr =
+            FakeHdhr(deviceId = SECOND_DEMO_ID, channels = demoLineup(weakerBy = 4), clock = clock, friendlyName = "Demo tuner 2").apply {
+                firmwareVersion = latestFirmware
+                takeTuner(SECOND_DEMO_PLAYER_TUNER, DEMO_PLAYER, channels.first { it.guideNumber == "4.1" })
+            }
     }
 }

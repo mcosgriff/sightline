@@ -17,7 +17,7 @@ data class Device(
     val address: String,
     val controlPort: Int,
     val lastSeen: Long,
-    /** The debug-only Demo tuner (`FakeHdhr`). Never present in release builds. */
+    /** One of the debug-only Demo tuners (`FakeHdhr`). Never present in release builds. */
     val demo: Boolean = false,
 )
 

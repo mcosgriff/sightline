@@ -130,6 +130,11 @@ use, on a new screen (SPEC Screens › 12).
 Asked for 2026-11-14: catch dropouts during real DVR recordings, tell one unit's fault from a shared one, and tell
 the phone's Wi-Fi from the tuner. Three additions to Monitor; SPEC sections come with each before it is built.
 
+- [x] **A second Demo tuner** (#24). Debug builds list "Demo tuner 2" (`1D3E0002`) after the first: the same
+  lineup 4 points weaker, the made-up player on its tuner 0, firmware up to date. `FakeHdhr.demo()` and
+  `FakeHdhr.secondDemo()` build both as the app does, and `FakeHdhr.fault` (`UnitFault`) scripts a fault on one
+  unit only, for the One unit rule (SPEC "Testing", Demo devices). `TwoDemoTunersTest`, `DemoTunerDevicesTest`.
+
 - [ ] **Watch a whole device.** A Monitor mode that watches every tuner on one or both devices at once, gets only
   (as watch mode on one tuner: `status` and `debug` each poll, the rest when a channel changes), so every recording
   the DVR makes is logged with its signal and packet errors. Each tuner keeps its own dip detector and packet error
