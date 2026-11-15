@@ -466,6 +466,17 @@
     <string name="monitor_setup_watch_chip_idle">%1$d · idle</string>
     <string name="monitor_setup_watch_chip_this">%1$d · this app</string>
     <string name="monitor_setup_watch_note">Pick the tuner Plex or your DVR is using. Sightline only reads it: it never changes the channel or takes the tuner, and follows whatever channel is on. When nobody is using it, nothing is recorded.</string>
+    <string name="monitor_setup_watch_all">Watch every tuner</string>
+    <string name="monitor_setup_watch_all_devices">Devices to watch</string>
+    <string name="monitor_setup_watch_all_this">%1$s only</string>
+    <string name="monitor_setup_watch_all_both">Both devices</string>
+    <plurals name="monitor_setup_watch_all_every">
+        <item quantity="one">All %1$d device</item>
+        <item quantity="other">All %1$d devices</item>
+    </plurals>
+    <string name="monitor_setup_watch_all_note">Logs every recording on every tuner, with its signal and packet errors. Sightline only reads the tuners: it never changes a channel or takes a tuner, and records nothing for a tuner nobody is using.</string>
+    <string name="monitor_estimate_most">At most %1$s readings, %2$s, if every tuner is in use the whole time.</string>
+    <string name="monitor_estimate_most_hourly">At most %1$s readings and %2$s an hour, if every tuner is in use.</string>
     <string name="monitor_setup_tuner_chip">%1$d</string>
     <string name="monitor_setup_duration">How long</string>
     <string name="monitor_setup_poll">A reading every</string>
@@ -499,6 +510,32 @@
         <item quantity="one">Monitoring %1$d channel</item>
         <item quantity="other">Monitoring %1$d channels</item>
     </plurals>
+    <string name="monitor_title_watch_all">Watching every tuner on %1$s</string>
+    <plurals name="monitor_title_watch_all_devices">
+        <item quantity="one">Watching every tuner on %1$d device</item>
+        <item quantity="other">Watching every tuner on %1$d devices</item>
+    </plurals>
+    <plurals name="monitor_subtitle_tuners">
+        <item quantity="one">%1$d tuner · %2$s</item>
+        <item quantity="other">%1$d tuners · %2$s</item>
+    </plurals>
+    <plurals name="monitor_phase_watching_all">
+        <item quantity="one">%1$d of %2$d tuner in use. Sightline is only reading it.</item>
+        <item quantity="other">%1$d of %2$d tuners in use. Sightline is only reading them.</item>
+    </plurals>
+    <string name="monitor_phase_watching_all_none">Nobody is using any tuner. Recording starts when someone tunes one.</string>
+    <string name="monitor_phase_device_unreachable">%1$s isn\'t answering. The other tuners are still read.</string>
+    <string name="monitor_tuners_title">Tuners</string>
+    <string name="monitor_tuner_number">Tuner %1$d</string>
+    <string name="monitor_tuner_idle">Idle: nobody is using it</string>
+    <string name="monitor_tuner_unknown">Not read yet</string>
+    <string name="monitor_tuner_no_answer">No answer</string>
+    <string name="monitor_tuner_channel_by">%1$s · %2$s</string>
+    <string name="monitor_tuner_channel">%1$s · another client</string>
+    <string name="monitor_tuner_settling">Waiting for lock</string>
+    <string name="monitor_tuner_quality">Quality %1$d</string>
+    <string name="monitor_event_when_tuner">%1$s · %2$s · %3$s</string>
+    <string name="monitor_event_tuner_on">%1$s · tuner %2$d</string>
     <string name="monitor_subtitle_tuner">%1$s · tuner %2$d · %3$s</string>
     <string name="monitor_subtitle">%1$s · %2$s</string>
     <string name="monitor_rate_1s">1 reading per second</string>
@@ -590,6 +627,17 @@
     <string name="monitor_notification_paused">Paused: the tuner was taken</string>
     <string name="monitor_notification_unreachable">The tuner isn\'t answering</string>
     <string name="monitor_notification_watch_idle">Waiting for someone to use the tuner</string>
+    <!-- A watch of every tuner: the tuners in use (monitor_tuners_in_use), then its dips (monitor_notification_dips). -->
+    <string name="monitor_notification_watching_all">%1$s · %2$s</string>
+    <plurals name="monitor_tuners_in_use">
+        <item quantity="one">%1$d tuner in use</item>
+        <item quantity="other">%1$d tuners in use</item>
+    </plurals>
+    <plurals name="monitor_notification_dips">
+        <item quantity="one">%1$d dip</item>
+        <item quantity="other">%1$d dips</item>
+    </plurals>
+    <string name="monitor_notification_device_unreachable">%1$s isn\'t answering</string>
     <string name="monitor_alert_title">Signal dips</string>
     <plurals name="monitor_alert_one_channel">
         <item quantity="one">%1$d dip on %2$s in the last hour</item>
@@ -882,6 +930,19 @@
     <string name="session_firmware">Recorded on firmware %1$s</string>
     <string name="session_watched">Watched while another client used tuner %1$d; Sightline didn\'t tune it.</string>
     <string name="session_watched_by">Watched while %2$s used tuner %1$d; Sightline didn\'t tune it.</string>
+    <string name="session_watched_all">Watched every tuner on %1$s; Sightline didn\'t tune any. No client was seen using them.</string>
+    <string name="session_watched_all_by">Watched every tuner on %1$s; Sightline didn\'t tune any. Clients seen: %2$s.</string>
+    <string name="session_tuners_title">Tuners</string>
+    <string name="session_tuners_subtitle">Each tuner that recorded anything, with the channels it carried.</string>
+    <string name="session_tuner">Tuner %1$d</string>
+    <string name="session_tuner_on">%1$s · tuner %2$d</string>
+    <plurals name="session_tuner_dips">
+        <item quantity="one">%2$s · %1$d dip</item>
+        <item quantity="other">%2$s · %1$d dips</item>
+    </plurals>
+    <string name="session_tuners_all">All tuners</string>
+    <string name="session_tuners_one">One tuner</string>
+    <string name="session_event_title_tuner">%1$s · %2$s · %3$s · %4$s</string>
     <string name="session_device_firmware">%1$s · firmware %2$s</string>
     <string name="compare_firmware">Firmware</string>
     <string name="compare_error_rate">Transport errors / h</string>

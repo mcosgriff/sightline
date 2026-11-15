@@ -19,6 +19,7 @@ import io.cosgriff.sightline.analysis.SessionData
 import io.cosgriff.sightline.analysis.SessionStats
 import io.cosgriff.sightline.analysis.SignalSample
 import io.cosgriff.sightline.analysis.Thresholds
+import io.cosgriff.sightline.analysis.TunerKey
 import io.cosgriff.sightline.analysis.WeatherHour
 import io.cosgriff.sightline.analysis.timelineOf
 import io.cosgriff.sightline.data.db.SessionKind
@@ -49,6 +50,7 @@ class SessionContentTest {
         onUseLocation = { calls += "location" },
         onExportCsv = { calls += "csv" },
         onShareReport = { text, footer -> report = text; calls += "report $footer" },
+        onTuner = { calls += "tuner ${it?.deviceId}/${it?.tuner}" },
     )
     private var report: ReportText? = null
 
@@ -139,6 +141,74 @@ class SessionContentTest {
         val split = d.stats.errors.let { s -> d.data.events.sumOf { s.between(it.startMs, it.endMs).transport } }
         compose.onNodeWithText("Transport errors during dips and dropouts: $split. At other times: ${total - split}.").assertExists()
         compose.onNodeWithText("trouble too brief for a reading to catch", substring = true).assertExists()
+    }
+
+    /**
+     * A watch of both units for six hours, a reading a minute: the player on tuner 3 of Roof on 5.1, clean; and on
+     * tuner 0 of Garage on 4.1, dipping 3 minutes every 10 in hours 2 and 3.
+     */
+    private fun wholeDevice(): SessionDetail {
+        val readings = (0 until 6 * 60).flatMap { m ->
+            val bad = m / 60 in 2..3 && m % 10 < 3
+            listOf(
+                LoggedReading(START + m * MINUTE, "5.1", 3, SignalSample(true, 80, 88, 100), deviceId = "D"),
+                LoggedReading(START + m * MINUTE, "4.1", 0, SignalSample(true, 80, if (bad) 40 else 86, if (bad) 70 else 100), deviceId = "E"),
+            )
+        }
+        val events = listOf("D" to 3, "E" to 0).flatMap { (device, tuner) ->
+            val detector = DipDetector(Thresholds.DEFAULT)
+            val mine = readings.filter { it.deviceId == device }
+            (mine.flatMap { detector.reading(it.atMs, it.guideNumber, it.sample) } + detector.finish(mine.last().atMs))
+                .map { it.copy(deviceId = device, tuner = tuner) }
+        }.sortedBy { it.startMs }
+        val data = SessionData(START, START + 6 * HOUR, MINUTE, readings, events, zone = ZoneOffset.UTC)
+        val info = SessionInfo(
+            8, "D", SessionKind.MONITOR, START, START + 6 * HOUR, listOf("5.1", "4.1"), null, MINUTE, null,
+            watched = true, holder = "192.0.2.20", wholeDevice = true, devices = listOf("D", "E"), holders = listOf("192.0.2.20"),
+        )
+        return SessionDetail(
+            info, "Roof", data, SessionStats.of(data, Thresholds.DEFAULT), Diagnosis.run(data, Thresholds.DEFAULT), emptyMap(), SessionWeather.NotAsked,
+            deviceNames = mapOf("D" to "Roof", "E" to "Garage"),
+        )
+    }
+
+    private fun showTuners(detail: SessionDetail, tuner: TunerKey? = null) = compose.setContent {
+        val window = TimeWindow(detail.data.startMs, detail.data.endMs)
+        val keys = tuner?.let(::listOf) ?: detail.data.tuners
+        val lines = keys.map { timelineOf(detail.data.byTuner.getValue(it), window.startMs, window.endMs, 360) }
+        SightlineTheme {
+            SessionContent(SessionUiState(false, detail, window, lines, tuner = tuner), Thresholds.DEFAULT, Units.IMPERIAL, ZoneOffset.UTC, actions)
+        }
+    }
+
+    @Test
+    fun `a watch of every tuner shows all tuners by default, and a toggle to one`() {
+        showTuners(wholeDevice())
+        scrollTo("All tuners")
+        compose.onNodeWithText("Roof · tuner 3 quality").assertExists()
+        compose.onNodeWithText("Garage · tuner 0 quality").assertExists()
+        compose.onNodeWithText("One tuner").performClick()
+        assertThat(calls).containsExactly("tuner D/3")
+    }
+
+    @Test
+    fun `one tuner shows its own line and a chip for each tuner`() {
+        showTuners(wholeDevice(), TunerKey("E", 0))
+        scrollTo("Garage · tuner 0 quality")
+        compose.onNodeWithText("Roof · tuner 3 quality").assertDoesNotExist()
+        compose.onNodeWithText("Roof · tuner 3").performClick()
+        compose.onNodeWithText("All tuners").performClick()
+        assertThat(calls).containsExactly("tuner D/3", "tuner null/null").inOrder()
+    }
+
+    @Test
+    fun `a watch of every tuner is grouped by tuner, each event names its tuner, and the note says what was watched`() {
+        showTuners(wholeDevice())
+        scrollTo("Tuners")
+        compose.onNodeWithText("5.1 · 0 dips").assertExists()
+        compose.onNodeWithText("4.1 · 12 dips").assertExists()
+        scrollTo("Nov 2, 3:50 AM · 4.1 · Garage · tuner 0 · 3m 00s")
+        scrollTo("Watched every tuner on Roof and Garage; Sightline didn't tune any. Clients seen: 192.0.2.20.")
     }
 
     @Test

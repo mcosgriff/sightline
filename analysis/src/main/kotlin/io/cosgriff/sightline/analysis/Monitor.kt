@@ -82,8 +82,9 @@ data class MonitorEstimate(val readings: Long, val bytes: Long) {
         /** A reading row with its index entry: SPEC "Data model" puts 43,000 of them at about 3 MB. */
         const val BYTES_PER_READING = 70L
 
-        fun of(durationMs: Long, pollIntervalMs: Long): MonitorEstimate {
-            val readings = durationMs / pollIntervalMs.coerceAtLeast(1)
+        /** [tuners] read each poll: a watch of every tuner stores up to one reading per tuner in use. */
+        fun of(durationMs: Long, pollIntervalMs: Long, tuners: Int = 1): MonitorEstimate {
+            val readings = durationMs / pollIntervalMs.coerceAtLeast(1) * tuners.coerceAtLeast(1)
             return MonitorEstimate(readings, readings * BYTES_PER_READING)
         }
     }

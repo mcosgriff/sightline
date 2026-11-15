@@ -6,6 +6,8 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import com.google.common.truth.Truth.assertThat
@@ -22,6 +24,8 @@ import io.cosgriff.sightline.data.monitor.MonitorEnd
 import io.cosgriff.sightline.data.monitor.MonitorPhase
 import io.cosgriff.sightline.data.monitor.MonitorPlan
 import io.cosgriff.sightline.data.monitor.MonitorStatus
+import io.cosgriff.sightline.data.monitor.WatchedTuner
+import io.cosgriff.sightline.data.monitor.WatchedUse
 import io.cosgriff.sightline.protocol.LostReason
 import io.cosgriff.sightline.protocol.StatusParse
 import io.cosgriff.sightline.protocol.StatusParser
@@ -48,6 +52,8 @@ class MonitorContentTest {
         onToggleChannel = { calls += "channel $it" },
         onRotate = { calls += "rotate $it" },
         onWatch = { calls += "watch $it" },
+        onWholeDevice = { calls += "whole $it" },
+        onAllDevices = { calls += "all devices $it" },
         onTuner = { calls += "tuner $it" },
         onDwell = { calls += "dwell $it" },
         onDuration = { calls += "duration $it" },
@@ -201,5 +207,71 @@ class MonitorContentTest {
         val plan = MonitorPlan(device, lineup, 2, 30_000, null, 1_000, Thresholds.DEFAULT, false, false, watch = true)
         show(MonitorUiState(SetupState.Loading, status = status().copy(plan = plan, phase = MonitorPhase.ObservingIdle(2))))
         compose.onNodeWithText("Nobody is using tuner 2. Recording starts when someone tunes it.").assertExists()
+    }
+
+    private val garage = Device("E", "Garage HDHomeRun", "HDFX-4K", "1", "http://y", null, 4, "192.168.1.51", 65001, 0)
+
+    @Test
+    fun `a watch of every tuner picks neither tuner nor channel, offers both devices, and says the most it stores`() {
+        val s = setup("9.1").copy(devices = listOf(device, garage), wholeDevice = true)
+        show(MonitorUiState(SetupState.Ready(s)))
+        compose.onNodeWithText("Channel").assertDoesNotExist()
+        compose.onNodeWithText("Tuner").assertDoesNotExist()
+        compose.onNodeWithText("Tuner to watch").assertDoesNotExist()
+        compose.onNodeWithText("Living room HDHomeRun only").performScrollTo().assertExists()
+        // Four tuners a second for 12 hours.
+        compose.onNodeWithText("At most 172,800 readings, 12 MB, if every tuner is in use the whole time.").performScrollTo().assertExists()
+        compose.onNodeWithText("Both devices").performScrollTo().performClick()
+        compose.onNodeWithText("Start monitoring").performScrollTo().performClick()
+        compose.onNodeWithText("Watch every tuner").performScrollTo().performClick()
+        assertThat(calls).containsExactly("all devices true", "start", "whole true").inOrder()
+    }
+
+    @Test
+    fun `both devices double the most it stores`() {
+        show(MonitorUiState(SetupState.Ready(setup("9.1").copy(devices = listOf(device, garage), wholeDevice = true, allDevices = true))))
+        compose.onNodeWithText("At most 345,600 readings, 24 MB, if every tuner is in use the whole time.").performScrollTo().assertExists()
+    }
+
+    @Test
+    fun `a watch of every tuner shows one row per tuner, by device, with who holds it, its channel and health`() {
+        val plan = MonitorPlan(device, lineup, null, 0, null, 1_000, Thresholds.DEFAULT, false, false, wholeDevices = listOf(device, garage))
+        val locked = (StatusParser.parse("ch=8vsb:515000000 lock=8vsb ss=88 snq=87 seq=100 bps=19392658 pps=0") as StatusParse.Parsed).status
+        val tuners = listOf(
+            WatchedTuner("D", device.friendlyName, 0, WatchedUse.Idle),
+            WatchedTuner("D", device.friendlyName, 1, WatchedUse.InUse("192.0.2.20", channel("9.1"), locked)),
+            WatchedTuner("D", device.friendlyName, 2, WatchedUse.InUse(null, channel("2.1"), null)),
+            WatchedTuner("D", device.friendlyName, 3, WatchedUse.Idle),
+            WatchedTuner("E", garage.friendlyName, 0, WatchedUse.NoAnswer),
+            WatchedTuner("E", garage.friendlyName, 1, WatchedUse.Idle),
+            WatchedTuner("E", garage.friendlyName, 2, WatchedUse.Idle),
+            WatchedTuner("E", garage.friendlyName, 3, WatchedUse.Idle),
+        )
+        val tunerDip = dip.copy(deviceId = "D", tuner = 1)
+        val running = status(events = listOf(tunerDip)).copy(plan = plan, phase = MonitorPhase.WatchingAll(), tuners = tuners)
+        show(MonitorUiState(SetupState.Loading, status = running), now = start + 3_600_000L)
+        compose.onNodeWithText("Watching every tuner on 2 devices").assertExists()
+        compose.onNodeWithText("8 tuners · 1 reading per second").assertExists()
+        compose.onNodeWithText("2 of 8 tuners in use. Sightline is only reading them.").assertExists()
+        compose.onNodeWithText("Garage HDHomeRun").performScrollTo().assertExists()
+        compose.onNodeWithText("9.1 Name 9.1 · 192.0.2.20").performScrollTo().assertExists()
+        compose.onNodeWithText("Quality 87").performScrollTo().assertExists()
+        compose.onNodeWithText("Good").performScrollTo().assertExists()
+        compose.onNodeWithText("2.1 Name 2.1 · another client").performScrollTo().assertExists()
+        compose.onNodeWithText("Waiting for lock").performScrollTo().assertExists()
+        compose.onNodeWithText("No answer").performScrollTo().assertExists()
+        compose.onAllNodesWithText("Idle: nobody is using it").assertCountEquals(5)
+        // Each dip names its tuner.
+        compose.onNodeWithText("8:49 PM · Living room HDHomeRun · tuner 1 · 5 s").performScrollTo().assertExists()
+        // No single timeline: the rows take its place.
+        compose.onNodeWithText("Signal quality, so far").assertDoesNotExist()
+    }
+
+    @Test
+    fun `a device that stops answering in a watch of every tuner is said on its own`() {
+        val plan = MonitorPlan(device, lineup, null, 0, null, 1_000, Thresholds.DEFAULT, false, false, wholeDevices = listOf(device, garage))
+        val tuners = listOf(WatchedTuner("E", garage.friendlyName, 0, WatchedUse.NoAnswer))
+        show(MonitorUiState(SetupState.Loading, status = status().copy(plan = plan, phase = MonitorPhase.WatchingAll(setOf("E")), tuners = tuners)))
+        compose.onNodeWithText("Garage HDHomeRun isn't answering. The other tuners are still read.").assertExists()
     }
 }

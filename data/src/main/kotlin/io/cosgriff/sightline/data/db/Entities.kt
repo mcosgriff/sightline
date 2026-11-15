@@ -77,6 +77,14 @@ data class SessionEntity(
      */
     @ColumnInfo(defaultValue = "0") val watched: Boolean = false,
     val holder: String? = null,
+    /**
+     * A watch of every tuner (SPEC Screens › Monitor setup, "Watch every tuner"): [devices] then lists every device
+     * it watched, [deviceId] the first; [holder] is every client seen, as [Converters.fromList] writes a list; and
+     * each reading and event says its device and tuner.
+     */
+    @ColumnInfo(defaultValue = "0") val wholeDevice: Boolean = false,
+    /** Every device the session read, in order; empty for a session on [deviceId] alone (all from before Room v7). */
+    @ColumnInfo(defaultValue = "") val devices: List<String> = emptyList(),
 )
 
 /** One poll (GLOSSARY "Reading"). [rawStatus] is kept only when the line couldn't be parsed. */
@@ -109,6 +117,8 @@ data class ReadingEntity(
     val crcErrors: Long? = null,
     val resyncs: Long? = null,
     val networkErrors: Long? = null,
+    /** The tuner's device, in a session over several tuners ([SessionEntity.wholeDevice]); null: the session's device. */
+    val deviceId: String? = null,
 )
 
 /**
@@ -131,6 +141,12 @@ data class EventEntity(
     val minSnq: Int?,
     val minSeq: Int?,
     val noLockMs: Long,
+    /**
+     * Where it happened, in a session over several tuners ([SessionEntity.wholeDevice]): a device-wide event has a
+     * [deviceId] and no [tuner]. Both null in the other modes, whose session says the device.
+     */
+    val deviceId: String? = null,
+    val tuner: Int? = null,
 )
 
 /** One hour of Open-Meteo history for a session (SPEC "Data model"), metric. Fetched after the session (milestone 5). */

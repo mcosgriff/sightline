@@ -70,4 +70,10 @@ class MonitorTest {
         assertThat(e.bytes).isIn(2_900_000L..3_100_000L)
         assertThat(MonitorEstimate.of(3_600_000L, 5_000).readings).isEqualTo(720)
     }
+
+    @Test
+    fun `a watch of every tuner can store a reading per tuner per poll`() {
+        // Two FLEX 4Ks, every tuner in use for 12 hours at 1 s.
+        assertThat(MonitorEstimate.of(12 * 3_600_000L, 1_000, tuners = 8).readings).isEqualTo(345_600)
+    }
 }

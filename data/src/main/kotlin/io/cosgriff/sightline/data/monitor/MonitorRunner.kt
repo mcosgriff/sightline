@@ -2,6 +2,7 @@ package io.cosgriff.sightline.data.monitor
 
 import io.cosgriff.sightline.analysis.DipAlert
 import io.cosgriff.sightline.analysis.DipAlerts
+import io.cosgriff.sightline.analysis.DeviceWatch
 import io.cosgriff.sightline.analysis.DipDetector
 import io.cosgriff.sightline.analysis.ErrorCounters
 import io.cosgriff.sightline.analysis.PacketErrorCounter
@@ -11,6 +12,7 @@ import io.cosgriff.sightline.analysis.SignalEvent
 import io.cosgriff.sightline.analysis.SignalSample
 import io.cosgriff.sightline.analysis.Thresholds
 import io.cosgriff.sightline.analysis.TimelineSeries
+import io.cosgriff.sightline.analysis.TunerRead
 import io.cosgriff.sightline.analysis.assess
 import io.cosgriff.sightline.data.db.ReadingEntity
 import io.cosgriff.sightline.data.device.Channel
@@ -29,9 +31,12 @@ import io.cosgriff.sightline.protocol.Occupancy
 import io.cosgriff.sightline.protocol.Poll
 import io.cosgriff.sightline.protocol.RfChannels
 import io.cosgriff.sightline.protocol.TunerDebug
+import io.cosgriff.sightline.protocol.TunerObserver
 import io.cosgriff.sightline.protocol.TunerSessions
 import io.cosgriff.sightline.protocol.TunerStatus
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -52,6 +57,9 @@ import kotlin.time.TimeSource
  *
  * [watch]: read [tuner] while another client (Plex, a DVR) uses it, without holding it (GLOSSARY "Watch a tuner in
  * use"). The channel is whatever that client tunes; [channels] are then the lineup, for names, and may be empty.
+ *
+ * [wholeDevices]: watch every tuner of these devices the same way (GLOSSARY "Whole-device watch"); [device] is the
+ * first of them, [tuner] null, and [channels] every device's lineup, each channel naming its device.
  */
 data class MonitorPlan(
     val device: Device,
@@ -64,14 +72,42 @@ data class MonitorPlan(
     val fetchWeather: Boolean,
     val notifyDips: Boolean,
     val watch: Boolean = false,
+    val wholeDevices: List<Device> = emptyList(),
 ) {
     init {
-        require(watch || channels.isNotEmpty()) { "a monitor needs a channel" }
+        require(watch || wholeDevice || channels.isNotEmpty()) { "a monitor needs a channel" }
         require(!watch || tuner != null) { "watching needs a tuner" }
+        require(!wholeDevice || (!watch && tuner == null && wholeDevices.first().deviceId == device.deviceId)) {
+            "a whole-device watch picks no tuner, and its device is the first watched"
+        }
     }
 
-    val rotate: Boolean get() = !watch && channels.size > 1
+    /** A watch of every tuner of [wholeDevices]. */
+    val wholeDevice: Boolean get() = wholeDevices.isNotEmpty()
+
+    val rotate: Boolean get() = !watch && !wholeDevice && channels.size > 1
 }
+
+/** What one tuner of a whole-device watch is doing, as the running view shows it. */
+sealed interface WatchedUse {
+    /** Not read yet. */
+    data object Unknown : WatchedUse
+
+    /** Nobody is using it: nothing is recorded. */
+    data object Idle : WatchedUse
+
+    /**
+     * [holder] (an address, null when the tuner doesn't say) has it on [channel]. [latest] is its last reading, null
+     * while the readings after a tune are being skipped.
+     */
+    data class InUse(val holder: String?, val channel: Channel, val latest: TunerStatus?) : WatchedUse
+
+    /** It gave no usable answer at the last poll. */
+    data object NoAnswer : WatchedUse
+}
+
+/** One tuner of a whole-device watch: which device ([deviceId], [deviceName]), which tuner, and what it's doing. */
+data class WatchedTuner(val deviceId: String, val deviceName: String, val tuner: Int, val use: WatchedUse = WatchedUse.Unknown)
 
 /** What the monitor is doing right now. */
 sealed interface MonitorPhase {
@@ -98,6 +134,12 @@ sealed interface MonitorPhase {
 
     /** Watching [tuner], but nobody is using it: nothing is recorded until someone tunes it. */
     data class ObservingIdle(val tuner: Int) : MonitorPhase
+
+    /**
+     * Watching every tuner of the plan's devices ([MonitorStatus.tuners] says what each is doing). [unreachable] are
+     * the devices that didn't answer at their last poll.
+     */
+    data class WatchingAll(val unreachable: Set<String> = emptySet()) : MonitorPhase
 }
 
 /** Why a monitor session ended. */
@@ -131,6 +173,8 @@ data class MonitorStatus(
     /** Packet errors counted so far (SPEC "Packet errors"); [countersRead] false until a tuner gave its counters. */
     val errors: PacketErrors = PacketErrors.NONE,
     val countersRead: Boolean = false,
+    /** A whole-device watch's tuners, by device in the plan's order then by tuner; empty in the other modes. */
+    val tuners: List<WatchedTuner> = emptyList(),
     val ended: MonitorEnd? = null,
     /** When it ended, once [ended] is set. */
     val endedAt: Long? = null,
@@ -150,6 +194,9 @@ interface MonitorLog {
 
     /** A watched session's channels so far, in the order first seen, and the client last seen using the tuner. */
     suspend fun watched(sessionId: Long, channels: List<String>, holder: String?) = Unit
+
+    /** A whole-device watch's channels so far, on any tuner, and every client seen, each in the order first seen. */
+    suspend fun watchedAll(sessionId: Long, channels: List<String>, holders: List<String>) = Unit
 }
 
 /**
@@ -159,6 +206,9 @@ interface MonitorLog {
  * are busy it waits, as Live does. A lost tuner is an event; another idle tuner is tried once, then it waits for
  * one. Failed polls go to the dip detector, which makes them a device-unreachable event; the control connection
  * reconnects with backoff by itself.
+ *
+ * [sessionsOf] gives each device of a whole-device watch its own control connection; [sessions] is the plan's
+ * device's.
  */
 class MonitorRunner(
     private val sessions: TunerSessions,
@@ -171,6 +221,7 @@ class MonitorRunner(
     private val lockPoll: Duration = 250.milliseconds,
     private val flushEvery: Duration = 10.seconds,
     private val busyRetry: Duration = 30.seconds,
+    private val sessionsOf: (Device) -> TunerSessions = { sessions },
 ) {
     private val _status = MutableStateFlow<MonitorStatus?>(null)
     val status: StateFlow<MonitorStatus?> = _status.asStateFlow()
@@ -185,6 +236,7 @@ class MonitorRunner(
     private val tunersUsed = mutableSetOf<Int>()
     private val errorCounter = PacketErrorCounter()
     private var lastTuner: Int? = null
+    private val deviceWatches = mutableListOf<DeviceWatch>()
 
     /** Runs the session until its time is up or the caller cancels it. Always ends the session and releases the tuner. */
     suspend fun run(plan: MonitorPlan): MonitorEnd {
@@ -193,18 +245,28 @@ class MonitorRunner(
         val startedAt = clock.millis()
         sessionId = log.begin(plan, startedAt)
         _status.value = MonitorStatus(
-            plan, sessionId, startedAt, plan.channels.firstOrNull() ?: unknownChannel(""),
-            if (plan.watch) MonitorPhase.ObservingIdle(plan.tuner!!) else MonitorPhase.Claiming,
+            plan, sessionId, startedAt, (if (plan.wholeDevice) null else plan.channels.firstOrNull()) ?: unknownChannel(""),
+            when {
+                plan.watch -> MonitorPhase.ObservingIdle(plan.tuner!!)
+                plan.wholeDevice -> MonitorPhase.WatchingAll()
+                else -> MonitorPhase.Claiming
+            },
             TimelineSeries.forPlan(startedAt, plan.durationMs, plan.pollIntervalMs),
+            tuners = plan.wholeDevices.flatMap { d -> (0 until d.tunerCount).map { WatchedTuner(d.deviceId, d.friendlyName, it) } },
         )
         var end = MonitorEnd.STOPPED
         try {
-            end = if (plan.watch) observe(startedAt) else loop(startedAt)
+            end = when {
+                plan.watch -> observe(startedAt)
+                plan.wholeDevice -> observeAll(startedAt)
+                else -> loop(startedAt)
+            }
             return end
         } finally {
             withContext(NonCancellable) {
                 val at = clock.millis()
                 add(detector.finish(at), at)
+                deviceWatches.forEach { add(it.finish(at), at) }
                 flush()
                 log.end(sessionId, at, tunersUsed.singleOrNull())
                 _status.update { it?.copy(open = emptyList(), ended = end, endedAt = at) }
@@ -487,36 +549,160 @@ class MonitorRunner(
         }
     }
 
+    /** One device of a whole-device watch: its tuners' observers on its one control connection, and its watch. */
+    private class WatchedDevice(val device: Device, val observers: List<TunerObserver>, val watch: DeviceWatch, val lineup: List<Channel>) {
+        val byGuide = lineup.associateBy { it.guideNumber }
+        var missed = 0
+    }
+
+    /**
+     * A whole-device watch (SPEC Screens › Monitor setup, "Watch every tuner"): every interval, every tuner of every
+     * planned device is read without being claimed, gets only, on one control connection per device. The devices
+     * are read side by side, so one that stops answering doesn't hold up the others; each device's [DeviceWatch]
+     * turns its reads into readings to store and events, a dip detector and error baseline per tuner.
+     */
+    private suspend fun observeAll(startedAt: Long): MonitorEnd {
+        val deadline = plan.durationMs?.let { startedAt + it }
+        val units = plan.wholeDevices.map { d ->
+            val s = if (d.deviceId == plan.device.deviceId) sessions else sessionsOf(d)
+            WatchedDevice(d, (0 until d.tunerCount).map { s.observer(it) }, DeviceWatch(d.deviceId, plan.thresholds), plan.channels.filter { it.deviceId == d.deviceId })
+        }
+        deviceWatches += units.map { it.watch }
+        val seen = LinkedHashSet<String>()
+        val holders = LinkedHashSet<String>()
+        val interval = plan.pollIntervalMs.milliseconds
+        var next = TimeSource.Monotonic.markNow()
+        while (true) {
+            val wait = minOf(-next.elapsedNow(), timeLeft(deadline))
+            if (wait > Duration.ZERO) delay(wait)
+            if (timeLeft(deadline) <= Duration.ZERO) return MonitorEnd.TIME_UP
+            next += interval
+            if (next.hasPassedNow()) next = TimeSource.Monotonic.markNow() + interval
+            val reads = coroutineScope { units.map { u -> async { readAll(u) } }.awaitAll() }
+            var changed = false
+            for ((u, observations) in units.zip(reads)) {
+                val at = clock.millis()
+                if (observations.none { it !is Observation.Unreachable }) {
+                    u.missed++
+                    add(u.watch.missed(at), at)
+                    setUses(u.device.deviceId) { _, _ -> WatchedUse.NoAnswer }
+                    continue
+                }
+                u.missed = 0
+                val channels = observations.map { o -> (o as? Observation.InUse)?.let { channelOf(it, u.byGuide, u.lineup, u.device.deviceId) } }
+                val step = u.watch.polled(
+                    at,
+                    observations.withIndex().associate { (t, o) ->
+                        t to when (o) {
+                            is Observation.InUse -> TunerRead.Tuned(channels[t]!!.guideNumber, o.status.sample(), o.debug?.counters())
+                            Observation.Idle -> TunerRead.Idle
+                            is Observation.Unparseable, is Observation.Unreachable -> TunerRead.Unread
+                        }
+                    },
+                )
+                for ((t, added) in step.recorded) {
+                    val o = observations[t] as Observation.InUse
+                    store(u.device.deviceId, channels[t]!!, t, o.status, o.debug, added, at)
+                }
+                for (t in step.firstLocked) {
+                    val c = channels[t]!!
+                    val status = (observations[t] as Observation.InUse).status
+                    if (c.guideNumber in u.byGuide && status.isLocked) {
+                        val rf = RfChannels.of(status.channel)
+                        sink.tuned(c, rf?.number, rf?.centerHz, rf?.band?.name, (status.lock as? Lock.Locked)?.modulation == Modulation.ATSC3)
+                    }
+                }
+                for (t in step.retuned) changed = seen.add(channels[t]!!.guideNumber) || changed
+                for (o in observations) (o as? Observation.InUse)?.holder?.let { changed = holders.add(it) || changed }
+                add(step.events, at)
+                setUses(u.device.deviceId) { t, before ->
+                    when (val o = observations[t]) {
+                        is Observation.InUse -> WatchedUse.InUse(o.holder, channels[t]!!, o.status.takeIf { t in step.recorded })
+                        Observation.Idle -> WatchedUse.Idle
+                        is Observation.Unparseable, is Observation.Unreachable -> if (before is WatchedUse.InUse) before.copy(latest = null) else WatchedUse.NoAnswer
+                    }
+                }
+            }
+            if (changed) log.watchedAll(sessionId, seen.toList(), holders.toList())
+            val unreachable = units.filter { it.missed > 0 }.map { it.device.deviceId }.toSet()
+            publish { it.copy(phase = MonitorPhase.WatchingAll(unreachable), open = units.flatMap { u -> u.watch.open }) }
+            if (sinceFlush.elapsedNow() >= flushEvery) flush()
+        }
+    }
+
+    /**
+     * Reads every tuner of [u], gets only. When the first read gets no answer the device is taken as not answering
+     * this poll and the rest aren't tried, so a device off the network costs one timeout a poll, not one a tuner.
+     */
+    private suspend fun readAll(u: WatchedDevice): List<Observation> {
+        val out = ArrayList<Observation>(u.observers.size)
+        for (o in u.observers) {
+            if (out.isNotEmpty() && out.all { it is Observation.Unreachable }) {
+                out += out.first()
+                continue
+            }
+            out += o.read()
+        }
+        return out
+    }
+
+    private fun setUses(deviceId: String, use: (tuner: Int, before: WatchedUse) -> WatchedUse) = publish { s ->
+        s.copy(tuners = s.tuners.map { if (it.deviceId == deviceId) it.copy(use = use(it.tuner, it.use)) else it })
+    }
+
+    /** Buffers one reading of a whole-device watch and counts it; [added] is the errors it added, null without counters. */
+    private fun store(deviceId: String, channel: Channel, tuner: Int, s: TunerStatus, debug: TunerDebug?, added: PacketErrors?, at: Long) {
+        buffer += reading(channel, tuner, s, debug, at).copy(deviceId = deviceId)
+        val good = plan.thresholds.assess(s.sample()).health == Health.GOOD
+        publish {
+            it.copy(
+                readings = it.readings + 1,
+                goodReadings = it.goodReadings + if (good) 1 else 0,
+                errors = added?.let { a -> it.errors + a } ?: it.errors,
+                countersRead = it.countersRead || added != null,
+            )
+        }
+    }
+
     /**
      * The lineup channel the client tuned: by guide number, else by the frequency or RF channel the tuner says.
      * One the lineup doesn't have is named by the tuner's own `ch=` value.
      */
-    private fun channelOf(o: Observation.InUse, byGuide: Map<String, Channel>): Channel {
-        o.guideNumber?.let { g -> return byGuide[g] ?: unknownChannel(g) }
+    private fun channelOf(
+        o: Observation.InUse,
+        byGuide: Map<String, Channel>,
+        lineup: List<Channel> = plan.channels,
+        deviceId: String = plan.device.deviceId,
+    ): Channel {
+        o.guideNumber?.let { g -> return byGuide[g] ?: unknownChannel(g, deviceId) }
         val rf = RfChannels.of(o.status.channel)?.number
-        val match = rf?.let { n -> plan.channels.firstOrNull { it.rfChannel == n } }
-        return match ?: unknownChannel(o.status.raw.substringAfter("ch=", "").substringBefore(' ').ifEmpty { o.status.raw })
+        val match = rf?.let { n -> lineup.firstOrNull { it.rfChannel == n } }
+        return match ?: unknownChannel(o.status.raw.substringAfter("ch=", "").substringBefore(' ').ifEmpty { o.status.raw }, deviceId)
     }
 
-    private fun unknownChannel(guideNumber: String) =
-        Channel(plan.device.deviceId, guideNumber, "", "", null, null, null, false)
+    private fun unknownChannel(guideNumber: String, deviceId: String = plan.device.deviceId) =
+        Channel(deviceId, guideNumber, "", "", null, null, null, false)
+
+    private fun TunerStatus.sample() = SignalSample(isLocked, ss, snq, seq)
+
+    private fun TunerDebug.counters() = ErrorCounters(transportErrors, crcErrors, resync, networkErrors)
+
+    private fun reading(channel: Channel, tuner: Int, s: TunerStatus, debug: TunerDebug?, at: Long) = ReadingEntity(
+        sessionId = sessionId, ts = at, guideNumber = channel.guideNumber, tuner = tuner,
+        ss = s.ss, snq = s.snq, seq = s.seq, bps = s.bps, pps = s.pps,
+        lock = when (val l = s.lock) {
+            Lock.None -> LOCK_NONE
+            is Lock.Locked -> l.raw
+        },
+        transportErrors = debug?.transportErrors, crcErrors = debug?.crcErrors,
+        resyncs = debug?.resync, networkErrors = debug?.networkErrors,
+    )
 
     private fun record(channel: Channel, tuner: Int, s: TunerStatus, debug: TunerDebug?) {
         val at = clock.millis()
-        val sample = SignalSample(s.isLocked, s.ss, s.snq, s.seq)
-        buffer += ReadingEntity(
-            sessionId = sessionId, ts = at, guideNumber = channel.guideNumber, tuner = tuner,
-            ss = s.ss, snq = s.snq, seq = s.seq, bps = s.bps, pps = s.pps,
-            lock = when (val l = s.lock) {
-                Lock.None -> LOCK_NONE
-                is Lock.Locked -> l.raw
-            },
-            transportErrors = debug?.transportErrors, crcErrors = debug?.crcErrors,
-            resyncs = debug?.resync, networkErrors = debug?.networkErrors,
-        )
-        val added = debug?.let {
-            errorCounter.add(tuner, channel.guideNumber, ErrorCounters(it.transportErrors, it.crcErrors, it.resync, it.networkErrors))
-        }
+        val sample = s.sample()
+        buffer += reading(channel, tuner, s, debug, at)
+        val added = debug?.let { errorCounter.add(tuner, channel.guideNumber, it.counters()) }
         add(detector.reading(at, channel.guideNumber, sample), at)
         val good = plan.thresholds.assess(sample).health == Health.GOOD
         publish {

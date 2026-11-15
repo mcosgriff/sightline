@@ -13,7 +13,14 @@ data class LoggedReading(
     val atsc3: Boolean = false,
     /** The tuner's error counters read with it; null when not read (older sessions, no `/tunerN/debug`). */
     val counters: ErrorCounters? = null,
-)
+    /**
+     * The device the tuner belongs to, in a session that read more than one device's tuners; empty for "the
+     * session's device", as every session on one device has it.
+     */
+    val deviceId: String = "",
+) {
+    val key: TunerKey get() = TunerKey(deviceId, tuner)
+}
 
 /** One hour of weather at home (Open-Meteo), metric. [hourMs] is the UTC epoch ms the hour starts at. */
 data class WeatherHour(
@@ -49,6 +56,14 @@ data class SessionData(
     val guideNumbers: List<String> by lazy { readings.map { it.guideNumber }.distinct() }
 
     val byChannel: Map<String, List<LoggedReading>> by lazy { readings.groupBy { it.guideNumber } }
+
+    /** Every tuner read, by device in the order first read, then by tuner number. */
+    val tuners: List<TunerKey> by lazy {
+        val devices = readings.map { it.deviceId }.distinct()
+        readings.map { it.key }.distinct().sortedWith(compareBy({ devices.indexOf(it.deviceId) }, { it.tuner }))
+    }
+
+    val byTuner: Map<TunerKey, List<LoggedReading>> by lazy { readings.groupBy { it.key } }
 
     /** The weather hour [atMs] falls in, if fetched. */
     fun weatherAt(atMs: Long): WeatherHour? = weatherByHour[Math.floorDiv(atMs, WeatherHour.HOUR_MS) * WeatherHour.HOUR_MS]
@@ -106,38 +121,43 @@ data class SessionStats(
     val hours: Map<String, List<HourCell?>>,
     /** The packet errors each reading added; [PacketErrorSeries.hasCounters] false when none were recorded. */
     val errors: PacketErrorSeries = PacketErrorSeries.of(emptyList()),
+    /** Each tuner read, in [SessionData.tuners] order. */
+    val tuners: List<TunerSummary> = emptyList(),
 ) {
     companion object {
         fun of(data: SessionData, thresholds: Thresholds): SessionStats {
             val readings = data.readings
             val locked = readings.filter { it.sample.locked }
             val good = readings.count { thresholds.assess(it.sample).health == Health.GOOD }
-            val health = if (locked.isEmpty()) {
-                if (readings.isEmpty()) null else Health.NO_LOCK
-            } else {
-                thresholds.assess(
-                    SignalSample(
-                        true,
-                        median(locked.map { it.sample.ss })!!,
-                        median(locked.map { it.sample.snq })!!,
-                        median(locked.map { it.sample.seq })!!,
-                    ),
-                ).health
-            }
             return SessionStats(
                 readings = readings.size,
                 goodShare = if (readings.isEmpty()) null else good.toDouble() / readings.size,
                 dips = data.events.dipCount(),
                 longestDropoutMs = data.events.filter { it.kind == EventKind.DROPOUT }.maxOfOrNull { it.durationMs },
                 medianSnq = median(locked.map { it.sample.snq }),
-                health = health,
+                health = medianHealth(readings, thresholds),
                 channels = data.guideNumbers.map { g ->
                     SweptChannel.of(g, data.byChannel.getValue(g).map { it.sample }, thresholds)
                 },
                 histogram = SnqHistogram.of(locked.map { it.sample.snq }),
                 hours = data.byChannel.mapValues { (_, rs) -> hourCells(data, rs, thresholds) },
                 errors = PacketErrorSeries.of(readings),
+                tuners = data.tuners.map { key -> TunerSummary.of(key, data.byTuner.getValue(key), data.events, thresholds) },
             )
+        }
+
+        /** The health of the median locked reading: what a chip says of a stretch. No lock if it never locked; null when empty. */
+        internal fun medianHealth(readings: List<LoggedReading>, thresholds: Thresholds): Health? {
+            val locked = readings.filter { it.sample.locked }
+            if (locked.isEmpty()) return if (readings.isEmpty()) null else Health.NO_LOCK
+            return thresholds.assess(
+                SignalSample(
+                    true,
+                    median(locked.map { it.sample.ss })!!,
+                    median(locked.map { it.sample.snq })!!,
+                    median(locked.map { it.sample.seq })!!,
+                ),
+            ).health
         }
 
         /** Below the good line, or no lock: what the heatmap counts (mockup: "Share of each hour below quality 80"). */
@@ -153,6 +173,44 @@ data class SessionStats(
                 val worst = hours.maxWith(compareBy<Map.Entry<Long, List<LoggedReading>>> { e -> e.value.count { below(it.sample, t) } }.thenByDescending { it.key })
                 HourCell(below.toDouble() / total, worst.key)
             }
+        }
+    }
+}
+
+/**
+ * One tuner of a session that read several at once (a watch of every tuner): the channels it carried, in the order
+ * first read; its locked snq range; its health, as [SessionStats.health] for the session; and the dips recorded on
+ * it (events that name it: a device-wide event names no tuner).
+ */
+data class TunerSummary(
+    val key: TunerKey,
+    val channels: List<String>,
+    val readings: Int,
+    /** 0..1 of its readings in good health. */
+    val goodShare: Double,
+    val dips: Int,
+    /** Over its locked readings; null when it never locked. */
+    val minSnq: Int?,
+    val medianSnq: Int?,
+    val maxSnq: Int?,
+    val health: Health,
+) {
+    companion object {
+        /** [readings] are the tuner's own, at least one. */
+        fun of(key: TunerKey, readings: List<LoggedReading>, events: List<SignalEvent>, thresholds: Thresholds): TunerSummary {
+            require(readings.isNotEmpty()) { "a tuner summary needs readings" }
+            val snqs = readings.filter { it.sample.locked }.map { it.sample.snq }
+            return TunerSummary(
+                key = key,
+                channels = readings.map { it.guideNumber }.distinct(),
+                readings = readings.size,
+                goodShare = readings.count { thresholds.assess(it.sample).health == Health.GOOD }.toDouble() / readings.size,
+                dips = events.count { it.isDip && it.tuner == key.tuner && it.deviceId.orEmpty() == key.deviceId },
+                minSnq = snqs.minOrNull(),
+                medianSnq = median(snqs),
+                maxSnq = snqs.maxOrNull(),
+                health = SessionStats.medianHealth(readings, thresholds)!!,
+            )
         }
     }
 }

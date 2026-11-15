@@ -17,6 +17,7 @@ import io.cosgriff.sightline.R
 import io.cosgriff.sightline.analysis.DipAlert
 import io.cosgriff.sightline.analysis.dipCount
 import io.cosgriff.sightline.data.monitor.MonitorPhase
+import io.cosgriff.sightline.data.monitor.WatchedUse
 import io.cosgriff.sightline.data.monitor.MonitorStatus
 import io.cosgriff.sightline.protocol.LostReason
 import javax.inject.Inject
@@ -49,7 +50,7 @@ class MonitorNotifications @Inject constructor(@param:ApplicationContext private
         }
         val text = status?.let {
             val dips = it.allEvents.dipCount()
-            when (it.phase) {
+            when (val phase = it.phase) {
                 is MonitorPhase.Watching, is MonitorPhase.Observing -> it.latest?.takeIf { s -> s.isLocked }
                     ?.let { s -> res.getQuantityString(R.plurals.monitor_notification_reading, dips, s.snq, dips) }
                     ?: res.getQuantityString(R.plurals.monitor_notification_no_lock, dips, dips)
@@ -58,6 +59,19 @@ class MonitorNotifications @Inject constructor(@param:ApplicationContext private
                 is MonitorPhase.Paused -> context.getString(R.string.monitor_notification_paused)
                 is MonitorPhase.Unreachable -> context.getString(R.string.monitor_notification_unreachable)
                 is MonitorPhase.ObservingIdle -> context.getString(R.string.monitor_notification_watch_idle)
+                is MonitorPhase.WatchingAll -> {
+                    val down = phase.unreachable.firstOrNull()
+                    if (down != null) {
+                        context.getString(R.string.monitor_notification_device_unreachable, it.tuners.firstOrNull { t -> t.deviceId == down }?.deviceName ?: down)
+                    } else {
+                        val inUse = it.tuners.count { t -> t.use is WatchedUse.InUse }
+                        context.getString(
+                            R.string.monitor_notification_watching_all,
+                            res.getQuantityString(R.plurals.monitor_tuners_in_use, inUse, inUse),
+                            res.getQuantityString(R.plurals.monitor_notification_dips, dips, dips),
+                        )
+                    }
+                }
             }
         }
         val stop = PendingIntent.getService(

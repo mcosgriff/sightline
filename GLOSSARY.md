@@ -26,6 +26,9 @@
   packets), CRC errors, resyncs and network errors. They catch errors between polls that seq can't.
 - **Watch a tuner in use** — a Monitor mode that reads a tuner another client (Plex, a DVR) is using, with gets
   only, following whatever channel it tunes. Sightline never holds or changes the tuner.
+- **Whole-device watch** — Monitor's "Watch every tuner": watch mode on every tuner of one device or of both at
+  once, gets only, so each recording the DVR makes is logged. Each tuner has its own dip detector and packet error
+  baseline, keyed by device and tuner (a **tuner key**); device unreachable and gap are the device's.
 - **Signal side / network side** — where packet errors happened: arriving damaged from the antenna (transport,
   CRC, resyncs), or failing to go out on the network to the client (network errors).
 - **Sweep** — tuning each lineup channel in turn for a **dwell** time and summarising each.

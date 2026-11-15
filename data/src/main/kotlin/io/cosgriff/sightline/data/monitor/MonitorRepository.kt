@@ -19,13 +19,15 @@ class MonitorRepository @Inject constructor(private val sessions: SessionDao) : 
             kind = SessionKind.MONITOR,
             startedAt = startedAt,
             endedAt = null,
-            channels = if (plan.watch) emptyList() else plan.channels.map { it.guideNumber },
+            channels = if (plan.watch || plan.wholeDevice) emptyList() else plan.channels.map { it.guideNumber },
             tuner = plan.tuner,
             pollIntervalMs = plan.pollIntervalMs,
             dwellMs = if (plan.rotate) plan.dwellMs else null,
             fetchWeather = plan.fetchWeather,
             firmware = plan.device.firmware.ifEmpty { null },
-            watched = plan.watch,
+            watched = plan.watch || plan.wholeDevice,
+            wholeDevice = plan.wholeDevice,
+            devices = plan.wholeDevices.map { it.deviceId },
         ),
     )
 
@@ -34,6 +36,11 @@ class MonitorRepository @Inject constructor(private val sessions: SessionDao) : 
 
     override suspend fun watched(sessionId: Long, channels: List<String>, holder: String?) =
         sessions.setWatched(sessionId, Converters().fromList(channels), holder)
+
+    override suspend fun watchedAll(sessionId: Long, channels: List<String>, holders: List<String>) {
+        val converters = Converters()
+        sessions.setWatched(sessionId, converters.fromList(channels), holders.takeIf { it.isNotEmpty() }?.let(converters::fromList))
+    }
 
     override suspend fun end(sessionId: Long, endedAt: Long, tuner: Int?) = sessions.finish(sessionId, endedAt, tuner)
 
@@ -48,9 +55,9 @@ class MonitorRepository @Inject constructor(private val sessions: SessionDao) : 
     }
 
     suspend fun events(sessionId: Long): List<SignalEvent> = sessions.events(sessionId).map {
-        SignalEvent(it.kind, it.guideNumber, it.startTs, it.endTs, it.minSnq, it.minSeq, it.noLockMs)
+        SignalEvent(it.kind, it.guideNumber, it.startTs, it.endTs, it.minSnq, it.minSeq, it.noLockMs, it.deviceId, it.tuner)
     }
 
     private fun SignalEvent.toEntity(sessionId: Long) =
-        EventEntity(0, sessionId, startMs, endMs, guideNumber, kind, minSnq, minSeq, noLockMs)
+        EventEntity(0, sessionId, startMs, endMs, guideNumber, kind, minSnq, minSeq, noLockMs, deviceId, tuner)
 }

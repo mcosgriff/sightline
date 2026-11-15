@@ -46,7 +46,7 @@ class SessionExport @Inject constructor(
             var lastId = Long.MIN_VALUE
             while (true) {
                 val page = sessions.readingsAfter(id, lastTs, lastId, PAGE)
-                page.forEach { Csv.reading(out, it, zone) }
+                page.forEach { Csv.reading(out, it, session.deviceId, zone) }
                 if (page.size < PAGE) break
                 lastTs = page.last().ts
                 lastId = page.last().id
@@ -62,7 +62,7 @@ class SessionExport @Inject constructor(
         val file = newFile(session, "events", "csv", zone)
         file.bufferedWriter().use { out ->
             Csv.eventsHeader(out)
-            sessions.events(id).forEach { e -> Csv.event(out, e, weather[Math.floorDiv(e.startTs, WeatherHour.HOUR_MS) * WeatherHour.HOUR_MS], zone) }
+            sessions.events(id).forEach { e -> Csv.event(out, e, session.deviceId, weather[Math.floorDiv(e.startTs, WeatherHour.HOUR_MS) * WeatherHour.HOUR_MS], zone) }
         }
         file
     }
@@ -96,24 +96,28 @@ internal object Csv {
     fun readingsHeader(out: Writer) =
         row(
             out, "time", "utc_ms", "channel", "tuner", "lock", "ss", "snq", "seq", "bps", "pps", "heading_deg",
-            "transport_errors", "crc_errors", "resyncs", "network_errors",
+            "transport_errors", "crc_errors", "resyncs", "network_errors", "device",
         )
 
-    fun reading(out: Writer, r: ReadingEntity, zone: ZoneId) = row(
+    /** [device]: the session's, for a reading that doesn't name its own (every session but a whole-device watch). */
+    fun reading(out: Writer, r: ReadingEntity, device: String, zone: ZoneId) = row(
         out, time(r.ts, zone), r.ts.toString(), r.guideNumber, r.tuner.toString(), r.lock,
         r.ss.toString(), r.snq.toString(), r.seq.toString(), r.bps?.toString(), r.pps?.toString(), r.headingDeg?.let { "%.1f".format(Locale.ROOT, it) },
         r.transportErrors?.toString(), r.crcErrors?.toString(), r.resyncs?.toString(), r.networkErrors?.toString(),
+        r.deviceId ?: device,
     )
 
     fun eventsHeader(out: Writer) = row(
         out, "start", "end", "start_utc_ms", "end_utc_ms", "duration_s", "kind", "channel", "min_snq", "min_seq", "no_lock_s",
-        "temp_c", "wind_kph", "gust_kph", "precip_mm",
+        "temp_c", "wind_kph", "gust_kph", "precip_mm", "device", "tuner",
     )
 
-    fun event(out: Writer, e: EventEntity, w: WeatherHourEntity?, zone: ZoneId) = row(
+    /** [device] as for [reading]; tuner is empty for device-wide events and in modes that don't key events by tuner. */
+    fun event(out: Writer, e: EventEntity, device: String, w: WeatherHourEntity?, zone: ZoneId) = row(
         out, time(e.startTs, zone), time(e.endTs, zone), e.startTs.toString(), e.endTs.toString(), seconds(e.endTs - e.startTs),
         e.kind.name.lowercase(Locale.ROOT), e.guideNumber, e.minSnq?.toString(), e.minSeq?.toString(), seconds(e.noLockMs),
         w?.tempC?.let(::one), w?.windKph?.let(::one), w?.gustKph?.let(::one), w?.precipMm?.let(::one),
+        e.deviceId ?: device, e.tuner?.toString(),
     )
 
     private fun time(ms: Long, zone: ZoneId) = TIME.format(Instant.ofEpochMilli(ms).atZone(zone))

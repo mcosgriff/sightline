@@ -141,8 +141,9 @@ class Diagnosable(val data: SessionData, val thresholds: Thresholds) {
     /** Readings per clock hour (UTC epoch ms of its start). */
     val readingsPerHour: Map<Long, Int> by lazy { data.readings.groupingBy { hourOf(it.atMs) }.eachCount() }
 
-    /** The tuner a dip happened on: that of the channel's reading nearest its start. */
+    /** The tuner a dip happened on: the one it was recorded on, else that of the channel's reading nearest its start. */
     fun tunerOf(event: SignalEvent): Int? {
+        event.tuner?.let { return it }
         val rs = data.byChannel[event.guideNumber ?: return null] ?: return null
         if (rs.isEmpty()) return null
         var i = rs.binarySearch { it.atMs.compareTo(event.startMs) }

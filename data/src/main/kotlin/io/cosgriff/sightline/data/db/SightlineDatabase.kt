@@ -7,16 +7,18 @@ import androidx.room.TypeConverters
 
 /**
  * Devices and channels (v1); sessions and readings (v2, for sweeps); events, weather hours and a session's
- * fetch-weather choice (v3, for Monitor); session summaries (v4, for History).
+ * fetch-weather choice (v3, for Monitor); session summaries (v4, for History); packet error counters and a
+ * session's firmware (v5); watched sessions (v6); a watch of every tuner, with readings and events keyed by device
+ * and tuner (v7).
  */
 @Database(
     entities = [
         DeviceEntity::class, ChannelEntity::class, SessionEntity::class, ReadingEntity::class,
         EventEntity::class, WeatherHourEntity::class, SessionSummaryEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = true,
-    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3), AutoMigration(from = 3, to = 4), AutoMigration(from = 4, to = 5), AutoMigration(from = 5, to = 6)],
+    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3), AutoMigration(from = 3, to = 4), AutoMigration(from = 4, to = 5), AutoMigration(from = 5, to = 6), AutoMigration(from = 6, to = 7)],
 )
 @TypeConverters(Converters::class)
 abstract class SightlineDatabase : RoomDatabase() {
