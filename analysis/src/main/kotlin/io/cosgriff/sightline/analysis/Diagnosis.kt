@@ -143,11 +143,35 @@ sealed interface Finding {
      */
     data class NetworkLoss(val networkErrors: Long, val signalErrors: Long, override val strength: Strength, override val score: Double) : Finding
 
-    /** The device stopped answering [count] times, for [totalMs] in all, against [dips] dips. */
+    /**
+     * [linked] of the session's [outages] (device-unreachable events) started within [windowMs] of trouble on the
+     * phone's own Wi-Fi: [offWifi] of them with the phone off Wi-Fi, [roams] with it moving to another access point,
+     * [weak] with its signal at [weakDbm] or weaker (each counted once, by the first of those that applies). The
+     * phone lost the tuner, not the tuner its signal.
+     */
+    data class PhoneWifi(
+        val linked: Int,
+        val outages: Int,
+        val offWifi: Int,
+        val roams: Int,
+        val weak: Int,
+        val windowMs: Long,
+        val weakDbm: Int,
+        override val strength: Strength,
+        override val score: Double,
+    ) : Finding
+
+    /**
+     * The device stopped answering [count] times, for [totalMs] in all, against [dips] dips. Outages the phone's
+     * Wi-Fi explains ([PhoneWifi]) aren't counted.
+     */
     data class NotRf(val count: Int, val totalMs: Long, val dips: Int, override val strength: Strength, override val score: Double) : Finding
 }
 
 enum class WeatherCause { WIND, RAIN, HEAT }
+
+/** What on the phone's Wi-Fi came with a device-unreachable event, strongest first. */
+enum class WifiTrouble { OFF_WIFI, ROAM, WEAK }
 
 /** One row of the SPEC table. Returns its finding, or null when the session doesn't show the pattern. */
 fun interface DiagnosisRule {
@@ -204,6 +228,18 @@ class Diagnosable(val data: SessionData, val thresholds: Thresholds) {
         }
         devices.takeIf { side * 2 > buckets.size }
     }
+
+    /** The session's device-unreachable events, oldest first. */
+    val outages: List<SignalEvent> by lazy { data.events.filter { it.kind == EventKind.DEVICE_UNREACHABLE }.sortedBy { it.startMs } }
+
+    /**
+     * Each of [outages] with the trouble on the phone's Wi-Fi within [PhoneWifiRule.WINDOW_MS] of its start, or null
+     * when the Wi-Fi was fine then or nothing is known of it (no samples near it, or none at all).
+     */
+    val outageWifi: List<Pair<SignalEvent, WifiTrouble?>> by lazy {
+        val samples = data.wifi.sortedBy { it.atMs }
+        outages.map { it to (if (samples.isEmpty()) null else PhoneWifiRule.troubleAt(samples, it.startMs)) }
+    }
 }
 
 /**
@@ -215,7 +251,7 @@ object Diagnosis {
     val RULES: List<DiagnosisRule> = listOf(
         OverloadRule, WeakSignalRule, OneChannelBadRule, VhfWeakRule, UpperUhfRule, TimeOfDayRule,
         WindRule, RainRule, HeatRule, CommonPathRule, TwoUnitCommonPathRule, OneUnitRule, OneTunerRule, ImpulseNoiseRule,
-        FlutterRule, NetworkLossRule, NotRfRule,
+        FlutterRule, NetworkLossRule, PhoneWifiRule, NotRfRule,
     )
 
     /** Scores past this count as equal, so a pile of evidence for one rule can't bury a clearer cause. */
@@ -644,10 +680,58 @@ object NetworkLossRule : DiagnosisRule {
     }
 }
 
-/** Not RF: the device stopped answering. Likely when it did so twice or more, or there were no dips at all. */
+/**
+ * Phone Wi-Fi: device-unreachable events that start within [WINDOW_MS] of the phone going off Wi-Fi, roaming to another
+ * access point (its BSSID changing) or reading [WifiSignal.WEAK_DBM] or weaker. Needs the session's Wi-Fi samples
+ * (SPEC "Phone Wi-Fi"). Likely with 2+ such events, or when they are every outage of the session. Takes those
+ * events from Not RF: the phone lost the tuner, so they say nothing of the tuner's network.
+ */
+object PhoneWifiRule : DiagnosisRule {
+    /** How far before or after an outage's start the Wi-Fi trouble may be: a few polls either way. */
+    const val WINDOW_MS = 10_000L
+
+    override fun evaluate(session: Diagnosable): Finding? {
+        val linked = session.outageWifi.mapNotNull { it.second }
+        if (linked.isEmpty()) return null
+        val likely = linked.size >= 2 || linked.size == session.outages.size
+        return Finding.PhoneWifi(
+            linked = linked.size,
+            outages = session.outages.size,
+            offWifi = linked.count { it == WifiTrouble.OFF_WIFI },
+            roams = linked.count { it == WifiTrouble.ROAM },
+            weak = linked.count { it == WifiTrouble.WEAK },
+            windowMs = WINDOW_MS,
+            weakDbm = WifiSignal.WEAK_DBM,
+            strength = if (likely) Strength.LIKELY else Strength.POSSIBLE,
+            score = linked.size.toDouble(),
+        )
+    }
+
+    /**
+     * The strongest Wi-Fi trouble from [WINDOW_MS] before [atMs] to [WINDOW_MS] after it, in [samples] (time order):
+     * the state in effect when the window opens and every sample inside it. Null when none, or nothing is known then.
+     */
+    internal fun troubleAt(samples: List<WifiSample>, atMs: Long): WifiTrouble? {
+        val from = atMs - WINDOW_MS
+        val to = atMs + WINDOW_MS
+        val first = samples.indexOfLast { it.atMs <= from }.let { if (it < 0) samples.indexOfFirst { s -> s.atMs > from } else it }
+        if (first < 0) return null
+        val inEffect = samples.subList(first, samples.size).takeWhile { it.atMs <= to }
+        if (inEffect.isEmpty()) return null
+        if (inEffect.any { !it.connected }) return WifiTrouble.OFF_WIFI
+        if (roamsOf(samples.subList(maxOf(first - 1, 0), first + inEffect.size)).any { it in (from + 1)..to }) return WifiTrouble.ROAM
+        if (inEffect.any { s -> s.rssiDbm?.let { it <= WifiSignal.WEAK_DBM } == true }) return WifiTrouble.WEAK
+        return null
+    }
+}
+
+/**
+ * Not RF: the device stopped answering, and the phone's Wi-Fi doesn't explain it ([PhoneWifiRule] takes those).
+ * Likely when it did so twice or more, or there were no dips at all.
+ */
 object NotRfRule : DiagnosisRule {
     override fun evaluate(session: Diagnosable): Finding? {
-        val outages = session.data.events.filter { it.kind == EventKind.DEVICE_UNREACHABLE }
+        val outages = session.outageWifi.filter { it.second == null }.map { it.first }
         if (outages.isEmpty()) return null
         val likely = outages.size >= 2 || session.dips.isEmpty()
         return Finding.NotRf(

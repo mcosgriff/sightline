@@ -891,6 +891,28 @@
         <item quantity="other">The tuner stopped answering %1$d times, %2$s in all.</item>
     </plurals>
     <string name="session_fix_not_rf">Fix: wire the tuner and the player; check the switch and Wi-Fi.</string>
+    <string name="session_finding_phone_wifi">The phone\'s Wi-Fi dropped, not the tuner</string>
+    <plurals name="session_evidence_phone_wifi_all">
+        <item quantity="one">The tuner stopped answering %1$d time, within %2$d s of trouble on this phone\'s Wi-Fi: %3$s.</item>
+        <item quantity="other">The tuner stopped answering %1$d times, each within %2$d s of trouble on this phone\'s Wi-Fi: %3$s.</item>
+    </plurals>
+    <plurals name="session_evidence_phone_wifi_some">
+        <item quantity="one">%1$d of the %2$d time the tuner stopped answering came within %3$d s of trouble on this phone\'s Wi-Fi: %4$s.</item>
+        <item quantity="other">%1$d of the %2$d times the tuner stopped answering came within %3$d s of trouble on this phone\'s Wi-Fi: %4$s.</item>
+    </plurals>
+    <plurals name="session_evidence_phone_wifi_off">
+        <item quantity="one">%1$d time off Wi-Fi</item>
+        <item quantity="other">%1$d times off Wi-Fi</item>
+    </plurals>
+    <plurals name="session_evidence_phone_wifi_roam">
+        <item quantity="one">%1$d roam to another access point</item>
+        <item quantity="other">%1$d roams to another access point</item>
+    </plurals>
+    <plurals name="session_evidence_phone_wifi_weak">
+        <item quantity="one">%1$d time with a signal of %2$d dBm or weaker</item>
+        <item quantity="other">%1$d times with a signal of %2$d dBm or weaker</item>
+    </plurals>
+    <string name="session_fix_phone_wifi">Fix: keep the phone near its access point while it monitors, plugged in by the router, so it stays on one access point. The tuner may be fine.</string>
     <string name="session_finding_network_loss">Packets lost on the network, not the air</string>
     <plurals name="session_evidence_network_loss_clean">
         <item quantity="one">The tuner failed to send %1$d packet to the player, and none came in damaged from the antenna.</item>
@@ -929,6 +951,33 @@
     <string name="session_deg_f">%1$d °F</string>
     <string name="session_deg_c">%1$d °C</string>
     <string name="session_mm">%1$.1f mm</string>
+
+    <string name="session_wifi_title">Phone Wi-Fi, dBm</string>
+    <string name="session_wifi_legend_roam">Roam</string>
+    <string name="session_wifi_legend_off">Off Wi-Fi</string>
+    <string name="session_wifi_legend_weak">Weak, %1$d dBm or below</string>
+    <string name="session_wifi_signal">Signal %1$d to %2$d dBm</string>
+    <string name="session_wifi_band_2_4">2.4 GHz</string>
+    <string name="session_wifi_band_5">5 GHz</string>
+    <string name="session_wifi_band_6">6 GHz</string>
+    <plurals name="session_wifi_roams">
+        <item quantity="one">%1$d roam</item>
+        <item quantity="other">%1$d roams</item>
+    </plurals>
+    <plurals name="session_wifi_off">
+        <item quantity="one">off Wi-Fi %1$d time</item>
+        <item quantity="other">off Wi-Fi %1$d times</item>
+    </plurals>
+    <string name="session_wifi_no_roams">no roams</string>
+    <string name="session_wifi_separator">" · "</string>
+    <string name="session_wifi_list_separator">", "</string>
+    <plurals name="session_wifi_access_points">
+        <item quantity="one">Access point (BSSID): %2$s</item>
+        <item quantity="other">%1$d access points (BSSID): %2$s</item>
+    </plurals>
+    <string name="session_wifi_access_points_unknown">Access points weren\'t recorded: Android shows them only to apps with precise location, which Sightline doesn\'t ask for.</string>
+    <string name="session_wifi_description">This phone\'s Wi-Fi from %1$s to %2$s: %3$s.</string>
+    <string name="session_report_wifi">Phone Wi-Fi: %1$s. %2$s</string>
 
     <string name="session_heatmap_title">When dips happen</string>
     <string name="session_heatmap_subtitle">Share of each hour below quality %1$d. Tap an hour to see it.</string>

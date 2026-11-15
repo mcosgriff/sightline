@@ -184,6 +184,28 @@ data class SessionSummaryEntity(
     val sparkline: String,
 )
 
+/**
+ * The phone's own Wi-Fi during a monitor session (SPEC "Phone Wi-Fi", Room v8): one row per change, holding until
+ * the next. [connected] false is the phone off Wi-Fi, the rest null. Each other field is null when the platform
+ * didn't give it; [bssid] also when Sightline has no precise location, which it never asks for.
+ */
+@Entity(
+    tableName = "wifi_sample",
+    foreignKeys = [ForeignKey(entity = SessionEntity::class, parentColumns = ["id"], childColumns = ["sessionId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("sessionId", "ts")],
+)
+data class WifiSampleEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val sessionId: Long,
+    /** UTC epoch ms. */
+    val ts: Long,
+    val connected: Boolean,
+    val rssiDbm: Int?,
+    val linkMbps: Int?,
+    val frequencyMhz: Int?,
+    val bssid: String?,
+)
+
 /** A session with its summary, if made yet. */
 data class SessionWithSummary(
     @androidx.room.Embedded val session: SessionEntity,

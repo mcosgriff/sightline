@@ -20,9 +20,14 @@ import androidx.core.content.res.ResourcesCompat
 import androidx.core.graphics.withTranslation
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.cosgriff.sightline.R
+import io.cosgriff.sightline.analysis.Health
 import io.cosgriff.sightline.analysis.SignalEvent
 import io.cosgriff.sightline.analysis.Strength
 import io.cosgriff.sightline.analysis.TimelineSeries
+import io.cosgriff.sightline.analysis.WifiSample
+import io.cosgriff.sightline.analysis.WifiSignal
+import io.cosgriff.sightline.analysis.WifiSummary
+import io.cosgriff.sightline.analysis.roamsOf
 import io.cosgriff.sightline.data.session.SessionDetail
 import io.cosgriff.sightline.data.settings.Units
 import io.cosgriff.sightline.ui.theme.ReportColors
@@ -53,6 +58,8 @@ data class ReportText(
     val eventsHeading: String,
     val events: List<ReportEvent>,
     val noEvents: String,
+    /** The phone's Wi-Fi in a line and its access points; null for a session without samples. */
+    val wifi: String? = null,
 )
 
 @Composable
@@ -85,6 +92,9 @@ fun reportText(detail: SessionDetail, units: Units, zone: ZoneId): ReportText {
             ReportEvent(stringResource(R.string.session_report_event, w.title, w.kind), w.detail)
         },
         noEvents = stringResource(R.string.session_events_none),
+        wifi = WifiSummary.of(detail.data.wifi)?.let { s ->
+            stringResource(R.string.session_report_wifi, wifiSummaryText(s), accessPointsText(s).orEmpty()).trim()
+        },
     )
 }
 
@@ -95,11 +105,13 @@ data class ReportChart(
     val lines: List<TimelineSeries>,
     val events: List<SignalEvent>,
     val threshold: Int,
+    /** The phone's Wi-Fi, drawn as a lane under the chart as on the screen; empty for none. */
+    val wifi: List<WifiSample> = emptyList(),
 )
 
 /**
  * The one-page summary report (SPEC Screens › Session detail › Export): a US Letter PDF with the summary figures,
- * the findings, the quality timeline and as many events as fit, in the light theme's colours. What doesn't fit is
+ * the findings, the quality timeline (with the phone's Wi-Fi under it, when recorded) and as many events as fit, in the light theme's colours. What doesn't fit is
  * counted, pointing to the events CSV.
  */
 class SessionReportWriter @Inject constructor(@param:ApplicationContext private val context: Context) {
@@ -139,7 +151,8 @@ class SessionReportWriter @Inject constructor(@param:ApplicationContext private 
             heading(text.diagnosisHeading)
             val footerTop = PAGE_H - MARGIN - 12f
             // The chart and the first few events stay on the page; findings take what's left above them.
-            val chartBlock = HEADING_H + LEGEND_H + CHART_H + 18f + HEADING_H + EVENTS_KEPT * EVENT_H + 16f
+            val wifiBlock = if (chart.wifi.isNotEmpty() && text.wifi != null) WIFI_H + 6f + layout(text.wifi, paint(8.5f, colors.textSecondary)).height else 0f
+            val chartBlock = HEADING_H + LEGEND_H + CHART_H + 18f + wifiBlock + HEADING_H + EVENTS_KEPT * EVENT_H + 16f
             var findings = 0
             for (f in text.findings) {
                 if (findings > 0 && y + findingHeight(f) > footerTop - chartBlock) break
@@ -150,6 +163,10 @@ class SessionReportWriter @Inject constructor(@param:ApplicationContext private 
             heading(text.timelineHeading)
             legend(text.legend)
             chart(chart)
+            if (chart.wifi.isNotEmpty() && text.wifi != null) {
+                wifiLane(chart)
+                paragraph(text.wifi, 8.5f, colors.textSecondary)
+            }
             y += 12f
             heading(text.eventsHeading)
             if (text.events.isEmpty()) paragraph(text.noEvents, 9.5f, colors.textSecondary)
@@ -280,6 +297,38 @@ class SessionReportWriter @Inject constructor(@param:ApplicationContext private 
             y = top + CHART_H + 6f
         }
 
+        /** The phone's Wi-Fi under the chart, as on the screen: signal bars by health, grey off Wi-Fi, a tick per roam. */
+        fun wifiLane(c: ReportChart) {
+            val top = y
+            val left = MARGIN + 18f
+            val w = width - 18f
+            val span = (c.endMs - c.startMs).coerceAtLeast(1).toFloat()
+            fun x(ms: Long) = (left + (ms - c.startMs) / span * w).coerceIn(left, left + w)
+            val fill = Paint()
+            c.wifi.forEachIndexed { i, s ->
+                val l = x(s.atMs)
+                val r = x(c.wifi.getOrNull(i + 1)?.atMs ?: c.endMs)
+                if (r <= l) return@forEachIndexed
+                val rssi = s.rssiDbm
+                if (!s.connected) {
+                    fill.color = colors.healthNoLock.copy(alpha = 0.45f).toArgb()
+                    canvas.drawRect(l, top, r, top + WIFI_H, fill)
+                } else if (rssi != null) {
+                    fill.color = when (WifiSignal.health(rssi)) {
+                        Health.GOOD -> colors.healthGood
+                        Health.MARGINAL -> colors.healthMarginal
+                        else -> colors.healthPoor
+                    }.copy(alpha = 0.75f).toArgb()
+                    canvas.drawRect(l, top + WIFI_H * (1 - wifiHeight(rssi)), r, top + WIFI_H, fill)
+                }
+            }
+            val tick = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = colors.accent.toArgb(); strokeWidth = 1f }
+            for (at in roamsOf(c.wifi).filter { it in c.startMs..c.endMs }) canvas.drawLine(x(at), top, x(at), top + WIFI_H, tick)
+            val base = Paint().apply { color = colors.outline.toArgb(); strokeWidth = 0.5f }
+            canvas.drawLine(left, top + WIFI_H, left + w, top + WIFI_H, base)
+            y = top + WIFI_H + 4f
+        }
+
         fun event(e: ReportEvent) {
             val split = width * 0.58f
             val title = paint(9f, colors.textPrimary)
@@ -300,5 +349,6 @@ class SessionReportWriter @Inject constructor(@param:ApplicationContext private 
         private const val HEADING_H = 20f
         private const val LEGEND_H = 16f
         private const val EVENTS_KEPT = 4
+        private const val WIFI_H = 14f
     }
 }

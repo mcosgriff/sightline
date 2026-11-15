@@ -13,6 +13,9 @@ class SyntheticSession(
     val extraEvents = mutableListOf<SignalEvent>()
     val weather = mutableListOf<WeatherHour>()
     val channels = mutableMapOf<String, ChannelInfo>()
+
+    /** The phone's Wi-Fi, as a monitor would have sampled it; empty, as in sessions from before it was kept. */
+    val wifi = mutableListOf<WifiSample>()
     var endMs = startMs
 
     /**
@@ -55,7 +58,7 @@ class SyntheticSession(
 
     fun data(): SessionData {
         val sorted = readings.sortedBy { it.atMs }
-        return SessionData(startMs, endMs, pollMs, sorted, (events() + extraEvents).sortedBy { it.startMs }, weather.toList(), channels.toMap())
+        return SessionData(startMs, endMs, pollMs, sorted, (events() + extraEvents).sortedBy { it.startMs }, weather.toList(), channels.toMap(), wifi = wifi.sortedBy { it.atMs })
     }
 
     fun diagnose(): List<Finding> = Diagnosis.run(data(), thresholds)

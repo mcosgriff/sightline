@@ -15,6 +15,7 @@ import io.cosgriff.sightline.data.monitor.MonitorPlan
 import io.cosgriff.sightline.data.monitor.MonitorRepository
 import io.cosgriff.sightline.data.monitor.MonitorRunner
 import io.cosgriff.sightline.data.monitor.MonitorStatus
+import io.cosgriff.sightline.data.monitor.PhoneWifi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,6 +38,7 @@ class MonitorController @Inject constructor(
     private val devices: DeviceRepository,
     private val repository: MonitorRepository,
     private val sessions: SessionRepository,
+    private val phoneWifi: PhoneWifi,
     private val clock: Clock,
     @param:ApplicationScope private val appScope: CoroutineScope,
 ) {
@@ -80,6 +82,8 @@ class MonitorController @Inject constructor(
             onAlert = onAlert,
             // A whole-device watch's other devices, each on its own control connection.
             sessionsOf = access::sessions,
+            // The phone's own Wi-Fi, in every mode (SPEC "Phone Wi-Fi").
+            wifi = phoneWifi,
         )
         return coroutineScope {
             val mirror = launch { runner.status.collect { if (it != null) _status.value = it } }

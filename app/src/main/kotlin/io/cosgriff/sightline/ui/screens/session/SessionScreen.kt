@@ -588,13 +588,16 @@ private fun Timeline(state: SessionUiState, detail: SessionDetail, thresholds: T
         }
         val events = detail.data.events.filter { it.endMs >= window.startMs && it.startMs <= window.endMs && (one == null || it.concerns(one)) }
         val dips = events.count { it.isDip }
+        // Lanes under the chart (weather, the phone's Wi-Fi) take the time labels under them instead.
+        val wifi = detail.data.wifi
+        val lanes = hours.isNotEmpty() || wifi.isNotEmpty()
         SignalTimeline(
             lines = state.lines,
             events = events,
             nowMs = window.endMs,
             endMs = window.endMs,
             threshold = thresholds.snqGood,
-            timeLabels = if (hours.isEmpty()) times else emptyList(),
+            timeLabels = if (lanes) emptyList() else times,
             stillToCome = null,
             description = stringResource(
                 R.string.session_timeline_description,
@@ -605,9 +608,11 @@ private fun Timeline(state: SessionUiState, detail: SessionDetail, thresholds: T
             chartHeight = 140.dp,
             markLatest = false,
         )
+        if (hours.isNotEmpty()) WeatherPanel(hours, state.weatherMetric, window.startMs, window.endMs, units, WindRule.GUSTY_KPH)
+        // Only for sessions with samples (Room v8 on): an older session has no lane rather than an empty one.
+        if (wifi.isNotEmpty()) WifiLane(wifi, window.startMs, window.endMs, detail.data.endMs, zone, timeLabels = times)
+        else if (lanes) io.cosgriff.sightline.ui.components.TimeLabels(times)
         if (hours.isNotEmpty()) {
-            WeatherPanel(hours, state.weatherMetric, window.startMs, window.endMs, units, WindRule.GUSTY_KPH)
-            io.cosgriff.sightline.ui.components.TimeLabels(times)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for (m in WeatherMetric.entries) {
                     MetricChip(

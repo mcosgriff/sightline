@@ -15,6 +15,7 @@ import io.cosgriff.sightline.analysis.SignalSample
 import io.cosgriff.sightline.analysis.Thresholds
 import io.cosgriff.sightline.analysis.TimelineSeries
 import io.cosgriff.sightline.analysis.TunerRead
+import io.cosgriff.sightline.analysis.WifiSample
 import io.cosgriff.sightline.analysis.assess
 import io.cosgriff.sightline.data.db.ReadingEntity
 import io.cosgriff.sightline.data.device.Channel
@@ -46,6 +47,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import java.time.Clock
@@ -251,6 +254,14 @@ data class MonitorStatus(
 interface MonitorLog {
     suspend fun begin(plan: MonitorPlan, startedAt: Long): Long
     suspend fun append(readings: List<ReadingEntity>, events: List<SignalEvent>, sessionId: Long)
+
+    /**
+     * A batch with the phone's Wi-Fi samples taken meanwhile (SPEC "Phone Wi-Fi"), in the same transaction. A log
+     * that keeps no Wi-Fi drops them.
+     */
+    suspend fun append(readings: List<ReadingEntity>, events: List<SignalEvent>, wifi: List<WifiSample>, sessionId: Long) =
+        append(readings, events, sessionId)
+
     suspend fun end(sessionId: Long, endedAt: Long, tuner: Int?)
 
     /** A watched session's channels so far, in the order first seen, and the client last seen using the tuner. */
@@ -269,7 +280,8 @@ interface MonitorLog {
  * reconnects with backoff by itself.
  *
  * [sessionsOf] gives each device of a whole-device watch its own control connection; [sessions] is the plan's
- * device's.
+ * device's. [wifi] is the phone's own Wi-Fi, recorded in every mode for as long as the session runs (SPEC "Phone
+ * Wi-Fi"): each state that differs from the last is a sample, stamped with [clock], written with the next batch.
  */
 class MonitorRunner(
     private val sessions: TunerSessions,
@@ -283,6 +295,7 @@ class MonitorRunner(
     private val flushEvery: Duration = 10.seconds,
     private val busyRetry: Duration = 30.seconds,
     private val sessionsOf: (Device) -> TunerSessions = { sessions },
+    private val wifi: PhoneWifi = PhoneWifi.NONE,
 ) {
     private val _status = MutableStateFlow<MonitorStatus?>(null)
     val status: StateFlow<MonitorStatus?> = _status.asStateFlow()
@@ -292,6 +305,9 @@ class MonitorRunner(
     private val alerts = DipAlerts()
     private val buffer = mutableListOf<ReadingEntity>()
     private val finished = mutableListOf<SignalEvent>()
+
+    /** Wi-Fi samples not yet written. Filled from the Wi-Fi's own coroutine, so every use holds its lock. */
+    private val wifiBuffer = mutableListOf<WifiSample>()
     private var sinceFlush = TimeSource.Monotonic.markNow()
     private var sessionId = 0L
     private val tunersUsed = mutableSetOf<Int>()
@@ -332,11 +348,18 @@ class MonitorRunner(
         _status.value = (_status.value?.takeIf { plan.compare } ?: initial).copy(sessionId = sessionId)
         var end = MonitorEnd.STOPPED
         try {
-            end = when {
-                plan.watch -> observe(startedAt)
-                plan.wholeDevice -> observeAll(startedAt)
-                plan.compare -> compare(startedAt)
-                else -> loop(startedAt)
+            end = coroutineScope {
+                val sampling = launch { recordWifi() }
+                try {
+                    when {
+                        plan.watch -> observe(startedAt)
+                        plan.wholeDevice -> observeAll(startedAt)
+                        plan.compare -> compare(startedAt)
+                        else -> loop(startedAt)
+                    }
+                } finally {
+                    sampling.cancel()
+                }
             }
             return end
         } finally {
@@ -1081,14 +1104,26 @@ class MonitorRunner(
         if (plan.notifyDips) events.forEach { e -> alerts.onEvent(e, at)?.let(onAlert) }
     }
 
+    /**
+     * The phone's Wi-Fi for the whole session: each state that differs from the last, stamped as it comes. A Wi-Fi
+     * source that fails costs the samples, never the session.
+     */
+    private suspend fun recordWifi() {
+        wifi.states().distinctUntilChanged().catch { }.collect { s ->
+            val sample = WifiSample(clock.millis(), s.connected, s.rssiDbm, s.linkMbps, s.frequencyMhz, s.bssid)
+            synchronized(wifiBuffer) { wifiBuffer += sample }
+        }
+    }
+
     private suspend fun flush() {
         sinceFlush = TimeSource.Monotonic.markNow()
-        if (buffer.isEmpty() && finished.isEmpty()) return
+        val samples = synchronized(wifiBuffer) { wifiBuffer.toList().also { wifiBuffer.clear() } }
+        if (buffer.isEmpty() && finished.isEmpty() && samples.isEmpty()) return
         val readings = buffer.toList()
         val events = finished.toList()
         buffer.clear()
         finished.clear()
-        log.append(readings, events, sessionId)
+        log.append(readings, events, samples, sessionId)
     }
 
     private companion object {

@@ -105,6 +105,19 @@ interface SessionDao {
         if (events.isNotEmpty()) insertEvents(events)
     }
 
+    @Insert
+    suspend fun insertWifi(samples: List<WifiSampleEntity>)
+
+    /** A monitor's batch with the phone's Wi-Fi samples taken meanwhile (SPEC "Phone Wi-Fi"), in one transaction. */
+    @Transaction
+    suspend fun appendWithWifi(readings: List<ReadingEntity>, events: List<EventEntity>, wifi: List<WifiSampleEntity>) {
+        append(readings, events)
+        if (wifi.isNotEmpty()) insertWifi(wifi)
+    }
+
+    @Query("SELECT * FROM wifi_sample WHERE sessionId = :sessionId ORDER BY ts, id")
+    suspend fun wifi(sessionId: Long): List<WifiSampleEntity>
+
     /** A watched session's channels so far (as [Converters.fromList] writes them) and the client using the tuner. */
     @Query("UPDATE session SET channels = :channels, holder = :holder WHERE id = :id")
     suspend fun setWatched(id: Long, channels: String, holder: String?)
@@ -151,6 +164,21 @@ interface SessionDao {
             AND id IN (SELECT sessionId FROM session_summary))""",
     )
     suspend fun deleteReadingsEndedBefore(cutoff: Long): Int
+
+    /** The phone's Wi-Fi samples of the same sessions as [deleteReadingsEndedBefore]: they go with the readings. */
+    @Query(
+        """DELETE FROM wifi_sample WHERE sessionId IN (
+            SELECT id FROM session WHERE endedAt IS NOT NULL AND endedAt < :cutoff AND kind != 'SWEEP'
+            AND id IN (SELECT sessionId FROM session_summary))""",
+    )
+    suspend fun deleteWifiEndedBefore(cutoff: Long): Int
+
+    /** Readings and Wi-Fi samples of sessions ended before [cutoff], together. Returns how many readings went. */
+    @Transaction
+    suspend fun deleteOldReadings(cutoff: Long): Int {
+        deleteWifiEndedBefore(cutoff)
+        return deleteReadingsEndedBefore(cutoff)
+    }
 
     @Query("SELECT * FROM weather_hour WHERE sessionId = :sessionId ORDER BY hourTs")
     suspend fun weather(sessionId: Long): List<WeatherHourEntity>

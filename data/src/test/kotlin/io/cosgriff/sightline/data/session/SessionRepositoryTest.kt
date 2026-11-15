@@ -12,6 +12,7 @@ import io.cosgriff.sightline.data.db.ReadingEntity
 import io.cosgriff.sightline.data.db.SessionEntity
 import io.cosgriff.sightline.data.db.SessionKind
 import io.cosgriff.sightline.data.db.SightlineDatabase
+import io.cosgriff.sightline.data.db.WifiSampleEntity
 import io.cosgriff.sightline.data.device.DeviceRepository
 import io.cosgriff.sightline.data.device.TunerAccess
 import io.cosgriff.sightline.data.device.TunerLeases
@@ -216,12 +217,18 @@ class SessionRepositoryTest {
         val sweep = session(kind = SessionKind.SWEEP)
         repository.summariseMissing()
         val unsummarised = session()
+        for (id in listOf(old, unsummarised)) {
+            db.sessions().appendWithWifi(emptyList(), emptyList(), listOf(WifiSampleEntity(0, id, START + 60_000, true, -60, 866, 5_180, null)))
+        }
         // The clock is 30 h after the start: the default 90 days keeps everything.
         assertThat(repository.deleteOldReadings()).isEqualTo(0)
 
         settings.setRetentionDays(1)
         assertThat(repository.deleteOldReadings()).isEqualTo(120)
         assertThat(db.sessions().readings(old)).isEmpty()
+        // The phone's Wi-Fi goes with the readings.
+        assertThat(db.sessions().wifi(old)).isEmpty()
+        assertThat(db.sessions().wifi(unsummarised)).hasSize(1)
         assertThat(db.sessions().events(old)).hasSize(1)
         assertThat(db.sessions().readings(sweep)).hasSize(120)
         assertThat(db.sessions().readings(unsummarised)).hasSize(120)

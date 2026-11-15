@@ -3,11 +3,13 @@ package io.cosgriff.sightline.data.export
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.cosgriff.sightline.analysis.WeatherHour
+import io.cosgriff.sightline.analysis.WifiBand
 import io.cosgriff.sightline.data.db.EventEntity
 import io.cosgriff.sightline.data.db.ReadingEntity
 import io.cosgriff.sightline.data.db.SessionDao
 import io.cosgriff.sightline.data.db.SessionEntity
 import io.cosgriff.sightline.data.db.WeatherHourEntity
+import io.cosgriff.sightline.data.db.WifiSampleEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -21,8 +23,8 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Writes a session out for the share sheet (SPEC Screens › Session detail › Export): its readings or its events as
- * CSV, and a place for the report. Files go in the app's cache under `exports/`, shared through the app's
+ * Writes a session out for the share sheet (SPEC Screens › Session detail › Export): its readings, its events or the
+ * phone's Wi-Fi as CSV, and a place for the report. Files go in the app's cache under `exports/`, shared through the app's
  * FileProvider, and are cleared an hour after they were made.
  *
  * The CSV is for spreadsheets and scripts, so its columns don't follow the units setting: times are local ISO 8601
@@ -63,6 +65,21 @@ class SessionExport @Inject constructor(
         file.bufferedWriter().use { out ->
             Csv.eventsHeader(out)
             sessions.events(id).forEach { e -> Csv.event(out, e, session.deviceId, weather[Math.floorDiv(e.startTs, WeatherHour.HOUR_MS) * WeatherHour.HOUR_MS], zone) }
+        }
+        file
+    }
+
+    /**
+     * The phone's Wi-Fi samples (SPEC "Phone Wi-Fi"), in time order; null when the session is gone or has none
+     * (sessions from before they were kept), so no empty file is shared as if it were the Wi-Fi.
+     */
+    suspend fun wifi(id: Long, zone: ZoneId): File? = withContext(Dispatchers.IO) {
+        val session = sessions.get(id) ?: return@withContext null
+        val samples = sessions.wifi(id).ifEmpty { return@withContext null }
+        val file = newFile(session, "wifi", "csv", zone)
+        file.bufferedWriter().use { out ->
+            Csv.wifiHeader(out)
+            samples.forEach { Csv.wifi(out, it, zone) }
         }
         file
     }
@@ -119,6 +136,21 @@ internal object Csv {
         w?.tempC?.let(::one), w?.windKph?.let(::one), w?.gustKph?.let(::one), w?.precipMm?.let(::one),
         e.deviceId ?: device, e.tuner?.toString(),
     )
+
+    fun wifiHeader(out: Writer) =
+        row(out, "time", "utc_ms", "connected", "rssi_dbm", "link_mbps", "frequency_mhz", "band_ghz", "bssid")
+
+    /** Empty where not known: off Wi-Fi, or no BSSID without precise location. */
+    fun wifi(out: Writer, w: WifiSampleEntity, zone: ZoneId) = row(
+        out, time(w.ts, zone), w.ts.toString(), w.connected.toString(), w.rssiDbm?.toString(), w.linkMbps?.toString(),
+        w.frequencyMhz?.toString(), w.frequencyMhz?.let(WifiBand::of)?.let(::bandGhz), w.bssid,
+    )
+
+    private fun bandGhz(b: WifiBand) = when (b) {
+        WifiBand.GHZ_2_4 -> "2.4"
+        WifiBand.GHZ_5 -> "5"
+        WifiBand.GHZ_6 -> "6"
+    }
 
     private fun time(ms: Long, zone: ZoneId) = TIME.format(Instant.ofEpochMilli(ms).atZone(zone))
 

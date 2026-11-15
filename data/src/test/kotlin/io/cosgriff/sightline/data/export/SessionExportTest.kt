@@ -10,6 +10,7 @@ import io.cosgriff.sightline.data.db.SessionEntity
 import io.cosgriff.sightline.data.db.SessionKind
 import io.cosgriff.sightline.data.db.SightlineDatabase
 import io.cosgriff.sightline.data.db.WeatherHourEntity
+import io.cosgriff.sightline.data.db.WifiSampleEntity
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Test
@@ -79,6 +80,28 @@ class SessionExportTest {
         assertThat(export.readings(id, ZoneOffset.UTC)!!.name).isEqualTo("sightline-monitor-20261102-0000-readings.csv")
         assertThat(export.reportFile(id, ZoneOffset.UTC)!!.name).isEqualTo("sightline-monitor-20261102-0000-report.pdf")
         assertThat(export.events(id + 1, ZoneOffset.UTC)).isNull()
+    }
+
+    @Test
+    fun `the phone's Wi-Fi is its own CSV, empty where not known, and none for a session without samples`() = runBlocking<Unit> {
+        val id = session(0)
+        assertThat(export.wifi(id, ZoneOffset.UTC)).isNull()
+        db.sessions().appendWithWifi(
+            emptyList(), emptyList(),
+            listOf(
+                WifiSampleEntity(0, id, START + 1_000, true, -58, 866, 5_180, "aa:bb:cc:00:00:01"),
+                WifiSampleEntity(0, id, START + 9_000, false, null, null, null, null),
+                WifiSampleEntity(0, id, START + 20_000, true, -71, 144, 2_437, null),
+            ),
+        )
+        val file = export.wifi(id, ZoneOffset.UTC)!!
+        assertThat(file.name).isEqualTo("sightline-monitor-20261102-0000-wifi.csv")
+        assertThat(file.readLines()).containsExactly(
+            "time,utc_ms,connected,rssi_dbm,link_mbps,frequency_mhz,band_ghz,bssid",
+            "2026-11-02T00:00:01Z,${START + 1_000},true,-58,866,5180,5,aa:bb:cc:00:00:01",
+            "2026-11-02T00:00:09Z,${START + 9_000},false,,,,,",
+            "2026-11-02T00:00:20Z,${START + 20_000},true,-71,144,2437,2.4,",
+        ).inOrder()
     }
 
     @Test
