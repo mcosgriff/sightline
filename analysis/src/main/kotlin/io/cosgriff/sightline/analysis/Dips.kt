@@ -21,7 +21,9 @@ enum class EventKind {
 /**
  * One recorded event, times in UTC epoch ms. [guideNumber] is the channel it happened on, null for device-wide
  * events. [minSnq] and [minSeq] are the lowest values read while locked during it, null when it never locked;
- * [noLockMs] how much of it had no lock.
+ * [noLockMs] how much of it had no lock. [deviceId] and [tuner] say where it happened when a session reads several
+ * tuners at once (a watch of every tuner, [DeviceWatch]); a device-wide event there has a [deviceId] and no [tuner].
+ * Both are null for the other modes, whose session says the device.
  */
 data class SignalEvent(
     val kind: EventKind,
@@ -31,6 +33,8 @@ data class SignalEvent(
     val minSnq: Int? = null,
     val minSeq: Int? = null,
     val noLockMs: Long = 0,
+    val deviceId: String? = null,
+    val tuner: Int? = null,
 ) {
     val durationMs: Long get() = endMs - startMs
 

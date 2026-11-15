@@ -119,6 +119,31 @@ class SessionRepositoryTest {
     }
 
     @Test
+    fun `a watch of every tuner loads keyed by device and tuner`() = runBlocking<Unit> {
+        val id = db.sessions().insert(
+            SessionEntity(
+                deviceId = "D", kind = SessionKind.MONITOR, startedAt = START, endedAt = START + HOUR, channels = listOf("9.1", "4.1"),
+                tuner = null, pollIntervalMs = 1_000, watched = true, holder = "192.0.2.20,192.0.2.21", wholeDevice = true, devices = listOf("D", "E"),
+            ),
+        )
+        // Tuner 0 of each unit at once, each with its own running counters.
+        fun r(ts: Long, device: String, guide: String, te: Long) =
+            ReadingEntity(0, id, ts, guide, 0, 80, 88, 100, null, null, "8vsb", transportErrors = te, crcErrors = 0, resyncs = 0, networkErrors = 0, deviceId = device)
+        db.sessions().append(
+            listOf(r(START, "D", "9.1", 10), r(START, "E", "4.1", 500), r(START + 1_000, "D", "9.1", 12), r(START + 1_000, "E", "4.1", 503)),
+            listOf(EventEntity(0, id, START, START + 1_000, "4.1", EventKind.DIP, 50, 90, 0, deviceId = "E", tuner = 0)),
+        )
+        val detail = repository.load(id, ZoneOffset.UTC)!!
+        assertThat(detail.info.wholeDevice).isTrue()
+        assertThat(detail.info.devices).containsExactly("D", "E").inOrder()
+        assertThat(detail.info.holders).containsExactly("192.0.2.20", "192.0.2.21").inOrder()
+        assertThat(detail.data.tuners.map { it.deviceId to it.tuner }).containsExactly("D" to 0, "E" to 0).inOrder()
+        assertThat(detail.stats.errors.total.transport).isEqualTo(5)
+        assertThat(detail.data.events.single().deviceId).isEqualTo("E")
+        assertThat(detail.data.events.single().tuner).isEqualTo(0)
+    }
+
+    @Test
     fun `weather without a home can't be fetched`() = runBlocking<Unit> {
         val id = session()
         assertThat(repository.load(id, ZoneId.of("UTC"))!!.weather).isEqualTo(SessionWeather.NoHome)

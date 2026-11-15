@@ -78,6 +78,8 @@ class MonitorController @Inject constructor(
             log = repository,
             clock = clock,
             onAlert = onAlert,
+            // A whole-device watch's other devices, each on its own control connection.
+            sessionsOf = access::sessions,
         )
         return coroutineScope {
             val mirror = launch { runner.status.collect { if (it != null) _status.value = it } }

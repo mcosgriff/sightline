@@ -6,8 +6,17 @@ import org.junit.Test
 class PacketErrorSeriesTest {
     private val ok = SignalSample(true, 90, 85, 100)
 
-    private fun r(at: Long, te: Long?, crc: Long? = 0, guide: String = "9.1", tuner: Int = 0) =
-        LoggedReading(at, guide, tuner, ok, counters = te?.let { ErrorCounters(it, crc, 0, 0) })
+    private fun r(at: Long, te: Long?, crc: Long? = 0, guide: String = "9.1", tuner: Int = 0, device: String = "") =
+        LoggedReading(at, guide, tuner, ok, counters = te?.let { ErrorCounters(it, crc, 0, 0) }, deviceId = device)
+
+    @Test
+    fun `the same tuner number on two devices keeps two baselines`() {
+        // Tuner 0 of each unit, interleaved: counted against itself, never against the other unit's tuner 0.
+        val s = PacketErrorSeries.of(
+            listOf(r(0, 10, device = "A"), r(0, 500, device = "B"), r(1_000, 12, device = "A"), r(1_000, 503, device = "B")),
+        )
+        assertThat(s.total.transport).isEqualTo(5)
+    }
 
     @Test
     fun `adds what each reading's counters grew by, from the first reading on`() {

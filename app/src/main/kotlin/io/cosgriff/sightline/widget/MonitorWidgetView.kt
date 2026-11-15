@@ -10,6 +10,7 @@ import io.cosgriff.sightline.analysis.assess
 import io.cosgriff.sightline.analysis.dipCount
 import io.cosgriff.sightline.data.monitor.MonitorPhase
 import io.cosgriff.sightline.data.monitor.MonitorStatus
+import io.cosgriff.sightline.data.monitor.WatchedUse
 import io.cosgriff.sightline.ui.components.label
 
 /** What the Monitor widget shows, worded. */
@@ -49,6 +50,21 @@ fun monitorWidgetView(context: Context, status: MonitorStatus?, thresholds: Thre
                 quality = latest?.takeIf { it.isLocked }?.snq?.toString(),
                 health = health,
                 healthWord = health?.let { context.getString(it.label) },
+                detail = detail,
+            )
+        }
+        is MonitorPhase.WatchingAll -> {
+            val inUse = status.tuners.count { it.use is WatchedUse.InUse }
+            val down = phase.unreachable.firstOrNull()
+            MonitorWidgetView.Running(
+                title = title,
+                quality = null,
+                health = null,
+                healthWord = if (down != null) {
+                    context.getString(R.string.monitor_notification_device_unreachable, status.tuners.firstOrNull { it.deviceId == down }?.deviceName ?: down)
+                } else {
+                    res.getQuantityString(R.plurals.monitor_tuners_in_use, inUse, inUse)
+                },
                 detail = detail,
             )
         }

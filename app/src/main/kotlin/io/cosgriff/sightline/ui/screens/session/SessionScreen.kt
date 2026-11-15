@@ -69,7 +69,10 @@ import io.cosgriff.sightline.analysis.Strength
 import io.cosgriff.sightline.analysis.SweepSummary
 import io.cosgriff.sightline.analysis.SweptChannel
 import io.cosgriff.sightline.analysis.Thresholds
+import io.cosgriff.sightline.analysis.TunerKey
+import io.cosgriff.sightline.analysis.TunerSummary
 import io.cosgriff.sightline.analysis.WeatherHour
+import io.cosgriff.sightline.analysis.concerns
 import io.cosgriff.sightline.analysis.WindRule
 import io.cosgriff.sightline.data.db.SessionKind
 import io.cosgriff.sightline.data.device.Channel
@@ -103,6 +106,8 @@ data class SessionActions(
     val onExportCsv: () -> Unit = {},
     /** The report worded by the screen, and its footer line. */
     val onShareReport: (ReportText, String) -> Unit = { _, _ -> },
+    /** A watch of every tuner: one tuner alone on the timeline, or all of them (null). */
+    val onTuner: (TunerKey?) -> Unit = {},
 )
 
 @Composable
@@ -127,6 +132,7 @@ fun SessionScreen(sessionId: Long, onBack: () -> Unit) {
             onUseLocation = useLocation,
             onExportCsv = viewModel::exportCsv,
             onShareReport = viewModel::shareReport,
+            onTuner = viewModel::showTuner,
         ),
     )
 }
@@ -211,6 +217,13 @@ private fun Loaded(state: SessionUiState, detail: SessionDetail, thresholds: Thr
                 }
             }
         }
+        if (detail.info.wholeDevice && detail.stats.tuners.isNotEmpty()) {
+            item(key = "tuners") {
+                Section(stringResource(R.string.session_tuners_title), stringResource(R.string.session_tuners_subtitle)) {
+                    ChannelRangeBars(detail.stats.tuners.map { tunerRow(it, detail) }, thresholds.snqGood)
+                }
+            }
+        }
         item(key = "histogram") {
             Section(stringResource(R.string.session_histogram_title)) { Histogram(detail.stats.histogram, thresholds) }
         }
@@ -220,7 +233,8 @@ private fun Loaded(state: SessionUiState, detail: SessionDetail, thresholds: Thr
             item(key = "watched") {
                 val tuner = detail.info.tuner ?: 0
                 Text(
-                    detail.info.holder?.let { stringResource(R.string.session_watched_by, tuner, it) }
+                    if (detail.info.wholeDevice) watchedAllText(detail)
+                    else detail.info.holder?.let { stringResource(R.string.session_watched_by, tuner, it) }
                         ?: stringResource(R.string.session_watched, tuner),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.sightlineColors.textSecondary,
@@ -272,6 +286,41 @@ private fun PacketErrorsSection(detail: SessionDetail) {
             }
         }
     }
+}
+
+/** A watch of every tuner: which devices, and the clients seen using them. */
+@Composable
+private fun watchedAllText(detail: SessionDetail): String {
+    val names = detail.info.devices.map { detail.deviceNames[it] ?: it }
+    val devices = when (names.size) {
+        1 -> names.single()
+        2 -> stringResource(R.string.session_and, names[0], names[1])
+        else -> names.joinToString()
+    }
+    val holders = detail.info.holders
+    return if (holders.isEmpty()) stringResource(R.string.session_watched_all, devices)
+    else stringResource(R.string.session_watched_all_by, devices, holders.joinToString())
+}
+
+/** "Tuner 3", or with the device's name when the session read more than one: "Garage · tuner 0". */
+@Composable
+internal fun tunerLabel(key: TunerKey, detail: SessionDetail): String =
+    if (detail.info.devices.size > 1) stringResource(R.string.session_tuner_on, detail.deviceNames[key.deviceId] ?: key.deviceId, key.tuner)
+    else stringResource(R.string.session_tuner, key.tuner)
+
+@Composable
+private fun tunerRow(t: TunerSummary, detail: SessionDetail): RangeRow {
+    val channels = when (t.channels.size) {
+        1 -> t.channels.single()
+        2 -> stringResource(R.string.session_and, t.channels[0], t.channels[1])
+        else -> t.channels.joinToString()
+    }
+    val label = tunerLabel(t.key, detail)
+    return RangeRow(
+        "${t.key.deviceId}/${t.key.tuner}", label,
+        pluralStringResource(R.plurals.session_tuner_dips, t.dips, t.dips, channels),
+        t.minSnq, t.medianSnq, t.maxSnq, t.health,
+    )
 }
 
 /** A plural's quantity from a count that may pass [Int.MAX_VALUE]. */
@@ -510,14 +559,22 @@ private fun Timeline(state: SessionUiState, detail: SessionDetail, thresholds: T
     val hours = (weather as? SessionWeather.Fetched)?.hours.orEmpty().filter { it.hourMs + WeatherHour.HOUR_MS > window.startMs && it.hourMs < window.endMs }
     val windy = hours.any { it.gustKph != null }
     val title = stringResource(if (windy) R.string.session_timeline_title_wind else R.string.session_timeline_title)
+    val byTuner = detail.info.wholeDevice
+    val one = state.tuner.takeIf { byTuner }
     Section(title) {
-        Legend(detail.data.guideNumbers, if (hours.isNotEmpty()) state.weatherMetric else null)
+        if (byTuner) TunerToggle(detail, one, actions.onTuner)
+        val labels = when {
+            one != null -> listOf(tunerLabel(one, detail))
+            byTuner -> detail.data.tuners.map { tunerLabel(it, detail) }
+            else -> detail.data.guideNumbers
+        }.map { stringResource(R.string.session_timeline_line, it) }
+        Legend(labels, if (hours.isNotEmpty()) state.weatherMetric else null)
         val span = window.endMs - window.startMs
-        val labels = (0..3).map { i ->
+        val times = (0..3).map { i ->
             val at = window.startMs + span * i / 3
             if (span > 20 * WeatherHour.HOUR_MS) dateHour(at, zone) else clockTime(at, zone)
         }
-        val events = detail.data.events.filter { it.endMs >= window.startMs && it.startMs <= window.endMs }
+        val events = detail.data.events.filter { it.endMs >= window.startMs && it.startMs <= window.endMs && (one == null || it.concerns(one)) }
         val dips = events.count { it.isDip }
         SignalTimeline(
             lines = state.lines,
@@ -525,7 +582,7 @@ private fun Timeline(state: SessionUiState, detail: SessionDetail, thresholds: T
             nowMs = window.endMs,
             endMs = window.endMs,
             threshold = thresholds.snqGood,
-            timeLabels = if (hours.isEmpty()) labels else emptyList(),
+            timeLabels = if (hours.isEmpty()) times else emptyList(),
             stillToCome = null,
             description = stringResource(
                 R.string.session_timeline_description,
@@ -538,7 +595,7 @@ private fun Timeline(state: SessionUiState, detail: SessionDetail, thresholds: T
         )
         if (hours.isNotEmpty()) {
             WeatherPanel(hours, state.weatherMetric, window.startMs, window.endMs, units, WindRule.GUSTY_KPH)
-            io.cosgriff.sightline.ui.components.TimeLabels(labels)
+            io.cosgriff.sightline.ui.components.TimeLabels(times)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for (m in WeatherMetric.entries) {
                     MetricChip(
@@ -588,16 +645,34 @@ private fun WeatherNote(weather: SessionWeather, fetching: Boolean, actions: Ses
     }
 }
 
-/** Line swatches named by channel, and the weather bars. Colour and name together, so neither is alone. */
+/**
+ * A watch of every tuner's timeline: all tuners, or one; with one, a chip per tuner. All tuners is the default
+ * (the user's choice on #25: a toggle between the two).
+ */
 @Composable
-private fun Legend(guides: List<String>, weather: WeatherMetric?) {
+private fun TunerToggle(detail: SessionDetail, one: TunerKey?, onTuner: (TunerKey?) -> Unit) {
+    val tuners = detail.data.tuners
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        MetricChip(stringResource(R.string.session_tuners_all), one == null) { onTuner(null) }
+        MetricChip(stringResource(R.string.session_tuners_one), one != null) { if (one == null) tuners.firstOrNull()?.let(onTuner) }
+    }
+    if (one != null) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (t in tuners) MetricChip(tunerLabel(t, detail), t == one) { onTuner(t) }
+        }
+    }
+}
+
+/** Line swatches named ([labels], one per line), and the weather bars. Colour and name together, so neither is alone. */
+@Composable
+private fun Legend(labels: List<String>, weather: WeatherMetric?) {
     val colors = MaterialTheme.sightlineColors
     FlowRow(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        guides.forEachIndexed { i, g ->
+        labels.forEachIndexed { i, label ->
             val c = if (i == 0) colors.accent else colors.chartLines[(i - 1) % colors.chartLines.size]
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 Box(Modifier.width(14.dp).height(2.dp).background(c))
-                Text(stringResource(R.string.session_timeline_line, g), style = MaterialTheme.typography.labelMedium, color = colors.textSecondary)
+                Text(label, style = MaterialTheme.typography.labelMedium, color = colors.textSecondary)
             }
         }
         if (weather != null) {
@@ -690,8 +765,20 @@ internal fun eventWords(e: SignalEvent, detail: SessionDetail, units: Units, zon
         EventKind.DEVICE_UNREACHABLE -> R.string.session_event_unreachable
         EventKind.GAP -> R.string.session_event_gap
     }
-    val title = e.guideNumber?.let { stringResource(R.string.session_event_title, dateTime(e.startMs, zone), it, compactDuration(e.durationMs)) }
-        ?: stringResource(R.string.session_event_title_device, dateTime(e.startMs, zone), compactDuration(e.durationMs))
+    val tuner = e.tuner
+    val guide = e.guideNumber
+    val device = e.deviceId
+    val title = when {
+        // A watch of every tuner names the tuner, or for a device-wide event on two units, the device.
+        tuner != null && guide != null -> stringResource(
+            R.string.session_event_title_tuner, dateTime(e.startMs, zone), guide, tunerLabel(TunerKey(device.orEmpty(), tuner), detail), compactDuration(e.durationMs),
+        )
+        guide != null -> stringResource(R.string.session_event_title, dateTime(e.startMs, zone), guide, compactDuration(e.durationMs))
+        device != null && detail.info.devices.size > 1 -> stringResource(
+            R.string.session_event_title, dateTime(e.startMs, zone), detail.deviceNames[device] ?: device, compactDuration(e.durationMs),
+        )
+        else -> stringResource(R.string.session_event_title_device, dateTime(e.startMs, zone), compactDuration(e.durationMs))
+    }
     val detailText = when (e.kind) {
         EventKind.DIP -> e.minSnq?.let { stringResource(R.string.session_event_lowest, it) } ?: stringResource(R.string.session_event_lock_lost)
         EventKind.DROPOUT -> e.minSnq?.let { stringResource(R.string.session_event_lowest_lock_lost, it, compactDuration(e.noLockMs)) }

@@ -13,6 +13,8 @@ import io.cosgriff.sightline.data.monitor.MonitorEnd
 import io.cosgriff.sightline.data.monitor.MonitorPhase
 import io.cosgriff.sightline.data.monitor.MonitorPlan
 import io.cosgriff.sightline.data.monitor.MonitorStatus
+import io.cosgriff.sightline.data.monitor.WatchedTuner
+import io.cosgriff.sightline.data.monitor.WatchedUse
 import io.cosgriff.sightline.protocol.LostReason
 import io.cosgriff.sightline.protocol.StatusParse
 import io.cosgriff.sightline.protocol.StatusParser
@@ -72,5 +74,21 @@ class MonitorWidgetViewTest {
 
     private companion object {
         const val START = 1_793_577_600_000L
+    }
+
+    @Test
+    fun `a watch of every tuner gives the tuners in use, or the device that stopped answering`() {
+        val whole = plan.copy(channels = emptyList(), wholeDevices = listOf(device))
+        val tuners = listOf(
+            WatchedTuner("D", "Roof", 0, WatchedUse.InUse("192.0.2.20", channel, null)),
+            WatchedTuner("D", "Roof", 1, WatchedUse.Idle),
+        )
+        val running = status("ch=none lock=none ss=0 snq=0 seq=0 bps=0 pps=0", MonitorPhase.WatchingAll()).copy(plan = whole, tuners = tuners)
+        val v = view(running) as MonitorWidgetView.Running
+        assertThat(v.title).isEqualTo("Watching every tuner on Roof")
+        assertThat(v.quality).isNull()
+        assertThat(v.healthWord).isEqualTo("1 tuner in use")
+        val down = view(running.copy(phase = MonitorPhase.WatchingAll(setOf("D")))) as MonitorWidgetView.Running
+        assertThat(down.healthWord).isEqualTo("Roof isn't answering")
     }
 }

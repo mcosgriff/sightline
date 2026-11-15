@@ -34,7 +34,9 @@ Milestone 6 is built: Settings (theme, units, thresholds, tone range, retention)
 (`widget/`), History compare, and Roborazzi screenshots (`app/src/test/screenshots`). Releases through
 `v0.3.0` are out. Device tools (milestone 7, `feat/channel-scan-firmware-update`): the device's own channel scan
 and firmware updates from SiliconDust (`DeviceTools` in `:data`, `SiliconDustFirmware` and
-`ControlClient.upgrade` in `:protocol`, `ui/screens/devicetools`). Nothing has run against a real unit yet: the
+`ControlClient.upgrade` in `:protocol`, `ui/screens/devicetools`). Milestone 8 has begun: a second Demo tuner, and
+the whole-device watch (Monitor's "Watch every tuner": `DeviceWatch` and `TunerKey` in `:analysis`,
+`MonitorRunner.observeAll` and Room v7 in `:data`). Nothing has run against a real unit yet: the
 user tests release builds only (not debug), so real-hardware checks wait for the first release.
 The user has two **HDHomeRun FLEX 4K** units (`HDFX-4K`, 4 tuners, ATSC 3.0 on tuners 0 and 1 only), and a DVR
 records from them. Captures and what they showed: `docs/protocol-captures/README.md`.

@@ -13,6 +13,7 @@ import io.cosgriff.sightline.analysis.SignalSample
 import io.cosgriff.sightline.analysis.Thresholds
 import io.cosgriff.sightline.analysis.WeatherHour
 import io.cosgriff.sightline.analysis.sparklineOf
+import io.cosgriff.sightline.data.db.Converters
 import io.cosgriff.sightline.data.db.ReadingEntity
 import io.cosgriff.sightline.data.db.SessionDao
 import io.cosgriff.sightline.data.db.SessionEntity
@@ -51,6 +52,14 @@ data class SessionInfo(
     /** Read a tuner another client was using, without holding it; [holder] is that client's address. */
     val watched: Boolean = false,
     val holder: String? = null,
+    /**
+     * Watched every tuner of [devices] (GLOSSARY "Whole-device watch"); [holders] are the clients seen. Readings
+     * and events then say their device and tuner.
+     */
+    val wholeDevice: Boolean = false,
+    /** Every device the session read, [deviceId] first; just [deviceId] for a session on one device. */
+    val devices: List<String> = listOf(deviceId),
+    val holders: List<String> = listOfNotNull(holder),
 )
 
 /** What History shows of a session; null figures before it's summarised. */
@@ -94,6 +103,8 @@ data class SessionDetail(
     val weather: SessionWeather,
     /** The readings were deleted by the retention setting; the summary and events are what's left. */
     val readingsDeleted: Boolean = false,
+    /** The friendly name of each device the session read that is still known, by device ID. */
+    val deviceNames: Map<String, String> = emptyMap(),
 )
 
 /**
@@ -128,7 +139,7 @@ class SessionRepository @Inject constructor(
 
     private suspend fun summarise(s: SessionEntity) {
         val thresholds = settings.settings.first().thresholds
-        val readings = sessions.readings(s.id).map { it.logged() }
+        val readings = sessions.readings(s.id).map { it.logged(s.wholeDevice) }
         val data = SessionData(s.startedAt, s.endedAt ?: s.startedAt, s.pollIntervalMs, readings, events(s.id))
         val stats = SessionStats.of(data, thresholds)
         sessions.upsertSummary(
@@ -149,27 +160,31 @@ class SessionRepository @Inject constructor(
         val s = sessions.get(id) ?: return null
         val end = s.endedAt ?: return null
         val thresholds: Thresholds = settings.settings.first().thresholds
-        val channels = devices.channelList(s.deviceId).associateBy { it.guideNumber }
+        val info = s.info()
+        // Every device's lineup, the first device's entry where two carry the same guide number (one antenna).
+        val channels = info.devices.flatMap { devices.channelList(it) }.distinctBy { it.guideNumber }.associateBy { it.guideNumber }
         val weather = weatherOf(s)
         val data = SessionData(
             startMs = s.startedAt,
             endMs = end,
             pollIntervalMs = s.pollIntervalMs,
-            readings = sessions.readings(id).map { it.logged() },
+            readings = sessions.readings(id).map { it.logged(s.wholeDevice) },
             events = events(id),
             weather = (weather as? SessionWeather.Fetched)?.hours.orEmpty(),
             channels = channels.filterKeys { it in s.channels }.mapValues { (_, c) -> ChannelInfo(c.rfChannel, c.band) },
             zone = zone,
         )
+        val names = info.devices.mapNotNull { d -> devices.device(d)?.let { d to it.friendlyName } }.toMap()
         return SessionDetail(
-            info = s.info(),
-            deviceName = devices.device(s.deviceId)?.friendlyName,
+            info = info,
+            deviceName = names[s.deviceId],
             data = data,
             stats = SessionStats.of(data, thresholds),
             findings = Diagnosis.run(data, thresholds),
             channels = channels.filterKeys { it in s.channels },
             weather = weather,
             readingsDeleted = data.readings.isEmpty() && (sessions.summary(id)?.readings ?: 0) > 0,
+            deviceNames = names,
         )
     }
 
@@ -226,17 +241,24 @@ class SessionRepository @Inject constructor(
     suspend fun delete(ids: Collection<Long>) = sessions.deleteAll(ids.toList())
 
     private suspend fun events(id: Long): List<SignalEvent> = sessions.events(id).map {
-        SignalEvent(it.kind, it.guideNumber, it.startTs, it.endTs, it.minSnq, it.minSeq, it.noLockMs)
+        SignalEvent(it.kind, it.guideNumber, it.startTs, it.endTs, it.minSnq, it.minSeq, it.noLockMs, it.deviceId, it.tuner)
     }
 
-    private fun ReadingEntity.logged() =
+    /** [byDevice]: the session keys its tuners by device too (a whole-device watch), so the reading's device is kept. */
+    private fun ReadingEntity.logged(byDevice: Boolean) =
         LoggedReading(
             ts, guideNumber, tuner, SignalSample(lock != LOCK_NONE, ss, snq, seq), atsc3 = lock == LOCK_ATSC3,
             counters = if (transportErrors == null && crcErrors == null && resyncs == null && networkErrors == null) null
             else ErrorCounters(transportErrors, crcErrors, resyncs, networkErrors),
+            deviceId = if (byDevice) deviceId.orEmpty() else "",
         )
 
-    private fun SessionEntity.info() = SessionInfo(id, deviceId, kind, startedAt, endedAt, channels, tuner, pollIntervalMs, note, firmware, watched, holder)
+    private fun SessionEntity.info() = SessionInfo(
+        id, deviceId, kind, startedAt, endedAt, channels, tuner, pollIntervalMs, note, firmware, watched, holder,
+        wholeDevice = wholeDevice,
+        devices = devices.ifEmpty { listOf(deviceId) },
+        holders = if (wholeDevice) holder?.let { Converters().toList(it) }.orEmpty() else listOfNotNull(holder),
+    )
 
     private fun SessionSummaryEntity.toSummary() = SessionSummary(
         readings = readings,

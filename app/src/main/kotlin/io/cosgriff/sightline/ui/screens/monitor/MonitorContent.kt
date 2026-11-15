@@ -68,6 +68,12 @@ import io.cosgriff.sightline.data.device.TunerHolder
 import io.cosgriff.sightline.monitor.monitorTitle
 import io.cosgriff.sightline.data.monitor.MonitorPhase
 import io.cosgriff.sightline.data.monitor.MonitorStatus
+import io.cosgriff.sightline.data.monitor.WatchedTuner
+import io.cosgriff.sightline.data.monitor.WatchedUse
+import io.cosgriff.sightline.analysis.SignalSample
+import io.cosgriff.sightline.analysis.assess
+import io.cosgriff.sightline.ui.components.HealthChip
+import androidx.compose.foundation.layout.heightIn
 import io.cosgriff.sightline.protocol.LostReason
 import io.cosgriff.sightline.ui.components.SignalTimeline
 import io.cosgriff.sightline.ui.theme.Numbers
@@ -84,6 +90,9 @@ data class MonitorActions(
     val onToggleChannel: (String) -> Unit,
     val onRotate: (Boolean) -> Unit,
     val onWatch: (Boolean) -> Unit = {},
+    /** Watch every tuner (true), and of every device or the picked one only. */
+    val onWholeDevice: (Boolean) -> Unit = {},
+    val onAllDevices: (Boolean) -> Unit = {},
     val onTuner: (Int?) -> Unit,
     val onDwell: (Int) -> Unit,
     val onDuration: (MonitorDuration) -> Unit,
@@ -161,12 +170,15 @@ private fun Setup(setup: SetupState, actions: MonitorActions) {
 
                 Field(stringResource(R.string.monitor_setup_mode)) {
                     Choices {
-                        Choice(stringResource(R.string.monitor_setup_hold), !s.rotate && !s.watch) { actions.onRotate(false) }
+                        Choice(stringResource(R.string.monitor_setup_hold), !s.rotate && !s.watch && !s.wholeDevice) { actions.onRotate(false) }
                         Choice(stringResource(R.string.monitor_setup_rotate), s.rotate) { actions.onRotate(true) }
                         Choice(stringResource(R.string.monitor_setup_watch), s.watch) { actions.onWatch(true) }
+                        Choice(stringResource(R.string.monitor_setup_watch_all), s.wholeDevice) { actions.onWholeDevice(true) }
                     }
                 }
-                if (s.watch) {
+                if (s.wholeDevice) {
+                    WatchAll(s, actions.onAllDevices)
+                } else if (s.watch) {
                     WatchTuner(s, actions.onTuner)
                 } else Field(stringResource(if (s.rotate) R.string.monitor_setup_channels else R.string.monitor_setup_channel)) {
                     Choices {
@@ -186,7 +198,7 @@ private fun Setup(setup: SetupState, actions: MonitorActions) {
                         }
                     }
                 }
-                if (!s.watch) {
+                if (!s.watch && !s.wholeDevice) {
                     Field(stringResource(R.string.monitor_setup_tuner)) {
                         Choices {
                             Choice(stringResource(R.string.monitor_setup_any_tuner), s.tuner == null) { actions.onTuner(null) }
@@ -224,6 +236,25 @@ private fun Setup(setup: SetupState, actions: MonitorActions) {
             }
         }
     }
+}
+
+/** A watch of every tuner: which devices, when there is more than one, and what it does. */
+@Composable
+private fun WatchAll(s: MonitorSetup, onAllDevices: (Boolean) -> Unit) {
+    val colors = MaterialTheme.sightlineColors
+    if (s.devices.size > 1) {
+        Field(stringResource(R.string.monitor_setup_watch_all_devices)) {
+            Choices {
+                Choice(stringResource(R.string.monitor_setup_watch_all_this, s.device.friendlyName), !s.allDevices) { onAllDevices(false) }
+                Choice(
+                    if (s.devices.size == 2) stringResource(R.string.monitor_setup_watch_all_both)
+                    else pluralStringResource(R.plurals.monitor_setup_watch_all_every, s.devices.size, s.devices.size),
+                    s.allDevices,
+                ) { onAllDevices(true) }
+            }
+        }
+    }
+    Text(stringResource(R.string.monitor_setup_watch_all_note), style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
 }
 
 /** Watch mode's tuner pick: each tuner with who is using it, read when the mode was picked. */
@@ -317,10 +348,16 @@ private fun Estimate(s: MonitorSetup) {
     val context = LocalContext.current
     val numbers = NumberFormat.getIntegerInstance()
     val hours = s.duration.hours
-    val e = MonitorEstimate.of((hours ?: 1) * 3_600_000L, s.pollMs)
+    // A watch of every tuner stores at most a reading per tuner per poll: every tuner in use the whole time.
+    val tuners = if (s.wholeDevice) s.watchedDevices.sumOf { it.tunerCount } else 1
+    val e = MonitorEstimate.of((hours ?: 1) * 3_600_000L, s.pollMs, tuners)
     val size = Formatter.formatShortFileSize(context, e.bytes)
-    val text = if (hours != null) stringResource(R.string.monitor_estimate, numbers.format(e.readings), size)
-    else stringResource(R.string.monitor_estimate_hourly, numbers.format(e.readings), size)
+    val text = when {
+        s.wholeDevice && hours != null -> stringResource(R.string.monitor_estimate_most, numbers.format(e.readings), size)
+        s.wholeDevice -> stringResource(R.string.monitor_estimate_most_hourly, numbers.format(e.readings), size)
+        hours != null -> stringResource(R.string.monitor_estimate, numbers.format(e.readings), size)
+        else -> stringResource(R.string.monitor_estimate_hourly, numbers.format(e.readings), size)
+    }
     Text(text, style = MaterialTheme.typography.bodyMedium)
 }
 
@@ -373,8 +410,11 @@ private fun ColumnScope.Running(status: MonitorStatus, thresholds: Thresholds, n
         is MonitorPhase.ObservingIdle -> p.tuner
         else -> null
     }
-    val subtitle = if (tuner != null) stringResource(R.string.monitor_subtitle_tuner, plan.device.friendlyName, tuner, rate)
-    else stringResource(R.string.monitor_subtitle, plan.device.friendlyName, rate)
+    val subtitle = when {
+        plan.wholeDevice -> pluralStringResource(R.plurals.monitor_subtitle_tuners, status.tuners.size, status.tuners.size, rate)
+        tuner != null -> stringResource(R.string.monitor_subtitle_tuner, plan.device.friendlyName, tuner, rate)
+        else -> stringResource(R.string.monitor_subtitle, plan.device.friendlyName, rate)
+    }
     val events = status.allEvents
 
     Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
@@ -382,58 +422,54 @@ private fun ColumnScope.Running(status: MonitorStatus, thresholds: Thresholds, n
         PhaseLine(status)
         Progress(status, nowMs, zone)
         Stats(events, status)
-        Column(
-            Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp).fillMaxWidth()
-                .background(colors.surface, MaterialTheme.shapes.medium).padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(R.string.monitor_chart_title), style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary, modifier = Modifier.weight(1f))
-                Legend(colors.healthPoor.copy(alpha = 0.35f), stringResource(R.string.monitor_chart_dip))
-                if (events.any { !it.isDip }) {
-                    Spacer(Modifier.size(10.dp))
-                    Legend(colors.healthNoLock.copy(alpha = 0.35f), stringResource(R.string.monitor_chart_no_data))
+        if (plan.wholeDevice) {
+            TunerRows(status, thresholds)
+            Text(
+                stringResource(R.string.monitor_recent),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 6.dp),
+            )
+            RecentEvents(status, events, thresholds, zone)
+        } else {
+            Column(
+                Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp).fillMaxWidth()
+                    .background(colors.surface, MaterialTheme.shapes.medium).padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.monitor_chart_title), style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary, modifier = Modifier.weight(1f))
+                    Legend(colors.healthPoor.copy(alpha = 0.35f), stringResource(R.string.monitor_chart_dip))
+                    if (events.any { !it.isDip }) {
+                        Spacer(Modifier.size(10.dp))
+                        Legend(colors.healthNoLock.copy(alpha = 0.35f), stringResource(R.string.monitor_chart_no_data))
+                    }
                 }
+                val end = status.endsAt
+                SignalTimeline(
+                    lines = listOf(status.timeline),
+                    events = events,
+                    nowMs = nowMs,
+                    endMs = end,
+                    threshold = thresholds.snqGood,
+                    timeLabels = timeLabels(status.startedAt, end ?: nowMs, zone),
+                    stillToCome = stringResource(R.string.monitor_chart_still_to_come),
+                    description = pluralStringResource(R.plurals.monitor_chart_description, events.dipCount(), events.dipCount()),
+                )
             }
-            val end = status.endsAt
-            SignalTimeline(
-                lines = listOf(status.timeline),
-                events = events,
-                nowMs = nowMs,
-                endMs = end,
-                threshold = thresholds.snqGood,
-                timeLabels = timeLabels(status.startedAt, end ?: nowMs, zone),
-                stillToCome = stringResource(R.string.monitor_chart_still_to_come),
-                description = pluralStringResource(R.plurals.monitor_chart_description, events.dipCount(), events.dipCount()),
-            )
-        }
-        Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.monitor_recent), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-            val latest = status.latest
-            Text(
-                when {
-                    latest == null -> ""
-                    latest.isLocked -> stringResource(R.string.monitor_now, latest.snq, latest.ss, latest.seq)
-                    else -> stringResource(R.string.monitor_now_no_lock)
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.textSecondary,
-            )
-        }
-        val recent = events.sortedByDescending { it.startMs }.take(RECENT_COUNT)
-        if (recent.isEmpty()) {
-            Text(
-                stringResource(R.string.monitor_no_dips),
-                style = MaterialTheme.typography.bodyMedium,
-                color = colors.textSecondary,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-            )
-        }
-        Column(Modifier.padding(horizontal = 16.dp)) {
-            recent.forEach { e ->
-                EventRow(e, thresholds, zone)
-                HorizontalDivider(color = colors.outline)
+            Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.monitor_recent), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                val latest = status.latest
+                Text(
+                    when {
+                        latest == null -> ""
+                        latest.isLocked -> stringResource(R.string.monitor_now, latest.snq, latest.ss, latest.seq)
+                        else -> stringResource(R.string.monitor_now_no_lock)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textSecondary,
+                )
             }
+            RecentEvents(status, events, thresholds, zone)
         }
     }
     Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -489,12 +525,22 @@ private fun PhaseLine(status: MonitorStatus) {
                 ?: stringResource(R.string.monitor_phase_observing)
         }
         is MonitorPhase.ObservingIdle -> stringResource(R.string.monitor_phase_observing_idle, p.tuner)
+        is MonitorPhase.WatchingAll -> {
+            val down = p.unreachable.firstOrNull()
+            val inUse = status.tuners.count { it.use is WatchedUse.InUse }
+            when {
+                down != null -> stringResource(R.string.monitor_phase_device_unreachable, status.tuners.firstOrNull { it.deviceId == down }?.deviceName ?: down)
+                inUse == 0 -> stringResource(R.string.monitor_phase_watching_all_none)
+                else -> pluralStringResource(R.plurals.monitor_phase_watching_all, status.tuners.size, inUse, status.tuners.size)
+            }
+        }
     } ?: return
     Text(
         text,
         style = MaterialTheme.typography.bodyMedium,
         color = if ((status.phase as? MonitorPhase.Watching)?.missedPolls?.let { it > 0 } == true ||
-            (status.phase as? MonitorPhase.Observing)?.missedPolls?.let { it > 0 } == true
+            (status.phase as? MonitorPhase.Observing)?.missedPolls?.let { it > 0 } == true ||
+            (status.phase as? MonitorPhase.WatchingAll)?.unreachable?.isNotEmpty() == true
         ) colors.healthMarginal else colors.textSecondary,
         modifier = Modifier.padding(start = 20.dp, end = 16.dp, top = 6.dp).semantics { liveRegion = LiveRegionMode.Polite },
     )
@@ -578,8 +624,120 @@ private fun Legend(color: Color, label: String) {
     }
 }
 
+/** The latest events, newest first, or a line saying there are none yet. */
 @Composable
-private fun EventRow(e: SignalEvent, thresholds: Thresholds, zone: ZoneId) {
+private fun RecentEvents(status: MonitorStatus, events: List<SignalEvent>, thresholds: Thresholds, zone: ZoneId) {
+    val colors = MaterialTheme.sightlineColors
+    val recent = events.sortedByDescending { it.startMs }.take(RECENT_COUNT)
+    if (recent.isEmpty()) {
+        Text(
+            stringResource(R.string.monitor_no_dips),
+            style = MaterialTheme.typography.bodyMedium,
+            color = colors.textSecondary,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+        )
+    }
+    Column(Modifier.padding(horizontal = 16.dp)) {
+        recent.forEach { e ->
+            EventRow(e, thresholds, zone, whereText(e, status))
+            HorizontalDivider(color = colors.outline)
+        }
+    }
+}
+
+/** Where a whole-device watch's event happened: its tuner, or its device for a device-wide one; null in the other modes. */
+@Composable
+private fun whereText(e: SignalEvent, status: MonitorStatus): String? {
+    if (!status.plan.wholeDevice) return null
+    val name = status.tuners.firstOrNull { it.deviceId == e.deviceId }?.deviceName
+    val several = status.plan.wholeDevices.size > 1
+    val tuner = e.tuner
+    return when {
+        tuner != null && several && name != null -> stringResource(R.string.monitor_event_tuner_on, name, tuner)
+        tuner != null -> stringResource(R.string.monitor_tuner_number, tuner)
+        several -> name
+        else -> null
+    }
+}
+
+/**
+ * A whole-device watch's tuners, one row each, grouped by device: the tuner, its channel and who holds it, and the
+ * latest reading's health in a word with its icon (never colour alone), or that nobody is using it.
+ */
+@Composable
+private fun TunerRows(status: MonitorStatus, thresholds: Thresholds) {
+    val colors = MaterialTheme.sightlineColors
+    val several = status.plan.wholeDevices.size > 1
+    Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp)) {
+        Text(
+            stringResource(R.string.monitor_tuners_title),
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.padding(start = 4.dp, bottom = 6.dp).semantics { heading() },
+        )
+        for ((deviceId, tuners) in status.tuners.groupBy { it.deviceId }) {
+            Column(
+                Modifier.fillMaxWidth().padding(bottom = 8.dp).background(colors.surface, MaterialTheme.shapes.medium).padding(horizontal = 12.dp, vertical = 4.dp),
+            ) {
+                if (several) {
+                    Text(
+                        tuners.first().deviceName.ifEmpty { deviceId },
+                        style = MaterialTheme.typography.labelLarge,
+                        color = colors.textSecondary,
+                        modifier = Modifier.padding(top = 8.dp, bottom = 2.dp),
+                    )
+                }
+                tuners.forEachIndexed { i, t ->
+                    if (i > 0) HorizontalDivider(color = colors.outline)
+                    TunerRow(t, thresholds)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TunerRow(t: WatchedTuner, thresholds: Thresholds) {
+    val colors = MaterialTheme.sightlineColors
+    val use = t.use
+    val detail = when (use) {
+        WatchedUse.Unknown -> stringResource(R.string.monitor_tuner_unknown)
+        WatchedUse.Idle -> stringResource(R.string.monitor_tuner_idle)
+        WatchedUse.NoAnswer -> stringResource(R.string.monitor_tuner_no_answer)
+        is WatchedUse.InUse -> {
+            val channel = if (use.channel.guideName.isNotEmpty()) {
+                stringResource(R.string.monitor_setup_channel_chip, use.channel.guideNumber, use.channel.guideName)
+            } else {
+                use.channel.guideNumber
+            }
+            use.holder?.let { stringResource(R.string.monitor_tuner_channel_by, channel, it) } ?: stringResource(R.string.monitor_tuner_channel, channel)
+        }
+    }
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(vertical = 8.dp).semantics(mergeDescendants = true) {},
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Text(stringResource(R.string.monitor_tuner_number, t.tuner), style = MaterialTheme.typography.bodyLarge)
+            Text(detail, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+        }
+        if (use is WatchedUse.InUse) {
+            val latest = use.latest
+            if (latest == null) {
+                Text(stringResource(R.string.monitor_tuner_settling), style = MaterialTheme.typography.labelMedium, color = colors.textSecondary)
+            } else {
+                if (latest.isLocked) {
+                    Text(stringResource(R.string.monitor_tuner_quality, latest.snq), style = Numbers.info, color = colors.textPrimary)
+                }
+                HealthChip(thresholds.assess(SignalSample(latest.isLocked, latest.ss, latest.snq, latest.seq)).health)
+            }
+        }
+    }
+}
+
+/** [where] names the tuner (or device) in a whole-device watch; null in the other modes. */
+@Composable
+private fun EventRow(e: SignalEvent, thresholds: Thresholds, zone: ZoneId, where: String? = null) {
     val colors = MaterialTheme.sightlineColors
     val (label, color) = when (e.kind) {
         EventKind.DIP -> R.string.monitor_event_dip to
@@ -599,7 +757,12 @@ private fun EventRow(e: SignalEvent, thresholds: Thresholds, zone: ZoneId) {
     }
     Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            Text(stringResource(R.string.monitor_event_when, clockTime(e.startMs, zone), shortDuration(e.durationMs)), style = MaterialTheme.typography.bodyLarge)
+            val time = clockTime(e.startMs, zone)
+            Text(
+                where?.let { stringResource(R.string.monitor_event_when_tuner, time, it, shortDuration(e.durationMs)) }
+                    ?: stringResource(R.string.monitor_event_when, time, shortDuration(e.durationMs)),
+                style = MaterialTheme.typography.bodyLarge,
+            )
             Text(detail, style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary)
         }
         Text(stringResource(label), style = MaterialTheme.typography.labelMedium, color = color, fontWeight = FontWeight.SemiBold)

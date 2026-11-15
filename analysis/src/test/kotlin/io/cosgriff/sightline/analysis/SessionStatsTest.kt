@@ -34,6 +34,36 @@ class SessionStatsTest {
     }
 
     @Test
+    fun `each tuner of a watch of every tuner is summarised apart, tuner 0 of each unit included`() {
+        fun r(atS: Long, device: String, tuner: Int, guide: String, snq: Int, locked: Boolean = true) =
+            LoggedReading(START + atS * 1_000, guide, tuner, SignalSample(locked, 80, snq, 100), deviceId = device)
+        val readings = listOf(
+            r(0, "A", 3, "5.1", 90), r(0, "B", 0, "4.1", 50),
+            r(1, "A", 3, "5.1", 80), r(1, "B", 0, "4.1", 0, locked = false),
+            r(2, "A", 3, "2.1", 85), r(2, "B", 0, "4.1", 55),
+            r(2, "A", 0, "7.1", 88),
+        )
+        val events = listOf(
+            SignalEvent(EventKind.DROPOUT, "4.1", START, START + 3_000, deviceId = "B", tuner = 0),
+            SignalEvent(EventKind.DEVICE_UNREACHABLE, null, START + 5_000, START + 9_000, deviceId = "A"),
+        )
+        val tuners = SessionStats.of(data(readings, events), Thresholds.DEFAULT).tuners
+        assertThat(tuners.map { it.key }).containsExactly(TunerKey("A", 0), TunerKey("A", 3), TunerKey("B", 0)).inOrder()
+        val a3 = tuners[1]
+        assertThat(a3.channels).containsExactly("5.1", "2.1").inOrder()
+        assertThat(a3.readings).isEqualTo(3)
+        assertThat(a3.minSnq).isEqualTo(80)
+        assertThat(a3.medianSnq).isEqualTo(85)
+        assertThat(a3.maxSnq).isEqualTo(90)
+        assertThat(a3.health).isEqualTo(Health.GOOD)
+        assertThat(a3.dips).isEqualTo(0) // the device-wide outage is no tuner's dip
+        val b0 = tuners[2]
+        assertThat(b0.dips).isEqualTo(1)
+        assertThat(b0.health).isEqualTo(Health.POOR)
+        assertThat(b0.goodShare).isEqualTo(0.0)
+    }
+
+    @Test
     fun `no dropout gives no longest dropout`() {
         val stats = SessionStats.of(data(listOf(reading(0, 90))), Thresholds.DEFAULT)
         assertThat(stats.longestDropoutMs).isNull()

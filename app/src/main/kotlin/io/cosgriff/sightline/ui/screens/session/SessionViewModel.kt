@@ -7,6 +7,7 @@ import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.cosgriff.sightline.analysis.TimelineSeries
+import io.cosgriff.sightline.analysis.TunerKey
 import io.cosgriff.sightline.analysis.timelineOf
 import io.cosgriff.sightline.data.export.SessionExport
 import io.cosgriff.sightline.data.session.SessionDetail
@@ -40,8 +41,13 @@ data class SessionUiState(
     val detail: SessionDetail? = null,
     /** The timeline's window: the whole session, or zoomed to an event or an hour. */
     val window: TimeWindow? = null,
-    /** One series per channel, in the order first read, for [window]. */
+    /**
+     * One series per channel, in the order first read, for [window]; in a watch of every tuner, one per tuner (in
+     * [io.cosgriff.sightline.analysis.SessionData.tuners] order), or just [tuner]'s.
+     */
     val lines: List<TimelineSeries> = emptyList(),
+    /** A watch of every tuner's timeline shows this tuner alone; null shows them all. */
+    val tuner: TunerKey? = null,
     val weatherMetric: WeatherMetric = WeatherMetric.GUSTS,
     val fetchingWeather: Boolean = false,
     /** A CSV or the report is being written. */
@@ -86,7 +92,7 @@ class SessionViewModel @AssistedInject constructor(
     private suspend fun load() {
         val detail = withContext(Dispatchers.Default) { sessions.load(sessionId, zone) }
         val window = detail?.let { TimeWindow(it.data.startMs, it.data.endMs) }
-        _state.update { it.copy(loading = false, detail = detail, window = window, lines = detail?.let { d -> lines(d, window!!) }.orEmpty()) }
+        _state.update { it.copy(loading = false, detail = detail, window = window, lines = detail?.let { d -> lines(d, window!!, tuner = it.tuner) }.orEmpty()) }
     }
 
     /** Shows [startMs]..[endMs] (kept inside the session) on the timeline, read again at that detail. */
@@ -94,9 +100,23 @@ class SessionViewModel @AssistedInject constructor(
         val detail = _state.value.detail ?: return
         val window = TimeWindow(startMs.coerceAtLeast(detail.data.startMs), endMs.coerceAtMost(detail.data.endMs))
         if (window.endMs <= window.startMs) return
+        val tuner = _state.value.tuner
         viewModelScope.launch {
-            val lines = withContext(Dispatchers.Default) { lines(detail, window) }
+            val lines = withContext(Dispatchers.Default) { lines(detail, window, tuner = tuner) }
             _state.update { it.copy(window = window, lines = lines) }
+        }
+    }
+
+    /** A watch of every tuner: shows [tuner] alone on the timeline, or every tuner when null. */
+    fun showTuner(tuner: TunerKey?) {
+        val s = _state.value
+        val detail = s.detail ?: return
+        val window = s.window ?: return
+        if (tuner != null && tuner !in detail.data.byTuner) return
+        _state.update { it.copy(tuner = tuner) }
+        viewModelScope.launch {
+            val lines = withContext(Dispatchers.Default) { lines(detail, window, tuner = tuner) }
+            _state.update { it.copy(lines = lines) }
         }
     }
 
@@ -140,7 +160,8 @@ class SessionViewModel @AssistedInject constructor(
         val detail = _state.value.detail ?: return@exporting null
         val file = export.reportFile(sessionId, zone) ?: return@exporting null
         val d = detail.data
-        val chart = ReportChart(d.startMs, d.endMs, lines(detail, TimeWindow(d.startMs, d.endMs), REPORT_BUCKETS), d.events, settings.value.thresholds.snqGood)
+        // The report's legend names channels, so its lines are per channel in every mode.
+        val chart = ReportChart(d.startMs, d.endMs, channelLines(detail, TimeWindow(d.startMs, d.endMs), REPORT_BUCKETS), d.events, settings.value.thresholds.snqGood)
         withContext(Dispatchers.IO) { reportWriter.write(file, text, chart, footer) }
         ShareFiles(listOf(file), PDF)
     }
@@ -157,7 +178,14 @@ class SessionViewModel @AssistedInject constructor(
         }
     }
 
-    private fun lines(detail: SessionDetail, window: TimeWindow, buckets: Int = TIMELINE_BUCKETS): List<TimelineSeries> = detail.data.guideNumbers.map { g ->
+    /** Per channel, or in a watch of every tuner per tuner ([tuner] alone when set). */
+    private fun lines(detail: SessionDetail, window: TimeWindow, buckets: Int = TIMELINE_BUCKETS, tuner: TunerKey? = null): List<TimelineSeries> {
+        if (!detail.info.wholeDevice) return channelLines(detail, window, buckets)
+        val d = detail.data
+        return (tuner?.let(::listOf) ?: d.tuners).map { timelineOf(d.byTuner[it].orEmpty(), window.startMs, window.endMs, buckets) }
+    }
+
+    private fun channelLines(detail: SessionDetail, window: TimeWindow, buckets: Int): List<TimelineSeries> = detail.data.guideNumbers.map { g ->
         timelineOf(detail.data.byChannel.getValue(g), window.startMs, window.endMs, buckets)
     }
 

@@ -57,8 +57,18 @@ data class MonitorSetup(
     val watch: Boolean = false,
     /** Who holds each tuner, read when watch mode is picked; null until read. */
     val holders: List<TunerHolder>? = null,
+    /** Watch every tuner instead (GLOSSARY "Whole-device watch"): of [device] only, or of every device when [allDevices]. */
+    val wholeDevice: Boolean = false,
+    val allDevices: Boolean = false,
 ) {
-    val canStart: Boolean get() = if (watch) tuner != null else selected.isNotEmpty()
+    val canStart: Boolean get() = when {
+        wholeDevice -> true
+        watch -> tuner != null
+        else -> selected.isNotEmpty()
+    }
+
+    /** The devices a whole-device watch would read, [device] first. */
+    val watchedDevices: List<Device> get() = if (allDevices) listOf(device) + devices.filter { it.deviceId != device.deviceId } else listOf(device)
 }
 
 /** What the setup form can show. */
@@ -142,9 +152,16 @@ class MonitorViewModel @Inject constructor(
 
     /** Watch mode picks a tuner, not channels; with it on, who holds each tuner is read (gets only). */
     fun setWatch(on: Boolean) {
-        edit { it.copy(watch = on, rotate = false, tuner = if (on) it.tuner else null, selected = it.selected.take(1)) }
+        edit { it.copy(watch = on, rotate = false, wholeDevice = false, tuner = if (on) it.tuner else null, selected = it.selected.take(1)) }
         if (on) refreshHolders()
     }
+
+    /** A watch of every tuner picks neither a tuner nor channels. */
+    fun setWholeDevice(on: Boolean) =
+        edit { it.copy(wholeDevice = on, watch = false, rotate = false, tuner = null, selected = it.selected.take(1)) }
+
+    /** A whole-device watch of every device, or of the picked one only. */
+    fun setAllDevices(all: Boolean) = edit { it.copy(allDevices = all) }
 
     fun refreshHolders() {
         val device = (setup.value as? SetupState.Ready)?.setup?.device ?: return
@@ -188,7 +205,8 @@ class MonitorViewModel @Inject constructor(
     }
 
     /** Back to holding one channel keeps the first picked. */
-    fun setRotate(rotate: Boolean) = edit { s -> s.copy(rotate = rotate, watch = false, selected = if (rotate) s.selected else s.selected.take(1)) }
+    fun setRotate(rotate: Boolean) =
+        edit { s -> s.copy(rotate = rotate, watch = false, wholeDevice = false, selected = if (rotate) s.selected else s.selected.take(1)) }
 
     fun setTuner(tuner: Int?) = edit { it.copy(tuner = tuner) }
     fun setDwell(seconds: Int) = edit { it.copy(dwellS = seconds) }
@@ -204,6 +222,28 @@ class MonitorViewModel @Inject constructor(
     fun start() {
         val s = (setup.value as? SetupState.Ready)?.setup?.takeIf { it.canStart } ?: return
         val thresholds = settings.value?.thresholds ?: state.value.thresholds
+        if (s.wholeDevice) {
+            viewModelScope.launch {
+                val watched = s.watchedDevices
+                // Every device's lineup, so each tuner's channel is named from its own device.
+                val lineups = watched.flatMap { d -> if (d.deviceId == s.device.deviceId) s.channels else devices.channelList(d.deviceId) }
+                controller.start(
+                    MonitorPlan(
+                        device = s.device,
+                        channels = lineups,
+                        tuner = null,
+                        dwellMs = s.dwellS * 1_000L,
+                        durationMs = s.duration.hours?.let { it * 3_600_000L },
+                        pollIntervalMs = s.pollMs,
+                        thresholds = thresholds.copy(snqMarginal = s.dipSnq),
+                        fetchWeather = s.fetchWeather,
+                        notifyDips = s.notifyDips,
+                        wholeDevices = watched,
+                    ),
+                )
+            }
+            return
+        }
         val byGuide = s.channels.associateBy { it.guideNumber }
         controller.start(
             MonitorPlan(

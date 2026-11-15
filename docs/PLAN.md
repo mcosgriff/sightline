@@ -135,16 +135,19 @@ the phone's Wi-Fi from the tuner. Three additions to Monitor; SPEC sections come
   `FakeHdhr.secondDemo()` build both as the app does, and `FakeHdhr.fault` (`UnitFault`) scripts a fault on one
   unit only, for the One unit rule (SPEC "Testing", Demo devices). `TwoDemoTunersTest`, `DemoTunerDevicesTest`.
 
-- [ ] **Watch a whole device.** A Monitor mode that watches every tuner on one or both devices at once, gets only
+- [x] **Watch a whole device** (#25). Monitor's fourth mode, "Watch every tuner", on one device or both: gets only
   (as watch mode on one tuner: `status` and `debug` each poll, the rest when a channel changes), so every recording
   the DVR makes is logged with its signal and packet errors. Each tuner keeps its own dip detector and packet error
   baseline; an idle tuner pauses, as in watch mode. One control connection per device, all tuners read each poll.
-  - `:analysis`: the detector and `PacketErrorCounter` per tuner, keyed by device and tuner.
-  - `:data`: a session over several devices and tuners (Room migration), readings and events keyed by both.
-  - `:app`: setup choice, a running view with one row per tuner (who holds it, channel, health), and Session
-    detail grouped by tuner.
-  - Ask first: poll interval with 8 tuners (1 s default?), and whether Session detail's charts show one tuner at a
-    time or all.
+  - `:analysis`: `DeviceWatch` (a detector and baseline per tuner, device-wide unreachable and gap), `TunerKey`
+    keying `PacketErrorCounter`, and `TunerSummary` per tuner. `DeviceWatchTest`.
+  - `:data`: Room v7 (`session.wholeDevice`, `session.devices`, `reading.deviceId`, `event.deviceId` and
+    `event.tuner`), `MonitorRunner.observeAll`, and device and tuner columns in the CSVs. `MigrationTest`,
+    `WholeDeviceWatchTest` (both Demo tuners, players retuning, idle tuners record nothing, no set).
+  - `:app`: the setup choice (this device only or both), a running view with one row per tuner (who holds it,
+    channel, health), and Session detail's Tuners section with an All tuners / One tuner toggle on the timeline.
+  - Decided 2026-11-14: the poll interval is the other modes' (Settings' "How often to read", changeable in
+    setup); Session detail toggles between one tuner and all.
 - [ ] **Compare the two units.** Tune the same channel on an idle tuner of each device at once, so a dip on both
   points to the antenna, splitter or amplifier, and a dip on one to that unit or its coax branch. Uses lock keys
   and only idle tuners; released on every exit path, as Monitor.

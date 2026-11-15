@@ -76,7 +76,7 @@ class PacketErrorSeries private constructor(private val atMs: LongArray, private
         /** [readings] in time order, as in [SessionData]. */
         fun of(readings: List<LoggedReading>): PacketErrorSeries {
             val counter = PacketErrorCounter()
-            val added = readings.map { r -> r.counters?.let { counter.add(r.tuner, r.guideNumber, it) } ?: PacketErrors.NONE }
+            val added = readings.map { r -> r.counters?.let { counter.add(r.key, r.guideNumber, it) } ?: PacketErrors.NONE }
             return PacketErrorSeries(LongArray(readings.size) { readings[it].atMs }, added, readings.any { it.counters != null })
         }
     }
@@ -84,15 +84,22 @@ class PacketErrorSeries private constructor(private val atMs: LongArray, private
 
 /**
  * Turns running counters into the errors each reading added, one reading at a time: what [PacketErrorSeries] does
- * for a stored session, and Monitor for its running total, so both count the same way.
+ * for a stored session, and Monitor for its running total, so both count the same way. Each tuner keeps its own
+ * baseline, keyed by device and tuner, so tuner 0 of one unit never counts against tuner 0 of another.
  */
 class PacketErrorCounter {
     private data class Last(val guideNumber: String, val counters: ErrorCounters)
 
-    private val last = HashMap<Int, Last>()
+    private val last = HashMap<TunerKey, Last>()
+
+    /** [add] for a tuner of the one device a session reads. */
+    fun add(tuner: Int, guideNumber: String, counters: ErrorCounters): PacketErrors = add(TunerKey(ONE_DEVICE, tuner), guideNumber, counters)
+
+    /** [retuned] for a tuner of the one device a session reads. */
+    fun retuned(tuner: Int) = retuned(TunerKey(ONE_DEVICE, tuner))
 
     /** The errors since [tuner]'s previous reading of the same tune; none for the first reading of a tune. */
-    fun add(tuner: Int, guideNumber: String, counters: ErrorCounters): PacketErrors {
+    fun add(tuner: TunerKey, guideNumber: String, counters: ErrorCounters): PacketErrors {
         val before = last[tuner]?.takeIf { it.guideNumber == guideNumber }?.counters
         last[tuner] = Last(guideNumber, counters)
         if (before == null || fell(counters, before)) return PacketErrors.NONE
@@ -105,11 +112,14 @@ class PacketErrorCounter {
     }
 
     /** The tuner was tuned again: its next reading is a baseline, even on the same channel. */
-    fun retuned(tuner: Int) {
+    fun retuned(tuner: TunerKey) {
         last.remove(tuner)
     }
 
     private companion object {
+        /** The device ID of a tuner given by number alone: [LoggedReading.deviceId]'s "the session's device". */
+        const val ONE_DEVICE = ""
+
         /** Any counter lower than before: the tuner was tuned again in between. */
         fun fell(c: ErrorCounters, before: ErrorCounters) =
             listOf(c.transport to before.transport, c.crc to before.crc, c.resyncs to before.resyncs, c.network to before.network)

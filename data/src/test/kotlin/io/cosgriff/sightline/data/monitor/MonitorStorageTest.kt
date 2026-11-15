@@ -56,6 +56,31 @@ class MonitorStorageTest {
     }
 
     @Test
+    fun `a watch of every tuner keeps its devices, channels, clients, and where each reading and event was`() = runBlocking<Unit> {
+        val other = device.copy(deviceId = "E", friendlyName = "Garage")
+        val plan = MonitorPlan(
+            device, listOf(channel("9.1")), null, 0, null, 1_000, Thresholds.DEFAULT, fetchWeather = false, notifyDips = false,
+            wholeDevices = listOf(device, other),
+        )
+        val id = repository.begin(plan, 1_000)
+        repository.watchedAll(id, listOf("9.1", "4.1"), listOf("192.0.2.20", "192.0.2.21"))
+        val dip = SignalEvent(EventKind.DIP, "9.1", 2_000, 4_000, 50, 90, deviceId = "E", tuner = 0)
+        val outage = SignalEvent(EventKind.DEVICE_UNREACHABLE, null, 5_000, 8_000, deviceId = "D")
+        repository.append(listOf(reading(1_000).copy(deviceId = "D", tuner = 3), reading(1_000).copy(deviceId = "E", tuner = 0)), listOf(dip, outage), id)
+        repository.end(id, 9_000, null)
+
+        val session = db.sessions().get(id)!!
+        assertThat(session.wholeDevice).isTrue()
+        assertThat(session.watched).isTrue()
+        assertThat(session.devices).containsExactly("D", "E").inOrder()
+        assertThat(session.channels).containsExactly("9.1", "4.1").inOrder()
+        assertThat(session.holder).isEqualTo("192.0.2.20,192.0.2.21")
+        assertThat(session.tuner).isNull()
+        assertThat(db.sessions().readings(id).map { it.deviceId to it.tuner }).containsExactly("D" to 3, "E" to 0)
+        assertThat(repository.events(id)).containsExactly(dip, outage).inOrder()
+    }
+
+    @Test
     fun `a session a killed process left open is ended at its last reading`() = runBlocking<Unit> {
         val withReadings = repository.begin(plan("9.1", "4.1"), 1_000)
         repository.append(listOf(reading(5_000), reading(6_000)), emptyList(), withReadings)
