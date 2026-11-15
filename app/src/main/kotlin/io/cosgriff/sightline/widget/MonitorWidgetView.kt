@@ -3,6 +3,7 @@ package io.cosgriff.sightline.widget
 import android.content.Context
 import io.cosgriff.sightline.R
 import io.cosgriff.sightline.monitor.monitorTitle
+import io.cosgriff.sightline.monitor.unitText
 import io.cosgriff.sightline.analysis.Health
 import io.cosgriff.sightline.analysis.SignalSample
 import io.cosgriff.sightline.analysis.Thresholds
@@ -50,6 +51,16 @@ fun monitorWidgetView(context: Context, status: MonitorStatus?, thresholds: Thre
                 quality = latest?.takeIf { it.isLocked }?.snq?.toString(),
                 health = health,
                 healthWord = health?.let { context.getString(it.label) },
+                detail = detail,
+            )
+        }
+        MonitorPhase.Comparing -> {
+            val units = status.units.map { unitText(context, it) }
+            MonitorWidgetView.Running(
+                title = title,
+                quality = null,
+                health = null,
+                healthWord = context.getString(R.string.monitor_notification_compare_units, units.getOrElse(0) { "" }, units.getOrElse(1) { "" }),
                 detail = detail,
             )
         }

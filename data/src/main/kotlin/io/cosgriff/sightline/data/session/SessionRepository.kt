@@ -60,7 +60,16 @@ data class SessionInfo(
     /** Every device the session read, [deviceId] first; just [deviceId] for a session on one device. */
     val devices: List<String> = listOf(deviceId),
     val holders: List<String> = listOfNotNull(holder),
-)
+) {
+    /**
+     * A two-unit compare (GLOSSARY): one channel on a tuner of each of two [devices] at once. Stored as a monitor
+     * session over two devices that isn't a whole-device watch, so it needs no column of its own.
+     */
+    val compare: Boolean get() = kind == SessionKind.MONITOR && !wholeDevice && devices.size > 1
+
+    /** Readings and events say their device and tuner: a whole-device watch or a two-unit compare. */
+    val byDevice: Boolean get() = wholeDevice || compare
+}
 
 /** What History shows of a session; null figures before it's summarised. */
 data class SessionSummary(
@@ -139,7 +148,7 @@ class SessionRepository @Inject constructor(
 
     private suspend fun summarise(s: SessionEntity) {
         val thresholds = settings.settings.first().thresholds
-        val readings = sessions.readings(s.id).map { it.logged(s.wholeDevice) }
+        val readings = sessions.readings(s.id).map { it.logged(s.info().byDevice) }
         val data = SessionData(s.startedAt, s.endedAt ?: s.startedAt, s.pollIntervalMs, readings, events(s.id))
         val stats = SessionStats.of(data, thresholds)
         sessions.upsertSummary(
@@ -168,7 +177,7 @@ class SessionRepository @Inject constructor(
             startMs = s.startedAt,
             endMs = end,
             pollIntervalMs = s.pollIntervalMs,
-            readings = sessions.readings(id).map { it.logged(s.wholeDevice) },
+            readings = sessions.readings(id).map { it.logged(info.byDevice) },
             events = events(id),
             weather = (weather as? SessionWeather.Fetched)?.hours.orEmpty(),
             channels = channels.filterKeys { it in s.channels }.mapValues { (_, c) -> ChannelInfo(c.rfChannel, c.band) },
@@ -244,7 +253,7 @@ class SessionRepository @Inject constructor(
         SignalEvent(it.kind, it.guideNumber, it.startTs, it.endTs, it.minSnq, it.minSeq, it.noLockMs, it.deviceId, it.tuner)
     }
 
-    /** [byDevice]: the session keys its tuners by device too (a whole-device watch), so the reading's device is kept. */
+    /** [byDevice]: the session keys its tuners by device too (a whole-device watch, a compare), so the reading's device is kept. */
     private fun ReadingEntity.logged(byDevice: Boolean) =
         LoggedReading(
             ts, guideNumber, tuner, SignalSample(lock != LOCK_NONE, ss, snq, seq), atsc3 = lock == LOCK_ATSC3,

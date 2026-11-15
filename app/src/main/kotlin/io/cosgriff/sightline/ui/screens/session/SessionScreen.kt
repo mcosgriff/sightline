@@ -217,7 +217,7 @@ private fun Loaded(state: SessionUiState, detail: SessionDetail, thresholds: Thr
                 }
             }
         }
-        if (detail.info.wholeDevice && detail.stats.tuners.isNotEmpty()) {
+        if (detail.info.byDevice && detail.stats.tuners.isNotEmpty()) {
             item(key = "tuners") {
                 Section(stringResource(R.string.session_tuners_title), stringResource(R.string.session_tuners_subtitle)) {
                     ChannelRangeBars(detail.stats.tuners.map { tunerRow(it, detail) }, thresholds.snqGood)
@@ -229,6 +229,17 @@ private fun Loaded(state: SessionUiState, detail: SessionDetail, thresholds: Thr
         }
         item(key = "events") { Events(detail, units, zone, zoomTo) }
         if (detail.stats.errors.hasCounters) item(key = "errors") { PacketErrorsSection(detail) }
+        if (detail.info.compare) {
+            item(key = "compared") {
+                val names = detail.info.devices.map { detail.deviceNames[it] ?: it }
+                Text(
+                    stringResource(R.string.session_compared, names[0], names[1]),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.sightlineColors.textSecondary,
+                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp),
+                )
+            }
+        }
         if (detail.info.watched) {
             item(key = "watched") {
                 val tuner = detail.info.tuner ?: 0
@@ -510,7 +521,7 @@ private fun Diagnosis(detail: SessionDetail, units: Units, zone: ZoneId) {
         if (detail.findings.isEmpty()) {
             FindingCard(noPatternText(detail), strength = null)
         } else {
-            for (f in detail.findings) FindingCard(f.text(units, zone), f.strength)
+            for (f in detail.findings) FindingCard(f.text(units, zone, detail.deviceNames), f.strength)
         }
     }
 }
@@ -564,6 +575,7 @@ private fun Timeline(state: SessionUiState, detail: SessionDetail, thresholds: T
     Section(title) {
         if (byTuner) TunerToggle(detail, one, actions.onTuner)
         val labels = when {
+            detail.info.compare -> detail.info.devices.map { detail.deviceNames[it] ?: it }
             one != null -> listOf(tunerLabel(one, detail))
             byTuner -> detail.data.tuners.map { tunerLabel(it, detail) }
             else -> detail.data.guideNumbers

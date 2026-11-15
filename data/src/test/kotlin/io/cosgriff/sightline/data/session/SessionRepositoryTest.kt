@@ -144,6 +144,31 @@ class SessionRepositoryTest {
     }
 
     @Test
+    fun `a two-unit compare loads as one, its readings keyed by device`() = runBlocking<Unit> {
+        val id = db.sessions().insert(
+            SessionEntity(
+                deviceId = "D", kind = SessionKind.MONITOR, startedAt = START, endedAt = START + HOUR, channels = listOf("9.1"),
+                tuner = null, pollIntervalMs = 1_000, devices = listOf("D", "E"),
+            ),
+        )
+        // The same channel on tuner 3 of one and tuner 2 of the other.
+        fun r(ts: Long, device: String, tuner: Int) = ReadingEntity(0, id, ts, "9.1", tuner, 80, 88, 100, null, null, "8vsb", deviceId = device)
+        db.sessions().append(
+            listOf(r(START, "D", 3), r(START, "E", 2), r(START + 1_000, "D", 3), r(START + 1_000, "E", 2)),
+            listOf(EventEntity(0, id, START, START + 1_000, "9.1", EventKind.DROPOUT, null, null, 1_000, deviceId = "E", tuner = 2)),
+        )
+        val detail = repository.load(id, ZoneOffset.UTC)!!
+        assertThat(detail.info.compare).isTrue()
+        assertThat(detail.info.wholeDevice).isFalse()
+        assertThat(detail.info.byDevice).isTrue()
+        assertThat(detail.data.tuners.map { it.deviceId to it.tuner }).containsExactly("D" to 3, "E" to 2).inOrder()
+        assertThat(detail.data.readings.map { it.deviceId }.distinct()).containsExactly("D", "E").inOrder()
+        // A monitor of one device, and a whole-device watch of two, are not compares.
+        assertThat(SessionInfo(1, "D", SessionKind.MONITOR, 0, 1, listOf("9.1"), 0, 1_000, null).compare).isFalse()
+        assertThat(detail.info.copy(wholeDevice = true).compare).isFalse()
+    }
+
+    @Test
     fun `weather without a home can't be fetched`() = runBlocking<Unit> {
         val id = session()
         assertThat(repository.load(id, ZoneId.of("UTC"))!!.weather).isEqualTo(SessionWeather.NoHome)

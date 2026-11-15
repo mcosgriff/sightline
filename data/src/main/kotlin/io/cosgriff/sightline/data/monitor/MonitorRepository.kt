@@ -19,7 +19,7 @@ class MonitorRepository @Inject constructor(private val sessions: SessionDao) : 
             kind = SessionKind.MONITOR,
             startedAt = startedAt,
             endedAt = null,
-            channels = if (plan.watch || plan.wholeDevice) emptyList() else plan.channels.map { it.guideNumber },
+            channels = if (plan.watch || plan.wholeDevice) emptyList() else plan.channels.map { it.guideNumber }.distinct(),
             tuner = plan.tuner,
             pollIntervalMs = plan.pollIntervalMs,
             dwellMs = if (plan.rotate) plan.dwellMs else null,
@@ -27,7 +27,8 @@ class MonitorRepository @Inject constructor(private val sessions: SessionDao) : 
             firmware = plan.device.firmware.ifEmpty { null },
             watched = plan.watch || plan.wholeDevice,
             wholeDevice = plan.wholeDevice,
-            devices = plan.wholeDevices.map { it.deviceId },
+            // A two-unit compare is told by its two devices without a whole-device watch (SessionInfo.compare).
+            devices = plan.wholeDevices.ifEmpty { plan.compareUnits }.map { it.deviceId },
         ),
     )
 

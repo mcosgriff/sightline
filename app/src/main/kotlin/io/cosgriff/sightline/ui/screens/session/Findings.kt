@@ -22,9 +22,12 @@ import kotlin.math.roundToInt
 /** A finding in words: what the card says. */
 data class FindingText(val title: String, val evidence: String, val fix: String)
 
-/** Words a finding from `:analysis` (which returns no English), its numbers converted to [units]. */
+/**
+ * Words a finding from `:analysis` (which returns no English), its numbers converted to [units]. [deviceNames] names
+ * the devices of a session over two, by device ID; one it lacks is named by its ID.
+ */
 @Composable
-fun Finding.text(units: Units, zone: ZoneId): FindingText = when (this) {
+fun Finding.text(units: Units, zone: ZoneId, deviceNames: Map<String, String> = emptyMap()): FindingText = when (this) {
     is Finding.Overload -> FindingText(
         stringResource(R.string.session_finding_overload),
         levels(channels, R.string.session_evidence_overload_one, R.plurals.session_evidence_overload_more),
@@ -72,10 +75,27 @@ fun Finding.text(units: Units, zone: ZoneId): FindingText = when (this) {
         pluralStringResource(R.plurals.session_evidence_common_path, totalDips, sharedDips, totalDips),
         stringResource(R.string.session_fix_common_path),
     )
+    is Finding.TwoUnitCommonPath -> FindingText(
+        stringResource(R.string.session_finding_two_unit_common_path),
+        pluralStringResource(R.plurals.session_evidence_two_unit_common_path, totalDips, sharedDips, totalDips, (windowMs / 1_000).toInt()),
+        stringResource(R.string.session_fix_two_unit_common_path),
+    )
+    is Finding.OneUnit -> {
+        val name = deviceNames[deviceId] ?: deviceId
+        val other = deviceNames[otherDeviceId] ?: otherDeviceId
+        FindingText(
+            stringResource(R.string.session_finding_one_unit, name, other),
+            ratio?.let { pluralStringResource(R.plurals.session_evidence_one_unit, dips, name, ratio(it), other, dips, otherDips) }
+                ?: pluralStringResource(R.plurals.session_evidence_one_unit_only, dips, name, dips, other),
+            stringResource(R.string.session_fix_one_unit),
+        )
+    }
     is Finding.OneTuner -> {
         val others = list(otherTuners.map { it.toString() })
         FindingText(
-            stringResource(R.string.session_finding_one_tuner),
+            // In a session over two devices, which device's tuner; tuner numbers alone repeat across units.
+            if (deviceId.isEmpty()) stringResource(R.string.session_finding_one_tuner)
+            else stringResource(R.string.session_finding_one_tuner_on, deviceNames[deviceId] ?: deviceId),
             if (otherDips == 0) {
                 pluralStringResource(R.plurals.session_evidence_one_tuner_only, dips, guideNumber, dips, tuner, others)
             } else {

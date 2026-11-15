@@ -81,6 +81,24 @@ class MonitorStorageTest {
     }
 
     @Test
+    fun `a two-unit compare keeps both devices and its one channel, and no single tuner`() = runBlocking<Unit> {
+        val other = device.copy(deviceId = "E", friendlyName = "Garage")
+        val plan = MonitorPlan(
+            device, listOf(channel("9.1"), channel("9.1").copy(deviceId = "E")), null, 0, null, 1_000, Thresholds.DEFAULT,
+            fetchWeather = false, notifyDips = false, compareUnits = listOf(device, other),
+        )
+        val id = repository.begin(plan, 1_000)
+        repository.end(id, 9_000, null)
+        val session = db.sessions().get(id)!!
+        assertThat(session.devices).containsExactly("D", "E").inOrder()
+        assertThat(session.channels).containsExactly("9.1")
+        assertThat(session.wholeDevice).isFalse()
+        assertThat(session.watched).isFalse()
+        assertThat(session.tuner).isNull()
+        assertThat(session.dwellMs).isNull()
+    }
+
+    @Test
     fun `a session a killed process left open is ended at its last reading`() = runBlocking<Unit> {
         val withReadings = repository.begin(plan("9.1", "4.1"), 1_000)
         repository.append(listOf(reading(5_000), reading(6_000)), emptyList(), withReadings)

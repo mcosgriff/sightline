@@ -14,6 +14,11 @@ They are starting values: tune them against real sessions, and change this file 
   Each group needs **an hour or more** of exposure, and the worse group **3 or more dips**. **Likely** takes
   5 or more.
 - **Median snq gaps** (channel vs channels, VHF vs UHF) fire at **20 points** and are **Likely at 30**.
+- **Two-unit compare** (the Common path (two units) and One unit rules): a session that read exactly two devices,
+  on the same channel at the same time in more than half of its stretches with readings (2 s, or two poll intervals
+  when polls are further apart, so each stretch can hold a reading of each). Monitor's "Compare two units" mode
+  records these; a whole-device watch of both units counts only when its tuners carried the same channel side by
+  side most of the time. A dip belongs to the unit its event names.
 - **Ordering**: Likely first, then by score: how far past its line the evidence is (1 = at the line), capped at
   5 so a pile of evidence for one rule can't bury a clearer one. Ties keep the table's order, which puts causes
   (wind, rain, heat) before mechanisms (flutter).
@@ -32,9 +37,11 @@ They are starting values: tune them against real sessions, and change this file 
 | Rain | Dip rate in hours with ≥ 0.1 mm precipitation is 3× the dry (0 mm) rate | 5+ wet dips |
 | Heat | Dip rate in the hottest quarter of hours read is 3× the coolest quarter; needs 8+ hours with a temperature | 5+ hot dips |
 | Common path | 2+ channels read at the same time on 2+ tuners (most 2-second stretches have more than one channel), and 80%+ of dips start within 2 s of a dip on every other channel; 3+ dips | 90%+ and 5+ dips |
-| One tuner | A channel read on 2+ tuners, an hour+ on each, dips 3× as often on one as on the others together; 3+ dips there. A dip's tuner is that of the channel's reading nearest its start | 5+ dips there and none on the others |
+| Common path (two units) | A two-unit compare in which 80%+ of dips start within 2 s of a dip on the other unit, or within one poll interval plus 1 s when polls are further apart than 1 s (two units' polls can't place a start closer: 6 s at 5 s polls); 3+ dips | 90%+ and 5+ dips |
+| One unit | A two-unit compare in which one unit's dip rate is 3× the other's (or the other had none), each unit read an hour or more; 3+ dips on the worse unit | 5+ dips there and none on the other |
+| One tuner | A channel read on 2+ tuners of one device, an hour+ on each, dips 3× as often on one as on the others together; 3+ dips there. Tuners are keyed by device and tuner, and only one device's tuners are compared with each other: tuner 0 of two units is two tuners, and one unit against the other is the One unit rule. A dip's tuner is the one its event names, else that of the channel's reading nearest its start (on the event's device) | 5+ dips there and none on the others |
 | Impulse noise | 3+ `DIP` events whose lowest snq stayed at or above the good line (80): symbol errors alone | They're half or more of all dips |
-| Flutter | Locked snq swings 20+ points within 10 s, 5+ times in all (each swing counted once, then 10 s skipped) | 20+ swings |
+| Flutter | Locked snq swings 20+ points within 10 s, 5+ times in all (each swing counted once, then 10 s skipped). Each device's readings of a channel are counted on their own, so two units a few points apart on one channel aren't swings | 20+ swings |
 | Network loss | The tuner's network send errors (`net err`, see SPEC "Packet errors") total 10+ over the session and are at least 10× its antenna-side errors (transport, CRC, resyncs) | No antenna-side errors and no dips |
 | Not RF | Any device-unreachable event | 2+ of them, or no dips at all |
 

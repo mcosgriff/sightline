@@ -20,10 +20,12 @@ import io.cosgriff.sightline.analysis.TimelineSeries
 import io.cosgriff.sightline.data.device.Channel
 import io.cosgriff.sightline.data.device.Device
 import io.cosgriff.sightline.data.device.TunerHolder
+import io.cosgriff.sightline.data.monitor.ComparedUnit
 import io.cosgriff.sightline.data.monitor.MonitorEnd
 import io.cosgriff.sightline.data.monitor.MonitorPhase
 import io.cosgriff.sightline.data.monitor.MonitorPlan
 import io.cosgriff.sightline.data.monitor.MonitorStatus
+import io.cosgriff.sightline.data.monitor.UnitState
 import io.cosgriff.sightline.data.monitor.WatchedTuner
 import io.cosgriff.sightline.data.monitor.WatchedUse
 import io.cosgriff.sightline.protocol.LostReason
@@ -54,6 +56,8 @@ class MonitorContentTest {
         onWatch = { calls += "watch $it" },
         onWholeDevice = { calls += "whole $it" },
         onAllDevices = { calls += "all devices $it" },
+        onCompare = { calls += "compare $it" },
+        onCompareWith = { calls += "compare with $it" },
         onTuner = { calls += "tuner $it" },
         onDwell = { calls += "dwell $it" },
         onDuration = { calls += "duration $it" },
@@ -273,5 +277,80 @@ class MonitorContentTest {
         val tuners = listOf(WatchedTuner("E", garage.friendlyName, 0, WatchedUse.NoAnswer))
         show(MonitorUiState(SetupState.Loading, status = status().copy(plan = plan, phase = MonitorPhase.WatchingAll(setOf("E")), tuners = tuners)))
         compose.onNodeWithText("Garage HDHomeRun isn't answering. The other tuners are still read.").assertExists()
+    }
+
+    @Test
+    fun `compare is only offered with a second device`() {
+        show(MonitorUiState(SetupState.Ready(setup("9.1"))))
+        compose.onNodeWithText("Compare two units").assertDoesNotExist()
+    }
+
+    @Test
+    fun `compare picks the second unit and a channel both carry, no tuner, and counts both units' readings`() {
+        val theirs = listOf(channel("9.1").copy(deviceId = "E"), channel("14.1").copy(deviceId = "E"))
+        val s = setup("9.1").copy(devices = listOf(device, garage), compare = true, otherId = "E", otherChannels = theirs)
+        show(MonitorUiState(SetupState.Ready(s)))
+        compose.onNodeWithText("Compare with").assertExists()
+        compose.onNodeWithText("Garage HDHomeRun").assertExists()
+        compose.onNodeWithText("Channel, on both").assertExists()
+        // Only the channel both lineups carry.
+        compose.onNodeWithText("9.1 Name 9.1").performScrollTo().assertExists()
+        compose.onNodeWithText("2.1 Name 2.1").assertDoesNotExist()
+        compose.onNodeWithText("Tuner").assertDoesNotExist()
+        compose.onNodeWithText("About 86,400 readings, 6.0 MB, from both units.").performScrollTo().assertExists()
+        compose.onNodeWithText("Start monitoring").performScrollTo().performClick()
+        compose.onNodeWithText("Compare two units").performScrollTo().performClick()
+        assertThat(calls).containsExactly("start", "compare true").inOrder()
+    }
+
+    @Test
+    fun `compare with no channel in common says so and can't start`() {
+        val theirs = listOf(channel("14.1").copy(deviceId = "E"))
+        val s = setup().copy(devices = listOf(device, garage), compare = true, otherId = "E", otherChannels = theirs)
+        show(MonitorUiState(SetupState.Ready(s)))
+        compose.onNodeWithText("These two units carry no channel in common.").performScrollTo().assertExists()
+        compose.onNodeWithText("Start monitoring").performScrollTo().assertIsNotEnabled()
+    }
+
+    private fun comparePlan() = MonitorPlan(
+        device, listOf(channel("9.1"), channel("9.1").copy(deviceId = "E")), null, 0, 12 * 3_600_000L, 1_000, Thresholds.DEFAULT, false, false,
+        compareUnits = listOf(device, garage),
+    )
+
+    @Test
+    fun `comparing shows a row per unit with its tuner and health, both lines on one timeline, and dips by unit`() {
+        val locked = (StatusParser.parse("ch=8vsb:515000000 lock=8vsb ss=88 snq=87 seq=100 bps=19392658 pps=0") as StatusParse.Parsed).status
+        val line = TimelineSeries.forPlan(start, 12 * 3_600_000L, 1_000)
+        val units = listOf(
+            ComparedUnit("D", device.friendlyName, line, UnitState.Holding(3, stream = false), locked),
+            ComparedUnit("E", garage.friendlyName, line, UnitState.NoSpare(30.seconds)),
+        )
+        val unitDip = dropout.copy(deviceId = "E", tuner = 2)
+        val running = status(events = listOf(unitDip)).copy(plan = comparePlan(), phase = MonitorPhase.Comparing, units = units)
+        show(MonitorUiState(SetupState.Loading, status = running), now = start + 3_600_000L)
+        compose.onNodeWithText("Comparing 9.1 on two units").assertExists()
+        compose.onNodeWithText("Living room HDHomeRun and Garage HDHomeRun · 1 reading per second").assertExists()
+        compose.onNodeWithText("Tuner 3").assertExists()
+        compose.onNodeWithText("Quality 87").assertExists()
+        compose.onNodeWithText("Good").assertExists()
+        compose.onNodeWithText("Waiting: no tuner to spare, as one stays idle for recordings. Trying again within 30 s.").assertExists()
+        compose.onNodeWithText("Signal quality, so far").performScrollTo().assertExists()
+        compose.onNodeWithText("8:51 PM · Garage HDHomeRun · tuner 2 · 38 s").performScrollTo().assertExists()
+    }
+
+    @Test
+    fun `a compare a unit can't spare a tuner for didn't start, and says which unit`() {
+        val line = TimelineSeries.forPlan(start, 12 * 3_600_000L, 1_000)
+        val refused = status(ended = MonitorEnd.NO_SPARE_TUNER).copy(
+            plan = comparePlan(), phase = MonitorPhase.Comparing,
+            units = listOf(ComparedUnit("D", device.friendlyName, line), ComparedUnit("E", garage.friendlyName, line, UnitState.NoSpare(30.seconds))),
+        )
+        show(MonitorUiState(SetupState.Ready(setup("9.1")), status = refused))
+        compose.onNodeWithText("Didn't start").assertExists()
+        compose.onNodeWithText(
+            "Garage HDHomeRun has no idle tuner to spare. Sightline keeps one tuner free on each unit for recordings, so it needs two idle there.",
+        ).assertExists()
+        compose.onNodeWithText("Open session").assertDoesNotExist()
+        compose.onNodeWithText("Session saved").assertDoesNotExist()
     }
 }

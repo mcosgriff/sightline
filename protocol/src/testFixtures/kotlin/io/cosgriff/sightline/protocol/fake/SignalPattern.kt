@@ -93,6 +93,13 @@ fun interface UnitFault {
         /** No lock on any tuner from [fromMs] until [untilMs] (clock time), then the channel's own signal again. */
         fun dropout(fromMs: Long, untilMs: Long): UnitFault =
             UnitFault { now, signal -> if (now in fromMs until untilMs) Signal.NONE else signal }
+
+        /**
+         * No lock on any tuner for [lengthMs] at the end of every [everyMs] of clock time (counted from the epoch, so
+         * two fakes with the same fault drop together): the Demo fault on Demo tuner 2, for the One unit finding.
+         */
+        fun recurring(everyMs: Long, lengthMs: Long): UnitFault =
+            UnitFault { now, signal -> if (Math.floorMod(now, everyMs) >= everyMs - lengthMs) Signal.NONE else signal }
     }
 }
 

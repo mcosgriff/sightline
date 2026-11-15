@@ -43,7 +43,8 @@ data class SessionUiState(
     val window: TimeWindow? = null,
     /**
      * One series per channel, in the order first read, for [window]; in a watch of every tuner, one per tuner (in
-     * [io.cosgriff.sightline.analysis.SessionData.tuners] order), or just [tuner]'s.
+     * [io.cosgriff.sightline.analysis.SessionData.tuners] order), or just [tuner]'s; in a two-unit compare, one per
+     * unit, in [io.cosgriff.sightline.data.session.SessionInfo.devices] order.
      */
     val lines: List<TimelineSeries> = emptyList(),
     /** A watch of every tuner's timeline shows this tuner alone; null shows them all. */
@@ -160,8 +161,10 @@ class SessionViewModel @AssistedInject constructor(
         val detail = _state.value.detail ?: return@exporting null
         val file = export.reportFile(sessionId, zone) ?: return@exporting null
         val d = detail.data
-        // The report's legend names channels, so its lines are per channel in every mode.
-        val chart = ReportChart(d.startMs, d.endMs, channelLines(detail, TimeWindow(d.startMs, d.endMs), REPORT_BUCKETS), d.events, settings.value.thresholds.snqGood)
+        // The report's legend names channels, so its lines are per channel; a compare's, per unit.
+        val whole = TimeWindow(d.startMs, d.endMs)
+        val lines = if (detail.info.compare) unitLines(detail, whole, REPORT_BUCKETS) else channelLines(detail, whole, REPORT_BUCKETS)
+        val chart = ReportChart(d.startMs, d.endMs, lines, d.events, settings.value.thresholds.snqGood)
         withContext(Dispatchers.IO) { reportWriter.write(file, text, chart, footer) }
         ShareFiles(listOf(file), PDF)
     }
@@ -178,11 +181,18 @@ class SessionViewModel @AssistedInject constructor(
         }
     }
 
-    /** Per channel, or in a watch of every tuner per tuner ([tuner] alone when set). */
+    /** Per channel, in a watch of every tuner per tuner ([tuner] alone when set), or in a compare per unit. */
     private fun lines(detail: SessionDetail, window: TimeWindow, buckets: Int = TIMELINE_BUCKETS, tuner: TunerKey? = null): List<TimelineSeries> {
+        if (detail.info.compare) return unitLines(detail, window, buckets)
         if (!detail.info.wholeDevice) return channelLines(detail, window, buckets)
         val d = detail.data
         return (tuner?.let(::listOf) ?: d.tuners).map { timelineOf(d.byTuner[it].orEmpty(), window.startMs, window.endMs, buckets) }
+    }
+
+    /** A two-unit compare: each unit's readings, whichever of its tuners they came from, as one line. */
+    private fun unitLines(detail: SessionDetail, window: TimeWindow, buckets: Int): List<TimelineSeries> {
+        val byUnit = detail.data.readings.groupBy { it.deviceId }
+        return detail.info.devices.map { timelineOf(byUnit[it].orEmpty(), window.startMs, window.endMs, buckets) }
     }
 
     private fun channelLines(detail: SessionDetail, window: TimeWindow, buckets: Int): List<TimelineSeries> = detail.data.guideNumbers.map { g ->

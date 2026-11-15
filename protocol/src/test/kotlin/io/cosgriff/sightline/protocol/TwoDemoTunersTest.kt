@@ -2,6 +2,7 @@ package io.cosgriff.sightline.protocol
 
 import com.google.common.truth.Truth.assertThat
 import io.cosgriff.sightline.protocol.fake.FakeHdhr
+import io.cosgriff.sightline.protocol.fake.Signal
 import io.cosgriff.sightline.protocol.fake.UnitFault
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -97,6 +98,16 @@ class TwoDemoTunersTest {
 
         firstControl.set("/tuner1/lockkey", "none", 11)
         secondControl.set("/tuner1/lockkey", "none", 22)
+    }
+
+    @Test
+    fun `a recurring fault drops the signal at the end of each period of clock time`() {
+        val fault = UnitFault.recurring(everyMs = 900_000, lengthMs = 20_000)
+        val good = Signal(true, 80, 84, 100)
+        assertThat(fault.at(900_000L * 7 + 879_999, good)).isEqualTo(good)
+        assertThat(fault.at(900_000L * 7 + 880_000, good)).isEqualTo(Signal.NONE)
+        assertThat(fault.at(900_000L * 8 - 1, good)).isEqualTo(Signal.NONE)
+        assertThat(fault.at(900_000L * 8, good)).isEqualTo(good)
     }
 
     /** libhdhomerun's `hdhomerun_discover_validate_device_id`: every real unit's ID passes it. */

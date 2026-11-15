@@ -89,13 +89,44 @@ sealed interface Finding {
     /** [sharedDips] of [totalDips] started within 2 s of a dip on every other channel read at the same time. */
     data class CommonPath(val sharedDips: Int, val totalDips: Int, override val strength: Strength, override val score: Double) : Finding
 
-    /** [guideNumber] dipped [dips] times on [tuner], [otherDips] times on [otherTuners] over the same kind of time. */
+    /**
+     * [guideNumber] dipped [dips] times on [tuner], [otherDips] times on [otherTuners] over the same kind of time. All
+     * are tuners of one device: [deviceId], empty for the session's device in a session on one device.
+     */
     data class OneTuner(
         val guideNumber: String,
         val tuner: Int,
         val dips: Int,
         val otherTuners: List<Int>,
         val otherDips: Int,
+        override val strength: Strength,
+        override val score: Double,
+        val deviceId: String = "",
+    ) : Finding
+
+    /**
+     * A two-unit compare: [sharedDips] of [totalDips] dips started within [windowMs] of a dip on the other unit, which
+     * read the same channel at the same time. Points to what the units share: antenna, amplifier, splitter.
+     */
+    data class TwoUnitCommonPath(
+        val sharedDips: Int,
+        val totalDips: Int,
+        val windowMs: Long,
+        override val strength: Strength,
+        override val score: Double,
+    ) : Finding
+
+    /**
+     * A two-unit compare: [deviceId] dipped [dips] times while [otherDeviceId], on the same channel at the same time,
+     * dipped [otherDips] times; [ratio] is the dip rate of one over the other (null: the other had none). Points to
+     * that unit or its coax branch.
+     */
+    data class OneUnit(
+        val deviceId: String,
+        val dips: Int,
+        val otherDeviceId: String,
+        val otherDips: Int,
+        val ratio: Double?,
         override val strength: Strength,
         override val score: Double,
     ) : Finding
@@ -141,14 +172,37 @@ class Diagnosable(val data: SessionData, val thresholds: Thresholds) {
     /** Readings per clock hour (UTC epoch ms of its start). */
     val readingsPerHour: Map<Long, Int> by lazy { data.readings.groupingBy { hourOf(it.atMs) }.eachCount() }
 
-    /** The tuner a dip happened on: the one it was recorded on, else that of the channel's reading nearest its start. */
-    fun tunerOf(event: SignalEvent): Int? {
-        event.tuner?.let { return it }
-        val rs = data.byChannel[event.guideNumber ?: return null] ?: return null
+    /**
+     * The tuner a dip happened on, keyed by device and tuner: the one it was recorded on, else that of the channel's
+     * reading nearest its start (on the event's device, when it names one).
+     */
+    fun tunerOf(event: SignalEvent): TunerKey? {
+        event.tuner?.let { return TunerKey(event.deviceId.orEmpty(), it) }
+        val all = data.byChannel[event.guideNumber ?: return null] ?: return null
+        val rs = event.deviceId?.let { d -> all.filter { it.deviceId == d } } ?: all
         if (rs.isEmpty()) return null
         var i = rs.binarySearch { it.atMs.compareTo(event.startMs) }
         if (i < 0) i = (-i - 1).coerceAtMost(rs.lastIndex)
-        return rs[i].tuner
+        return rs[i].key
+    }
+
+    /**
+     * The two devices of a two-unit compare, in the order first read: a session reading exactly two devices, on the
+     * same channel at the same time in most stretches with readings (2 s, or two poll intervals when polls are further
+     * apart, so each stretch can hold a reading of each). Null for any other session, so the unit rules never compare
+     * two units that were reading different things.
+     */
+    val comparedUnits: List<String>? by lazy {
+        val devices = data.readings.map { it.deviceId }.distinct()
+        if (devices.size != 2 || "" in devices) return@lazy null
+        val stretch = maxOf(CommonPathRule.WITHIN_MS, 2 * data.pollIntervalMs)
+        val buckets = data.readings.groupBy { it.atMs / stretch }.values
+        val side = buckets.count { b ->
+            val (a, other) = b.partition { it.deviceId == devices[0] }
+            val guides = a.map { it.guideNumber }.toSet()
+            other.any { it.guideNumber in guides }
+        }
+        devices.takeIf { side * 2 > buckets.size }
     }
 }
 
@@ -160,7 +214,8 @@ class Diagnosable(val data: SessionData, val thresholds: Thresholds) {
 object Diagnosis {
     val RULES: List<DiagnosisRule> = listOf(
         OverloadRule, WeakSignalRule, OneChannelBadRule, VhfWeakRule, UpperUhfRule, TimeOfDayRule,
-        WindRule, RainRule, HeatRule, CommonPathRule, OneTunerRule, ImpulseNoiseRule, FlutterRule, NetworkLossRule, NotRfRule,
+        WindRule, RainRule, HeatRule, CommonPathRule, TwoUnitCommonPathRule, OneUnitRule, OneTunerRule, ImpulseNoiseRule,
+        FlutterRule, NetworkLossRule, NotRfRule,
     )
 
     /** Scores past this count as equal, so a pile of evidence for one rule can't bury a clearer cause. */
@@ -441,23 +496,71 @@ object CommonPathRule : DiagnosisRule {
 }
 
 /**
- * One tuner: a channel read on several tuners, an hour or more on each, dips 3× as often on one as on the others
- * together, with 3+ dips there. Likely with 5+ and none on the others.
+ * Common path across two units: in a two-unit compare ([Diagnosable.comparedUnits]), 80%+ of dips start within 2 s
+ * of a dip on the other unit (or within one poll interval and a second, when polls are further apart, since two
+ * units' polls can't place a start closer than that). Needs 3+ dips; Likely at 90% with 5+.
+ */
+object TwoUnitCommonPathRule : DiagnosisRule {
+    override fun evaluate(session: Diagnosable): Finding? {
+        val units = session.comparedUnits ?: return null
+        val dips = session.dips.filter { it.deviceId in units }
+        if (dips.size < MIN_DIPS) return null
+        val window = maxOf(CommonPathRule.WITHIN_MS, session.data.pollIntervalMs + 1_000)
+        val byUnit = dips.groupBy { it.deviceId }
+        val shared = dips.count { d ->
+            byUnit.filterKeys { it != d.deviceId }.values.flatten().any { kotlin.math.abs(it.startMs - d.startMs) <= window }
+        }
+        val share = shared.toDouble() / dips.size
+        if (share < CommonPathRule.SHARE) return null
+        val likely = share >= 0.9 && dips.size >= LIKELY_DIPS
+        return Finding.TwoUnitCommonPath(shared, dips.size, window, if (likely) Strength.LIKELY else Strength.POSSIBLE, share / CommonPathRule.SHARE)
+    }
+}
+
+/**
+ * One unit: in a two-unit compare, one unit dips 3× as often as the other per hour read (or the other not at all),
+ * each read an hour or more, with 3+ dips on the worse one. Likely with 5+ and none on the other.
+ */
+object OneUnitRule : DiagnosisRule {
+    override fun evaluate(session: Diagnosable): Finding? {
+        val units = session.comparedUnits ?: return null
+        val readings = session.data.readings.groupingBy { it.deviceId }.eachCount()
+        val exposure = units.associateWith { session.exposureMs(readings[it] ?: 0) }
+        if (exposure.values.any { it < MIN_EXPOSURE_MS }) return null
+        val dips = units.associateWith { u -> session.dips.count { it.deviceId == u } }
+        val worse = units.maxBy { dips.getValue(it) }
+        val other = units.single { it != worse }
+        val worseDips = dips.getValue(worse)
+        val otherDips = dips.getValue(other)
+        val ratio = rateRatio(worseDips, exposure.getValue(worse), otherDips, exposure.getValue(other))
+        if (worseDips < MIN_DIPS || (ratio != null && ratio < RATE_RATIO)) return null
+        val likely = worseDips >= LIKELY_DIPS && otherDips == 0
+        return Finding.OneUnit(worse, worseDips, other, otherDips, ratio, if (likely) Strength.LIKELY else Strength.POSSIBLE, score(ratio))
+    }
+}
+
+/**
+ * One tuner: a channel read on several tuners of one device, an hour or more on each, dips 3× as often on one as on
+ * the others together, with 3+ dips there. Likely with 5+ and none on the others. Tuners are keyed by device and
+ * tuner, and only a device's own tuners are compared: tuner 0 of two units is two tuners, and one unit against
+ * another is the One unit rule's.
  */
 object OneTunerRule : DiagnosisRule {
     override fun evaluate(session: Diagnosable): Finding? {
         val tunerOfDip = session.dips.associateWith { session.tunerOf(it) }
-        val candidates = session.data.byChannel.mapNotNull { (guide, rs) ->
-            val perTuner = rs.groupingBy { it.tuner }.eachCount().filterValues { session.exposureMs(it) >= MIN_EXPOSURE_MS }
-            if (perTuner.size < 2) return@mapNotNull null
-            val dips = perTuner.keys.associateWith { t -> tunerOfDip.count { (d, dt) -> d.guideNumber == guide && dt == t } }
-            val (worst, worstDips) = dips.maxBy { it.value }
-            val others = perTuner.keys - worst
-            val otherDips = others.sumOf { dips.getValue(it) }
-            val ratio = rateRatio(worstDips, session.exposureMs(perTuner.getValue(worst)), otherDips, session.exposureMs(others.sumOf { perTuner.getValue(it) }))
-            if (worstDips < MIN_DIPS || (ratio != null && ratio < RATE_RATIO)) return@mapNotNull null
-            val likely = worstDips >= LIKELY_DIPS && otherDips == 0
-            Finding.OneTuner(guide, worst, worstDips, others.sorted(), otherDips, if (likely) Strength.LIKELY else Strength.POSSIBLE, score(ratio))
+        val candidates = session.data.byChannel.flatMap { (guide, all) ->
+            all.groupBy { it.deviceId }.mapNotNull { (device, rs) ->
+                val perTuner = rs.groupingBy { it.tuner }.eachCount().filterValues { session.exposureMs(it) >= MIN_EXPOSURE_MS }
+                if (perTuner.size < 2) return@mapNotNull null
+                val dips = perTuner.keys.associateWith { t -> tunerOfDip.count { (d, k) -> d.guideNumber == guide && k == TunerKey(device, t) } }
+                val (worst, worstDips) = dips.maxBy { it.value }
+                val others = perTuner.keys - worst
+                val otherDips = others.sumOf { dips.getValue(it) }
+                val ratio = rateRatio(worstDips, session.exposureMs(perTuner.getValue(worst)), otherDips, session.exposureMs(others.sumOf { perTuner.getValue(it) }))
+                if (worstDips < MIN_DIPS || (ratio != null && ratio < RATE_RATIO)) return@mapNotNull null
+                val likely = worstDips >= LIKELY_DIPS && otherDips == 0
+                Finding.OneTuner(guide, worst, worstDips, others.sorted(), otherDips, if (likely) Strength.LIKELY else Strength.POSSIBLE, score(ratio), device)
+            }
         }
         return candidates.maxByOrNull { it.score }
     }
@@ -488,10 +591,14 @@ object FlutterRule : DiagnosisRule {
     const val LIKELY_SWINGS = 20
 
     override fun evaluate(session: Diagnosable): Finding? {
-        val perChannel = session.data.byChannel.mapValues { (_, rs) -> swings(rs.filter { it.sample.locked }) }.filterValues { it > 0 }
+        // Each device's readings of a channel on their own: two units on one channel read side by side, a few points
+        // apart, would otherwise look like swings between them.
+        val perChannel = session.data.readings.filter { it.sample.locked }.groupBy { it.deviceId to it.guideNumber }
+            .mapValues { (_, rs) -> swings(rs) }.filterValues { it > 0 }
         val total = perChannel.values.sum()
         if (total < MIN_SWINGS) return null
-        val channels = perChannel.entries.sortedByDescending { it.value }.map { it.key }
+        val channels = perChannel.entries.groupBy({ it.key.second }, { it.value }).mapValues { it.value.sum() }
+            .entries.sortedByDescending { it.value }.map { it.key }
         return Finding.Flutter(total, channels, if (total >= LIKELY_SWINGS) Strength.LIKELY else Strength.POSSIBLE, total.toDouble() / MIN_SWINGS)
     }
 
@@ -518,7 +625,6 @@ object FlutterRule : DiagnosisRule {
     }
 }
 
-/** Not RF: the device stopped answering. Likely when it did so twice or more, or there were no dips at all. */
 /**
  * Network loss: the tuner's `net err` counted [MIN_ERRORS]+ over the session, at least [RATIO]× the antenna-side
  * errors. Likely when the antenna side had none and the session had no dips.
@@ -538,6 +644,7 @@ object NetworkLossRule : DiagnosisRule {
     }
 }
 
+/** Not RF: the device stopped answering. Likely when it did so twice or more, or there were no dips at all. */
 object NotRfRule : DiagnosisRule {
     override fun evaluate(session: Diagnosable): Finding? {
         val outages = session.data.events.filter { it.kind == EventKind.DEVICE_UNREACHABLE }

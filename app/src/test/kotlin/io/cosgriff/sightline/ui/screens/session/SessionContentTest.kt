@@ -211,6 +211,66 @@ class SessionContentTest {
         scrollTo("Watched every tuner on Roof and Garage; Sightline didn't tune any. Clients seen: 192.0.2.20.")
     }
 
+    /**
+     * A two-unit compare: 9.1 on tuner 3 of Roof and tuner 2 of Garage at once, for two hours, a reading a minute;
+     * Garage alone dips for 3 minutes every 10.
+     */
+    private fun compared(): SessionDetail {
+        val readings = (0 until 2 * 60).flatMap { m ->
+            val bad = m % 10 < 3
+            listOf(
+                LoggedReading(START + m * MINUTE, "9.1", 3, SignalSample(true, 80, 88, 100), deviceId = "D"),
+                LoggedReading(START + m * MINUTE, "9.1", 2, SignalSample(true, 76, if (bad) 40 else 84, if (bad) 70 else 100), deviceId = "E"),
+            )
+        }
+        val events = listOf("D" to 3, "E" to 2).flatMap { (device, tuner) ->
+            val detector = DipDetector(Thresholds.DEFAULT)
+            val mine = readings.filter { it.deviceId == device }
+            (mine.flatMap { detector.reading(it.atMs, it.guideNumber, it.sample) } + detector.finish(mine.last().atMs))
+                .map { it.copy(deviceId = device, tuner = tuner) }
+        }.sortedBy { it.startMs }
+        val data = SessionData(START, START + 2 * HOUR, MINUTE, readings, events, zone = ZoneOffset.UTC)
+        val info = SessionInfo(9, "D", SessionKind.MONITOR, START, START + 2 * HOUR, listOf("9.1"), null, MINUTE, null, devices = listOf("D", "E"))
+        return SessionDetail(
+            info, "Roof", data, SessionStats.of(data, Thresholds.DEFAULT), Diagnosis.run(data, Thresholds.DEFAULT), emptyMap(), SessionWeather.NotAsked,
+            deviceNames = mapOf("D" to "Roof", "E" to "Garage"),
+        )
+    }
+
+    private fun showUnits(detail: SessionDetail) = compose.setContent {
+        val window = TimeWindow(detail.data.startMs, detail.data.endMs)
+        val byUnit = detail.data.readings.groupBy { it.deviceId }
+        val lines = detail.info.devices.map { timelineOf(byUnit.getValue(it), window.startMs, window.endMs, 360) }
+        SightlineTheme { SessionContent(SessionUiState(false, detail, window, lines), Thresholds.DEFAULT, Units.IMPERIAL, ZoneOffset.UTC, actions) }
+    }
+
+    @Test
+    fun `a two-unit compare finds the unit that drops, draws a line per unit, and says what was compared`() {
+        showUnits(compared())
+        compose.onNodeWithText("Garage drops, Roof doesn't").assertExists()
+        compose.onNodeWithText("Garage dipped 12 times; Roof, on the same channel at the same time, never did.").assertExists()
+        compose.onNodeWithText(
+            "Fix: swap the two units' cables at the splitter. If the dips follow the cable, it's that cable or its splitter port; if they stay, it's the unit.",
+        ).assertExists()
+        scrollTo("Roof quality")
+        compose.onNodeWithText("Garage quality").assertExists()
+        compose.onNodeWithText("All tuners").assertDoesNotExist()
+        scrollTo("Tuners")
+        compose.onNodeWithText("Garage · tuner 2").assertExists()
+        scrollTo("Nov 2, 1:50 AM · 9.1 · Garage · tuner 2 · 3m 00s")
+        scrollTo("Compared Roof and Garage: the same channel on a tuner of each at once.")
+    }
+
+    @Test
+    fun `a two-unit compare's report draws a line per unit`() {
+        showUnits(compared())
+        scrollTo("Share report")
+        compose.onNodeWithText("Share report").performClick()
+        compose.waitForIdle()
+        assertThat(report!!.legend).containsExactly("Roof quality", "Garage quality").inOrder()
+        assertThat(report!!.findings.first().title).isEqualTo("Garage drops, Roof doesn't")
+    }
+
     @Test
     fun `old sessions without counters show no errors section`() {
         show(windy())

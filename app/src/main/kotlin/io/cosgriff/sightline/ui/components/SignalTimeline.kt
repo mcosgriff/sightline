@@ -106,20 +106,25 @@ fun SignalTimeline(
         layerPadding = { CartesianLayerPadding(0.dp, 0.dp, 0.dp, 0.dp) },
         decorations = listOf(decoration),
     )
+    // Vico refuses a model with no series, so there is none until a line has a point (a monitor's first seconds).
     val model = remember(lines) {
-        CartesianChartModel(
-            LineCartesianLayerModel.build {
-                for ((_, l) in drawn) {
-                    val points = l.lows.toSortedMap()
-                    series(points.keys.toList(), points.values.toList())
-                }
-            },
-        )
+        if (drawn.isEmpty()) {
+            null
+        } else {
+            CartesianChartModel(
+                LineCartesianLayerModel.build {
+                    for ((_, l) in drawn) {
+                        val points = l.lows.toSortedMap()
+                        series(points.keys.toList(), points.values.toList())
+                    }
+                },
+            )
+        }
     }
 
     Column(modifier.semantics(mergeDescendants = true) { contentDescription = description }) {
         BoxWithConstraints(Modifier.fillMaxWidth().height(chartHeight)) {
-            if (drawn.isNotEmpty()) {
+            if (model != null) {
                 CartesianChartHost(
                     chart = chart,
                     model = model,
