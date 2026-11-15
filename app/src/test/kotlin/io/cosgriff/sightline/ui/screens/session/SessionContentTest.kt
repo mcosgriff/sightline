@@ -21,6 +21,7 @@ import io.cosgriff.sightline.analysis.SignalSample
 import io.cosgriff.sightline.analysis.Thresholds
 import io.cosgriff.sightline.analysis.TunerKey
 import io.cosgriff.sightline.analysis.WeatherHour
+import io.cosgriff.sightline.analysis.WifiSample
 import io.cosgriff.sightline.analysis.timelineOf
 import io.cosgriff.sightline.data.db.SessionKind
 import io.cosgriff.sightline.data.session.SessionDetail
@@ -271,6 +272,82 @@ class SessionContentTest {
         assertThat(report!!.findings.first().title).isEqualTo("Garage drops, Roof doesn't")
     }
 
+    /**
+     * The windy session with the phone's Wi-Fi recorded: on access point 1 at -55 dBm, off Wi-Fi from 3 s before the
+     * tuner stopped answering at 1 AM for 2 minutes, back on access point 2, then a roam to access point 1 at 4 AM.
+     * [bssid] false: no precise location, so no access point is known.
+     */
+    private fun withWifi(bssid: Boolean = true): SessionDetail = windy().let { d ->
+        fun ap(n: Int) = if (bssid) "aa:bb:cc:00:00:0$n" else null
+        val outage = io.cosgriff.sightline.analysis.SignalEvent(
+            io.cosgriff.sightline.analysis.EventKind.DEVICE_UNREACHABLE, null, START + HOUR, START + HOUR + 2 * MINUTE,
+        )
+        val wifi = listOf(
+            WifiSample(START, true, -55, 866, 5_180, ap(1)),
+            WifiSample(START + HOUR - 3_000, false),
+            WifiSample(START + HOUR + 2 * MINUTE, true, -62, 866, 5_180, ap(2)),
+            WifiSample(START + 4 * HOUR, true, -70, 433, 5_180, ap(1)),
+        )
+        val data = d.data.copy(events = (d.data.events + outage).sortedBy { it.startMs }, wifi = wifi)
+        d.copy(data = data, stats = SessionStats.of(data, Thresholds.DEFAULT), findings = Diagnosis.run(data, Thresholds.DEFAULT))
+    }
+
+    @Test
+    fun `an outage as the phone left Wi-Fi is the phone's Wi-Fi, not the network`() {
+        show(withWifi())
+        compose.onNodeWithText("The phone's Wi-Fi dropped, not the tuner").assertExists()
+        compose.onNodeWithText("The tuner stopped answering 1 time, within 10 s of trouble on this phone's Wi-Fi: 1 time off Wi-Fi.").assertExists()
+        compose.onNodeWithText("Fix: keep the phone near its access point", substring = true).assertExists()
+        compose.onNodeWithText("The network dropped, not the signal").assertDoesNotExist()
+    }
+
+    @Test
+    fun `the Wi-Fi lane sits under the timeline with its legend, its line in words and the access points`() {
+        show(withWifi())
+        scrollTo("Phone Wi-Fi, dBm")
+        compose.onNodeWithText("Roam").assertExists()
+        compose.onNodeWithText("Off Wi-Fi").assertExists()
+        compose.onNodeWithText("Weak, -80 dBm or below").assertExists()
+        compose.onNodeWithText("Signal -55 to -70 dBm · 5 GHz · 1 roam · off Wi-Fi 1 time").assertExists()
+        compose.onNodeWithText("2 access points (BSSID): aa:bb:cc:00:00:01, aa:bb:cc:00:00:02").assertExists()
+    }
+
+    @Test
+    fun `without precise location the lane says the access points weren't recorded, and claims no roams`() {
+        show(withWifi(bssid = false))
+        scrollTo("Phone Wi-Fi, dBm")
+        compose.onNodeWithText("Signal -55 to -70 dBm · 5 GHz · off Wi-Fi 1 time").assertExists()
+        compose.onNodeWithText("Access points weren't recorded", substring = true).assertExists()
+        compose.onNodeWithText("BSSID", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun `an older session without Wi-Fi samples has no lane, and its outage stays Not RF`() {
+        val d = windy().let { d ->
+            val outage = io.cosgriff.sightline.analysis.SignalEvent(
+                io.cosgriff.sightline.analysis.EventKind.DEVICE_UNREACHABLE, null, START + HOUR, START + HOUR + 2 * MINUTE,
+            )
+            val data = d.data.copy(events = (d.data.events + outage).sortedBy { it.startMs })
+            d.copy(data = data, findings = Diagnosis.run(data, Thresholds.DEFAULT))
+        }
+        show(d)
+        compose.onNodeWithText("The network dropped, not the signal").assertExists()
+        compose.onNodeWithText("The phone's Wi-Fi dropped, not the tuner").assertDoesNotExist()
+        scrollTo("Export CSV")
+        compose.onNodeWithText("Phone Wi-Fi, dBm").assertDoesNotExist()
+    }
+
+    @Test
+    fun `the report carries the Wi-Fi line, and none without samples`() {
+        show(withWifi())
+        scrollTo("Share report")
+        compose.onNodeWithText("Share report").performClick()
+        compose.waitForIdle()
+        assertThat(report!!.wifi).isEqualTo(
+            "Phone Wi-Fi: Signal -55 to -70 dBm · 5 GHz · 1 roam · off Wi-Fi 1 time. 2 access points (BSSID): aa:bb:cc:00:00:01, aa:bb:cc:00:00:02",
+        )
+    }
+
     @Test
     fun `old sessions without counters show no errors section`() {
         show(windy())
@@ -334,6 +411,7 @@ class SessionContentTest {
         assertThat(r.findings.first().badge).isEqualTo("Likely")
         assertThat(r.events).isNotEmpty()
         assertThat(r.events.first().title).endsWith(" · Dip")
+        assertThat(r.wifi).isNull()
     }
 
     @Test

@@ -1,16 +1,18 @@
 package io.cosgriff.sightline.data.monitor
 
 import io.cosgriff.sightline.analysis.SignalEvent
+import io.cosgriff.sightline.analysis.WifiSample
 import io.cosgriff.sightline.data.db.Converters
 import io.cosgriff.sightline.data.db.EventEntity
 import io.cosgriff.sightline.data.db.ReadingEntity
 import io.cosgriff.sightline.data.db.SessionDao
 import io.cosgriff.sightline.data.db.SessionEntity
 import io.cosgriff.sightline.data.db.SessionKind
+import io.cosgriff.sightline.data.db.WifiSampleEntity
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** Monitor sessions in Room: `MONITOR` sessions with their readings and events. */
+/** Monitor sessions in Room: `MONITOR` sessions with their readings, events and the phone's Wi-Fi. */
 @Singleton
 class MonitorRepository @Inject constructor(private val sessions: SessionDao) : MonitorLog {
     override suspend fun begin(plan: MonitorPlan, startedAt: Long): Long = sessions.insert(
@@ -34,6 +36,13 @@ class MonitorRepository @Inject constructor(private val sessions: SessionDao) : 
 
     override suspend fun append(readings: List<ReadingEntity>, events: List<SignalEvent>, sessionId: Long) =
         sessions.append(readings.map { it.copy(sessionId = sessionId) }, events.map { it.toEntity(sessionId) })
+
+    override suspend fun append(readings: List<ReadingEntity>, events: List<SignalEvent>, wifi: List<WifiSample>, sessionId: Long) =
+        sessions.appendWithWifi(
+            readings.map { it.copy(sessionId = sessionId) },
+            events.map { it.toEntity(sessionId) },
+            wifi.map { WifiSampleEntity(0, sessionId, it.atMs, it.connected, it.rssiDbm, it.linkMbps, it.frequencyMhz, it.bssid) },
+        )
 
     override suspend fun watched(sessionId: Long, channels: List<String>, holder: String?) =
         sessions.setWatched(sessionId, Converters().fromList(channels), holder)

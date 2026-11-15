@@ -165,16 +165,25 @@ the phone's Wi-Fi from the tuner. Three additions to Monitor; SPEC sections come
     timeline, Session detail with a line per unit, notification and widget; Demo tuner 2's Demo fault
     (`UnitFault.recurring`, 20 s every 15 min) so a debug build shows One unit.
   - Decided 2026-11-15: one tuner stays idle per unit for the DVR, as Multi-tuner does; its own Monitor mode.
-- [ ] **Record the phone's Wi-Fi with each session.** Signal strength (RSSI), link speed, frequency band and access
-  point changes from the platform (`ConnectivityManager` network callback, `WifiInfo` from `NetworkCapabilities`;
-  no Google APIs), stored with readings, so a "device unreachable" event can be laid against the phone roaming or
-  its signal falling.
-  - `:data`: Wi-Fi samples in Room, written with the 10 s batch; the BSSID only when the app already has location
-    permission, and never sent anywhere.
-  - `:analysis`: a Phone Wi-Fi rule (device-unreachable events that start within a few seconds of a roam, a
-    disconnect or RSSI below a threshold), with tests.
-  - `:app`: a Wi-Fi lane on `SignalTimeline` in Session detail, and the rule's finding.
-  - Ask first: whether to show the BSSID at all (it identifies the user's access point in shared reports and CSV).
+- [x] **Record the phone's Wi-Fi with each session** (#27). Signal strength (RSSI), link speed, frequency band and
+  access point changes from the platform (`ConnectivityManager` network callback, `WifiInfo` from
+  `NetworkCapabilities`; no Google APIs), stored with readings, so a "device unreachable" event can be laid against
+  the phone roaming or its signal falling. In every Monitor mode (SPEC "Phone Wi-Fi").
+  - `:analysis`: `WifiSample`, `WifiSummary`, `roamsOf`/`disconnectsOf`, and the Phone Wi-Fi rule
+    (`PhoneWifiRule`: device-unreachable events within 10 s of the phone off Wi-Fi, a roam or −80 dBm or weaker),
+    which takes those events from Not RF; numbers in `docs/rules/diagnosis.md`. `DiagnosisTest`, `WifiTest`.
+  - `:data`: `PhoneWifi` (the interface tests script) and `AndroidPhoneWifi`; `MonitorRunner` stores each change,
+    written with the 10 s batch; Room v8 (`wifi_sample`), deleted with the readings by retention; a Wi-Fi CSV.
+    `MigrationTest`, `PhoneWifiTest` (a scripted drop against the Demo tuner gives Phone Wi-Fi, not Not RF; every
+    mode records), `SessionExportTest`, `SessionRepositoryTest`.
+  - `:app`: the Wi-Fi lane under Session detail's timeline (legend, its line in words, access points), the
+    finding, the report's lane and line, and the third CSV. `SessionContentTest`, `ReportWriterTest`.
+  - Decided 2026-11-15 on #27: show the BSSID, in the app, the report and the CSV; record it only with the
+    location permission it needs (precise), never asked for, and never send it anywhere. Precise location is
+    declared, not requested: the user can turn it on in Android's settings.
 - **Done when:** against two Demo tuners (a second `FakeHdhr` in debug builds), a whole-device watch logs a made-up
   player's channel changes on every tuner; a two-unit session with a fault on one unit gives the One unit finding;
   and a scripted Wi-Fi drop gives the Phone Wi-Fi finding instead of Not RF.
+  - Met: `WholeDeviceWatchTest` (both Demo tuners, the players retuning), `TwoUnitCompareTest` (a fault on one unit:
+    One unit) and `PhoneWifiTest` (a scripted drop during a Demo tuner session: Phone Wi-Fi, no Not RF). The phone's
+    real Wi-Fi, roaming and the BSSID with precise location wait for a release build on a phone.

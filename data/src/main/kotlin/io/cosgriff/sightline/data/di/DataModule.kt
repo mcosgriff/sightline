@@ -20,6 +20,8 @@ import io.cosgriff.sightline.data.db.SightlineDatabase
 import io.cosgriff.sightline.data.device.DemoDevices
 import io.cosgriff.sightline.data.heading.HeadingSource
 import io.cosgriff.sightline.data.heading.RotationVectorHeading
+import io.cosgriff.sightline.data.monitor.PhoneWifi
+import io.cosgriff.sightline.data.net.AndroidPhoneWifi
 import io.cosgriff.sightline.data.settings.SettingsStore
 import io.cosgriff.sightline.data.settings.StateStore
 import kotlinx.coroutines.CoroutineScope
@@ -37,6 +39,10 @@ abstract class DataModule {
 
     @Binds
     abstract fun headingSource(impl: RotationVectorHeading): HeadingSource
+
+    /** The phone's own Wi-Fi, recorded with each monitor session (SPEC "Phone Wi-Fi"). */
+    @Binds
+    abstract fun phoneWifi(impl: AndroidPhoneWifi): PhoneWifi
 
     companion object {
         /** The one clock. Readings are stamped from it in UTC epoch milliseconds, so tests can set the time. */

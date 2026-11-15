@@ -164,7 +164,7 @@ RF channel and frequency come from the `ch` field after tuning. Map frequency to
 
 ## Data model
 
-Seven Room tables. Readings are the only large table: a 12-hour, one-channel session at 1 Hz is about 43,000 rows, roughly 3 MB.
+Eight Room tables. Readings are the only large table: a 12-hour, one-channel session at 1 Hz is about 43,000 rows, roughly 3 MB.
 
 | Entity | Key fields | Notes |
 | --- | --- | --- |
@@ -175,6 +175,7 @@ Seven Room tables. Readings are the only large table: a 12-hour, one-channel ses
 | `Event` | id (PK), sessionId, startTs, endTs, deviceId?, tuner?, guideNumber?, kind (`DIP`, `DROPOUT`, `TUNER_LOST`, `DEVICE_UNREACHABLE`, `GAP`), minSnq?, minSeq?, noLockMs | Written by the dip detector. guideNumber is null for device-wide events; minSnq/minSeq are the lowest locked values among the bad readings, null if it never locked; noLockMs is how long of it had no lock ("lock lost 4 s"). deviceId and tuner say where it happened, in a watch of every tuner (Room v7); a device-wide event has a deviceId and no tuner |
 | `WeatherHour` | sessionId + hourTs (PK), tempC, windKph, gustKph, precipMm | From Open-Meteo, fetched after a session ends |
 | `SessionSummary` | sessionId (PK, FK), readings, goodShare?, dips, medianSnq?, health?, sparkline | What History shows; written when a session ends (or at the next app start), kept when old readings are deleted |
+| `WifiSample` | id (PK), sessionId (FK, indexed with ts), ts, connected, rssiDbm?, linkMbps?, frequencyMhz?, bssid? | The phone's own Wi-Fi during a monitor session (Room v8, see "Phone Wi-Fi"): one row per change, written with the 10 s batch. bssid only when the app holds precise location; deleted with the session's readings |
 
 Settings in DataStore: thresholds, poll interval, units (°F / mph default, metric option), theme, home coordinates for weather (entered manually or from one location fix), retention (default 90 days). Store metric internally; convert only for display.
 
@@ -327,10 +328,12 @@ The main analysis screen, from top to bottom:
    - **Packet errors** (sessions with counters only): the whole session's counts, and how many transport errors fell inside dips and dropouts against outside them. Errors outside any dip are trouble too brief for a once-a-second reading to show.
    - The firmware the session was recorded on, when known. The report's device line carries it too, and Compare puts both sessions' firmware and transport errors per hour beside the other figures.
 9. **Watch every tuner** sessions are grouped by tuner: a **Tuners** section lists every tuner that recorded anything (device, tuner number, the channels it carried) with its snq range, median and health as `ChannelRangeBars`, and the timeline has a toggle between **All tuners** (one line per tuner, every event) and **One tuner** (a chip per tuner; that tuner's line, its events and its device's unreachable and gap events). All tuners is the default. Each event names its tuner, and the note under the events says which devices were watched and which clients were seen. The other sections (summary, diagnosis, heatmap, channel ranges, histogram, packet errors) cover the whole session.
-10. **Compare two units** sessions: the timeline draws one line per unit (named by the unit) with both units' events; the Tuners section lists the tuner each unit used; each event names its unit and tuner; and the note under the events says which two units were compared. The report's chart draws the same two lines.
+10. **Phone Wi-Fi** (sessions with Wi-Fi samples only, Room v8 on): a lane under the timeline, lined up with it, showing the phone's Wi-Fi signal (RSSI) as bars coloured by its health (−67 dBm or better good, down to the weak line marginal, −80 dBm or weaker poor) with the weak line dashed and labelled, the time off Wi-Fi as grey blocks, and each roam to another access point as a tick with a triangle, all three named in a legend. Under it, a line in words: the signal range, the bands, the roams and the times off Wi-Fi; then the access points by BSSID, or that they weren't recorded because Sightline has no precise location. Older sessions, and sessions with no samples, have no lane: never an empty one.
+11. **Compare two units** sessions: the timeline draws one line per unit (named by the unit) with both units' events; the Tuners section lists the tuner each unit used; each event names its unit and tuner; and the note under the events says which two units were compared. The report's chart draws the same two lines.
 8. Export: CSV of readings, CSV of events, and a one-page summary report (PDF or Markdown) with the charts.
    - Built as: **Export CSV** shares both CSVs together; **Share report** a one-page US Letter PDF (summary figures, findings, the quality timeline, as many events as fit and a count of the rest), in the light theme's colours. The header's export button offers the same two.
    - CSV columns don't follow the units setting, so scripts can rely on them: times as local ISO 8601 with the offset plus UTC epoch ms, weather metric with the unit in the column name, RFC 4180 quoting. The last columns say where: each reading's `device`, and each event's `device` and `tuner` (empty for a device-wide event, and in modes that don't key events by tuner).
+   - A session with Wi-Fi samples shares a third CSV with the other two, one row per sample: `time`, `utc_ms`, `connected` (`true`/`false`), `rssi_dbm`, `link_mbps`, `frequency_mhz`, `band_ghz` (`2.4`, `5` or `6`), `bssid`; empty where not known (off Wi-Fi, or no BSSID without precise location). A separate file, not columns on the readings, since samples come when the Wi-Fi changes, not with each poll. Sessions without samples share the two CSVs as before. The report draws the same Wi-Fi lane under its chart, with the line that sums it up and the access points.
 
 ### 9. History (no mockup yet)
 
@@ -371,7 +374,7 @@ Monitor mode is the feature no other app has. It needs to survive many hours wit
 ### Service
 
 - Foreground service with `foregroundServiceType="connectedDevice"`. The HDHomeRun is a LAN device, and this type has no time cap. Do not use `dataSync`, which Android 15 limits to 6 hours a day.
-- Manifest permissions: `ACCESS_LOCAL_NETWORK` (Android 17 blocks LAN traffic for apps targeting API 37 without it; a runtime permission in Nearby devices, asked for before the first scan), `INTERNET`, `ACCESS_NETWORK_STATE`, `CHANGE_NETWORK_STATE` (the prerequisite for `connectedDevice`), `ACCESS_WIFI_STATE`, `CHANGE_WIFI_MULTICAST_STATE`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_CONNECTED_DEVICE`, `POST_NOTIFICATIONS`, `WAKE_LOCK`, `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`. Verify the `connectedDevice` prerequisites against current Android docs at build time.
+- Manifest permissions: `ACCESS_LOCAL_NETWORK` (Android 17 blocks LAN traffic for apps targeting API 37 without it; a runtime permission in Nearby devices, asked for before the first scan), `INTERNET`, `ACCESS_NETWORK_STATE`, `CHANGE_NETWORK_STATE` (the prerequisite for `connectedDevice`), `ACCESS_WIFI_STATE`, `CHANGE_WIFI_MULTICAST_STATE`, `ACCESS_COARSE_LOCATION` (Aim's home fix) and `ACCESS_FINE_LOCATION` (declared, never asked for: the BSSID in "Phone Wi-Fi"), `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_CONNECTED_DEVICE`, `POST_NOTIFICATIONS`, `WAKE_LOCK`, `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`. Verify the `connectedDevice` prerequisites against current Android docs at build time.
 - Hold a partial wake lock and a high-performance `WifiLock` for the session, released in `onDestroy` and on Stop.
 - On first Monitor start, ask for a battery optimization exemption, with one sentence explaining why. That's acceptable for an app distributed outside Play.
 - Recommend in the setup screen that the phone stays on a charger.
@@ -398,6 +401,16 @@ A two-unit compare holds a tuner on each of two devices, each claimed and releas
 - Sessions recorded before this (Room v4 and earlier) have no counters; screens leave packet errors out rather than show 0.
 - **Where:** transport, CRC and resyncs happen on the way in from the antenna (the signal side); `net err` on the way out to the client (the network side). Every packet errors row says which side the errors were on, and the Network loss rule turns a session whose errors are mostly network-side into a finding. When Sightline itself holds a tuner with a lock key nothing streams, so the network side only counts for ATSC 3.0 (its stream to the phone) and in watch mode (the client's stream).
 - Not yet checked on a real unit: whether ATSC 3.0 tunes count `te`/`crc` the same way, and whether the counters wrap.
+
+### Phone Wi-Fi
+
+The phone's own Wi-Fi is recorded with every monitor session, in every mode (hold, rotate, watch a tuner, watch every tuner, compare two units), so a Device unreachable event can be laid against the phone roaming or its signal falling rather than read as Not RF (#27).
+
+- **What:** whether the phone is on Wi-Fi, its signal strength (RSSI, dBm), link speed (Mbit/s), frequency (MHz, giving the band: 2.4, 5 or 6 GHz) and the access point's BSSID. From the platform only (ADR-0002): a `ConnectivityManager` network callback on Wi-Fi networks, `WifiInfo` from `NetworkCapabilities.transportInfo` (API 31+; `WifiManager.connectionInfo` on API 29–30, which has no Wi-Fi `transportInfo`).
+- **When:** the callback reports the Wi-Fi now as the session starts, then each change: signal strength, a roam, losing Wi-Fi. Each state that differs from the last is a sample, stamped with the app clock as it comes. Off Wi-Fi (the last Wi-Fi network lost) is a sample with only `connected` false. A phone not on Wi-Fi at the start records nothing until it joins. Samples are kept in memory and written with the readings and events in the same 10 s batch transaction.
+- **BSSID and permission:** the BSSID identifies the user's access point, and Android gives it only to an app with precise location (`ACCESS_FINE_LOCATION`; on API 31+ also the callback's `FLAG_INCLUDE_LOCATION_INFO`, passed only then). Sightline **never asks for a permission for this**: the manifest declares precise location beside the coarse one Aim's home fix asks for, so a user can turn on "Use precise location" for Sightline in Android's settings; only then is the BSSID recorded. Without it (the default: the home fix asks for coarse only) no BSSID is stored, a redacted one (`02:00:00:00:00:00`) counts as none, and the rest is still recorded. The user decided on #27 to show the BSSID in the app, the report and the CSV, which they share themselves; it is never sent anywhere.
+- **Not known:** link speed or frequency the platform doesn't give is stored as unknown, not 0. RSSI falls back to the callback's signal strength when `WifiInfo` has none.
+- **Kept with the readings:** samples belong to the session and go with it; retention deletes them with its readings.
 
 ### Dip detection
 
@@ -446,7 +459,8 @@ The engine turns a session into plain-language findings, each with evidence and 
 | Impulse noise | seq drops while snq stays ≥ 80 | Short bursts of interference | Look for LED drivers, motors or power supplies near the antenna or cable |
 | Flutter | snq swings 20+ points within 10 s, repeatedly | Multipath or aircraft flutter | Re-aim for a cleaner path; try a more directional antenna |
 | Network loss | The tuner's network send errors are 10+ and at least 10× its antenna-side errors | Packets lost on the network, not the air | Wire the tuner and the player to the same switch; check that cable, the switch and the player's network |
-| Not RF | Device-unreachable events, or seq at 100 during reported glitches | The tuner is fine; the network or player is not | Wire the tuner and player; check the switch and Wi-Fi |
+| Phone Wi-Fi | Device-unreachable events that start within 10 s of the phone going off Wi-Fi, roaming to another access point (BSSID change) or reading −80 dBm or weaker (sessions with Wi-Fi samples) | The phone's Wi-Fi dropped, not the tuner | Keep the phone near its access point while it monitors, or on one access point; the tuner may be fine |
+| Not RF | Device-unreachable events that Phone Wi-Fi doesn't explain, or seq at 100 during reported glitches | The tuner is fine; the network or player is not | Wire the tuner and player; check the switch and Wi-Fi |
 
 Each rule's exact numbers, and what makes it Likely rather than Possible, are in [`docs/rules/diagnosis.md`](rules/diagnosis.md). Findings are sorted by strength of evidence. A session with no rule firing shows "No pattern found" with the summary numbers, never an empty card.
 
@@ -464,7 +478,7 @@ Each rule's exact numbers, and what makes it Likely rather than Possible, are in
 - **Doze:** the foreground service plus battery optimization exemption keeps polling alive; if a gap over 60 s appears anyway, record a `GAP` event and draw it as a gap in the timeline, not a dropout.
 - **Storage:** readings older than the retention setting are deleted on app start, once the session has its summary; Event rows, weather and session summaries are kept. Sweeps keep their readings: they're a few hundred rows, and comparing sweeps reads them.
 - **Device tools never interrupt a recording:** scan and update start only with every tuner idle (screen 12), checked right before each.
-- **Privacy:** no analytics, no network calls except to the HDHomeRun, Open-Meteo if enabled, and SiliconDust's download server when the user asks Device tools to check for or install firmware (ADR-0005). Location is used once to save home coordinates and never stored more precisely than 2 decimal places (about 1 km).
+- **Privacy:** no analytics, no network calls except to the HDHomeRun, Open-Meteo if enabled, and SiliconDust's download server when the user asks Device tools to check for or install firmware (ADR-0005). Location is used once to save home coordinates and never stored more precisely than 2 decimal places (about 1 km). The phone's access point (BSSID) is stored with a monitor session only when the user has given Sightline precise location in Android's settings (never asked for), and leaves the phone only in exports the user shares ("Phone Wi-Fi").
 
 ## Build, release and testing
 

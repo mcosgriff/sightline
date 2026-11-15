@@ -12,6 +12,7 @@ import io.cosgriff.sightline.analysis.SignalEvent
 import io.cosgriff.sightline.analysis.SignalSample
 import io.cosgriff.sightline.analysis.Thresholds
 import io.cosgriff.sightline.analysis.WeatherHour
+import io.cosgriff.sightline.analysis.WifiSample
 import io.cosgriff.sightline.analysis.sparklineOf
 import io.cosgriff.sightline.data.db.Converters
 import io.cosgriff.sightline.data.db.ReadingEntity
@@ -182,6 +183,7 @@ class SessionRepository @Inject constructor(
             weather = (weather as? SessionWeather.Fetched)?.hours.orEmpty(),
             channels = channels.filterKeys { it in s.channels }.mapValues { (_, c) -> ChannelInfo(c.rfChannel, c.band) },
             zone = zone,
+            wifi = sessions.wifi(id).map { WifiSample(it.ts, it.connected, it.rssiDbm, it.linkMbps, it.frequencyMhz, it.bssid) },
         )
         val names = info.devices.mapNotNull { d -> devices.device(d)?.let { d to it.friendlyName } }.toMap()
         return SessionDetail(
@@ -198,12 +200,12 @@ class SessionRepository @Inject constructor(
     }
 
     /**
-     * Deletes readings older than the retention setting (SPEC "Storage"), run at app start after every finished
-     * session has its summary. Returns how many readings went.
+     * Deletes readings older than the retention setting (SPEC "Storage"), and the phone's Wi-Fi samples with them,
+     * run at app start after every finished session has its summary. Returns how many readings went.
      */
     suspend fun deleteOldReadings(): Int {
         val days = settings.settings.first().retentionDays ?: return 0
-        return sessions.deleteReadingsEndedBefore(clock.millis() - days * DAY_MS)
+        return sessions.deleteOldReadings(clock.millis() - days * DAY_MS)
     }
 
     private suspend fun weatherOf(s: SessionEntity): SessionWeather = when {

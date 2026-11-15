@@ -450,6 +450,112 @@ class DiagnosisTest {
         assertThat(f).isNull()
     }
 
+    /** On Wi-Fi at [atMs] after the start, on access point [bssid] at [rssi] dBm, 5 GHz. */
+    private fun SyntheticSession.onWifi(atMs: Long, rssi: Int = -55, bssid: String? = "aa:bb:cc:00:00:01") {
+        wifi += WifiSample(START + atMs, connected = true, rssiDbm = rssi, linkMbps = 433, frequencyMhz = 5_180, bssid = bssid)
+    }
+
+    private fun SyntheticSession.offWifi(atMs: Long) {
+        wifi += WifiSample(START + atMs, connected = false)
+    }
+
+    /** An hour of 9.1, clean, and the tuner not answering from [atMs] after the start for a minute. */
+    private fun SyntheticSession.outageAt(atMs: Long) {
+        extraEvents += SignalEvent(EventKind.DEVICE_UNREACHABLE, null, START + atMs, START + atMs + MINUTE)
+    }
+
+    @Test
+    fun `phone Wi-Fi takes an outage that starts as the phone goes off Wi-Fi, and Not RF doesn't`() {
+        val findings = SyntheticSession().apply {
+            read("9.1", good, toMs = HOUR)
+            onWifi(0)
+            // The phone drops off Wi-Fi 4 s before the first poll goes unanswered, and is back 2 minutes later.
+            offWifi(20 * MINUTE - 4_000)
+            outageAt(20 * MINUTE)
+            onWifi(22 * MINUTE)
+        }.diagnose()
+        val f = findings.find<Finding.PhoneWifi>()!!
+        assertThat(f.linked).isEqualTo(1)
+        assertThat(f.outages).isEqualTo(1)
+        assertThat(f.offWifi).isEqualTo(1)
+        assertThat(f.windowMs).isEqualTo(PhoneWifiRule.WINDOW_MS)
+        // Every outage of the session: Likely.
+        assertThat(f.strength).isEqualTo(Strength.LIKELY)
+        assertThat(findings.find<Finding.NotRf>()).isNull()
+    }
+
+    @Test
+    fun `phone Wi-Fi takes a roam to another access point, and a signal at the weak line`() {
+        val f = SyntheticSession().apply {
+            read("9.1", good, toMs = HOUR)
+            onWifi(0)
+            onWifi(10 * MINUTE + 3_000, bssid = "aa:bb:cc:00:00:02")
+            outageAt(10 * MINUTE)
+            onWifi(30 * MINUTE - 8_000, rssi = WifiSignal.WEAK_DBM, bssid = "aa:bb:cc:00:00:02")
+            outageAt(30 * MINUTE)
+            onWifi(31 * MINUTE, rssi = -60, bssid = "aa:bb:cc:00:00:02")
+        }.diagnose().find<Finding.PhoneWifi>()!!
+        assertThat(f.linked).isEqualTo(2)
+        assertThat(f.roams).isEqualTo(1)
+        assertThat(f.weak).isEqualTo(1)
+        assertThat(f.offWifi).isEqualTo(0)
+        assertThat(f.strength).isEqualTo(Strength.LIKELY)
+    }
+
+    @Test
+    fun `phone Wi-Fi is only possible for one outage of several, and Not RF keeps the rest`() {
+        val findings = SyntheticSession().apply {
+            read("9.1", good, toMs = HOUR)
+            onWifi(0)
+            offWifi(10 * MINUTE)
+            outageAt(10 * MINUTE + 2_000)
+            onWifi(12 * MINUTE)
+            outageAt(40 * MINUTE)
+            outageAt(50 * MINUTE)
+        }.diagnose()
+        val wifi = findings.find<Finding.PhoneWifi>()!!
+        assertThat(wifi.linked).isEqualTo(1)
+        assertThat(wifi.outages).isEqualTo(3)
+        assertThat(wifi.strength).isEqualTo(Strength.POSSIBLE)
+        val notRf = findings.find<Finding.NotRf>()!!
+        assertThat(notRf.count).isEqualTo(2)
+        assertThat(notRf.totalMs).isEqualTo(2 * MINUTE)
+    }
+
+    @Test
+    fun `phone Wi-Fi doesn't fire on strong steady Wi-Fi, or trouble well away from the outage`() {
+        val findings = SyntheticSession().apply {
+            read("9.1", good, toMs = HOUR)
+            onWifi(0)
+            // A roam and a weak spell, both minutes before the outage, and the signal back to strong since.
+            onWifi(5 * MINUTE, rssi = -84, bssid = "aa:bb:cc:00:00:02")
+            onWifi(6 * MINUTE, rssi = -58, bssid = "aa:bb:cc:00:00:02")
+            outageAt(20 * MINUTE)
+            onWifi(20 * MINUTE + 30_000, rssi = -57, bssid = "aa:bb:cc:00:00:02")
+        }.diagnose()
+        assertThat(findings.find<Finding.PhoneWifi>()).isNull()
+        assertThat(findings.find<Finding.NotRf>()!!.count).isEqualTo(1)
+    }
+
+    @Test
+    fun `without a BSSID a roam can't be seen, and without samples the outage stays Not RF`() {
+        val noBssid = SyntheticSession().apply {
+            read("9.1", good, toMs = HOUR)
+            onWifi(0, bssid = null)
+            onWifi(10 * MINUTE + 1_000, rssi = -60, bssid = null)
+            outageAt(10 * MINUTE)
+        }.diagnose()
+        assertThat(noBssid.find<Finding.PhoneWifi>()).isNull()
+        assertThat(noBssid.find<Finding.NotRf>()).isNotNull()
+
+        val old = SyntheticSession().apply {
+            read("9.1", good, toMs = HOUR)
+            outageAt(10 * MINUTE)
+        }.diagnose()
+        assertThat(old.find<Finding.PhoneWifi>()).isNull()
+        assertThat(old.find<Finding.NotRf>()).isNotNull()
+    }
+
     /** [readings] with running counters: the network count rising [netPerReading] a reading, the signal side [signalPerReading]. */
     private fun SyntheticSession.counted(netPerReading: Long, signalPerReading: Long = 0) {
         readings.replaceAll { r ->

@@ -43,7 +43,23 @@ They are starting values: tune them against real sessions, and change this file 
 | Impulse noise | 3+ `DIP` events whose lowest snq stayed at or above the good line (80): symbol errors alone | They're half or more of all dips |
 | Flutter | Locked snq swings 20+ points within 10 s, 5+ times in all (each swing counted once, then 10 s skipped). Each device's readings of a channel are counted on their own, so two units a few points apart on one channel aren't swings | 20+ swings |
 | Network loss | The tuner's network send errors (`net err`, see SPEC "Packet errors") total 10+ over the session and are at least 10× its antenna-side errors (transport, CRC, resyncs) | No antenna-side errors and no dips |
-| Not RF | Any device-unreachable event | 2+ of them, or no dips at all |
+| Phone Wi-Fi | A device-unreachable event starts within 10 s (before or after) of the phone off Wi-Fi, roaming to another access point (a known BSSID changing while on Wi-Fi), or reading −80 dBm or weaker. Needs the session's Wi-Fi samples; each event counts once, by the first of those three that applies | 2+ such events, or they are every device-unreachable event of the session |
+| Not RF | Any device-unreachable event that Phone Wi-Fi doesn't take | 2+ of them, or no dips at all |
+
+## Phone Wi-Fi
+
+- The samples are the phone's own Wi-Fi as the monitor recorded it (SPEC "Phone Wi-Fi"): each holds until the next.
+  The window around an outage's start sees the state in effect as it opens and every sample inside it, so a phone
+  already off Wi-Fi, or already weak, when the tuner stopped answering counts.
+- **10 s** each way: a first unanswered poll is stamped when its timeout ends, a few seconds after the Wi-Fi went,
+  and Android may report the Wi-Fi a moment after the outage began.
+- **−80 dBm** is the weak line (`WifiSignal.WEAK_DBM`): below it phones roam or drop packets. The lane colours −67 dBm
+  and better as good, between the two as marginal.
+- A roam needs a BSSID on both sides, which Sightline has only with precise location; without it, only going off
+  Wi-Fi and a weak signal are seen.
+- Phone Wi-Fi takes precedence over Not RF: the outages it explains are left out of Not RF's count and length, so a
+  session whose every outage came with the phone's Wi-Fi shows no Not RF at all. Sessions without samples (before
+  Room v8) are as before.
 
 ## Weather
 

@@ -123,6 +123,22 @@ fun Finding.text(units: Units, zone: ZoneId, deviceNames: Map<String, String> = 
         },
         stringResource(R.string.session_fix_network_loss),
     )
+    is Finding.PhoneWifi -> {
+        val seconds = (windowMs / 1_000).toInt()
+        val causes = list(
+            listOfNotNull(
+                offWifi.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.session_evidence_phone_wifi_off, it, it) },
+                roams.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.session_evidence_phone_wifi_roam, it, it) },
+                weak.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.session_evidence_phone_wifi_weak, it, it, weakDbm) },
+            ),
+        )
+        FindingText(
+            stringResource(R.string.session_finding_phone_wifi),
+            if (linked == outages) pluralStringResource(R.plurals.session_evidence_phone_wifi_all, linked, linked, seconds, causes)
+            else pluralStringResource(R.plurals.session_evidence_phone_wifi_some, outages, linked, outages, seconds, causes),
+            stringResource(R.string.session_fix_phone_wifi),
+        )
+    }
     is Finding.NotRf -> FindingText(
         stringResource(R.string.session_finding_not_rf),
         pluralStringResource(R.plurals.session_evidence_not_rf, count, count, compactDuration(totalMs)),

@@ -5,6 +5,7 @@ import com.google.common.truth.Truth.assertThat
 import io.cosgriff.sightline.analysis.EventKind
 import io.cosgriff.sightline.analysis.SignalEvent
 import io.cosgriff.sightline.analysis.TimelineSeries
+import io.cosgriff.sightline.analysis.WifiSample
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import org.junit.Test
@@ -41,5 +42,13 @@ class ReportWriterTest {
         val drawn = SessionReportWriter(RuntimeEnvironment.getApplication()).draw(Canvas(bitmap), text, chart, "Made with Sightline 0.1.0.")
         assertThat(drawn.findings).isIn(1..11)
         assertThat(drawn.events).isIn(1..199)
+
+        // The phone's Wi-Fi lane and its line take room from the findings, never from the chart or the page.
+        val wifi = listOf(WifiSample(0, true, -55, 866, 5_180, "aa:bb:cc:00:00:01"), WifiSample(3_600_000, false), WifiSample(3_700_000, true, -82, 144, 2_437, null))
+        val withWifi = SessionReportWriter(RuntimeEnvironment.getApplication()).draw(
+            Canvas(bitmap), text.copy(wifi = "Phone Wi-Fi: Signal -55 to -82 dBm · 2.4 GHz, 5 GHz · off Wi-Fi 1 time."), chart.copy(wifi = wifi), "Made with Sightline 0.1.0.",
+        )
+        assertThat(withWifi.findings).isIn(1..drawn.findings)
+        assertThat(withWifi.events).isIn(1..199)
     }
 }

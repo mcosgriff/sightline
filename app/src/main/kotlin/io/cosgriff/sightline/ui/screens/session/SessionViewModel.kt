@@ -149,11 +149,15 @@ class SessionViewModel @AssistedInject constructor(
         }
     }
 
-    /** Writes the readings and events as two CSV files and offers them to share together. */
+    /**
+     * Writes the readings and events as two CSV files, and the phone's Wi-Fi as a third when the session has it, and
+     * offers them to share together.
+     */
     fun exportCsv() = exporting {
         val readings = export.readings(sessionId, zone)
         val events = export.events(sessionId, zone)
-        listOfNotNull(readings, events).takeIf { it.isNotEmpty() }?.let { ShareFiles(it, CSV) }
+        val wifi = export.wifi(sessionId, zone)
+        listOfNotNull(readings, events, wifi).takeIf { it.isNotEmpty() }?.let { ShareFiles(it, CSV) }
     }
 
     /** Writes the one-page report with [text] (worded by the screen) and offers it to share. */
@@ -164,7 +168,7 @@ class SessionViewModel @AssistedInject constructor(
         // The report's legend names channels, so its lines are per channel; a compare's, per unit.
         val whole = TimeWindow(d.startMs, d.endMs)
         val lines = if (detail.info.compare) unitLines(detail, whole, REPORT_BUCKETS) else channelLines(detail, whole, REPORT_BUCKETS)
-        val chart = ReportChart(d.startMs, d.endMs, lines, d.events, settings.value.thresholds.snqGood)
+        val chart = ReportChart(d.startMs, d.endMs, lines, d.events, settings.value.thresholds.snqGood, d.wifi)
         withContext(Dispatchers.IO) { reportWriter.write(file, text, chart, footer) }
         ShareFiles(listOf(file), PDF)
     }

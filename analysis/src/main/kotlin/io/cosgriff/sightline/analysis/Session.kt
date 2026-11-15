@@ -40,7 +40,8 @@ data class ChannelInfo(val rfChannel: Int?, val band: Band?)
 
 /**
  * A finished session as analysis sees it (SPEC "Session detail"). [readings] in time order; [zone] is the phone's
- * time zone, for hour-of-day figures.
+ * time zone, for hour-of-day figures. [wifi] is the phone's own Wi-Fi in time order (SPEC "Phone Wi-Fi"), empty for
+ * sessions from before it was kept.
  */
 data class SessionData(
     val startMs: Long,
@@ -51,6 +52,7 @@ data class SessionData(
     val weather: List<WeatherHour> = emptyList(),
     val channels: Map<String, ChannelInfo> = emptyMap(),
     val zone: ZoneId = ZoneId.of("UTC"),
+    val wifi: List<WifiSample> = emptyList(),
 ) {
     /** Guide numbers in the order first read. */
     val guideNumbers: List<String> by lazy { readings.map { it.guideNumber }.distinct() }

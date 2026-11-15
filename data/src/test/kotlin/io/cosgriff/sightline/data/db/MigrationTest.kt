@@ -20,8 +20,9 @@ import java.io.File
 
 /**
  * Room's migrations, against databases built from the schemas Room exported for each version (`data/schemas`):
- * every older version opens as the current one, Room checking the result against the current schema, and a
- * version 6 database keeps its sessions, readings and events through the move to 7 (a watch of every tuner).
+ * every older version opens as the current one, Room checking the result against the current schema, a version 6
+ * database keeps its sessions, readings and events through the move to 7 (a watch of every tuner), and a version 7
+ * one through the move to 8 (the phone's Wi-Fi), its sessions having no Wi-Fi samples.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(application = Application::class, sdk = [35])
@@ -96,9 +97,33 @@ class MigrationTest {
         assertThat(event.tuner).isNull()
     }
 
+    @Test
+    fun `a version 7 session keeps everything and has no Wi-Fi samples, and new ones can be added`() = runBlocking<Unit> {
+        create(7) {
+            execSQL(
+                "INSERT INTO session (id, deviceId, kind, startedAt, endedAt, channels, tuner, pollIntervalMs, weatherFetched, fetchWeather, watched, holder, wholeDevice, devices) " +
+                    "VALUES (1, 'D', 'MONITOR', 1000, 9000, '9.1', null, 1000, 0, 0, 0, null, 0, 'D,E')",
+            )
+            execSQL("INSERT INTO reading (sessionId, ts, guideNumber, tuner, ss, snq, seq, lock, deviceId) VALUES (1, 2000, '9.1', 2, 80, 85, 100, '8vsb', 'E')")
+            execSQL("INSERT INTO event (sessionId, startTs, endTs, guideNumber, kind, minSnq, minSeq, noLockMs, deviceId, tuner) VALUES (1, 3000, 5000, null, 'DEVICE_UNREACHABLE', null, null, 0, 'E', null)")
+        }
+        val db = open().sessions()
+
+        assertThat(db.get(1)!!.devices).containsExactly("D", "E").inOrder()
+        assertThat(db.readings(1).single().deviceId).isEqualTo("E")
+        assertThat(db.events(1).single().kind).isEqualTo(EventKind.DEVICE_UNREACHABLE)
+        assertThat(db.wifi(1)).isEmpty()
+
+        db.appendWithWifi(emptyList(), emptyList(), listOf(WifiSampleEntity(0, 1, 4000, true, -61, 866, 5180, "aa:bb:cc:00:00:01")))
+        assertThat(db.wifi(1).single().rssiDbm).isEqualTo(-61)
+        // A session's samples go with it.
+        db.delete(1)
+        assertThat(db.wifi(1)).isEmpty()
+    }
+
     private companion object {
         const val NAME = "migration-test.db"
-        const val CURRENT = 7
+        const val CURRENT = 8
 
         /** Gradle runs unit tests in the module's directory. */
         const val SCHEMAS = "schemas/io.cosgriff.sightline.data.db.SightlineDatabase"

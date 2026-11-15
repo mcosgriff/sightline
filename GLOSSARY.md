@@ -32,6 +32,10 @@
 - **Two-unit compare** — Monitor's "Compare two units": the same channel on an idle tuner of each of two devices
   at once, each unit keeping another tuner idle for the DVR. A dip on both (**common path**) points to what they
   share; a dip on one (**one unit**) to that unit or its cable.
+- **Phone Wi-Fi** — the phone's own Wi-Fi, recorded with every monitor session as **Wi-Fi samples**: whether it
+  is on Wi-Fi, its signal (RSSI, dBm), link speed, band, and the access point's **BSSID** (only with precise
+  location, which Sightline never asks for). Also the diagnosis rule that lays device-unreachable events against it.
+- **Roam** — the phone moving to another access point while on Wi-Fi: its BSSID changing. Seen only with a BSSID.
 - **Signal side / network side** — where packet errors happened: arriving damaged from the antenna (transport,
   CRC, resyncs), or failing to go out on the network to the client (network errors).
 - **Sweep** — tuning each lineup channel in turn for a **dwell** time and summarising each.
