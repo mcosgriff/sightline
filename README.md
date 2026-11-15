@@ -75,7 +75,7 @@ SHA-256 checksum of the APK.
 
 1. Open this folder in Android Studio and let Gradle sync. JDK 17.
 2. Run on a device or emulator with the `app` run configuration (debug app id `io.cosgriff.sightline.debug`).
-   Debug builds include a Demo tuner, so no HDHomeRun is needed.
+   Debug builds include two Demo tuners, so no HDHomeRun is needed.
 3. `./gradlew :protocol:test :analysis:test` runs the pure-Kotlin tests in seconds; `./gradlew build` runs
    everything, lint included. Lint fails the build on a warning.
 4. Upgrade the Android Gradle Plugin with Tools → AGP Upgrade Assistant.

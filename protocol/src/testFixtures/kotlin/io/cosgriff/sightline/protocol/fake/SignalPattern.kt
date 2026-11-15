@@ -72,6 +72,30 @@ fun interface SignalPattern {
     }
 }
 
+/**
+ * [this] pattern a few points down, as through a longer coax run or one more splitter port: ss and snq each lower
+ * by [by], seq and lock unchanged.
+ */
+fun SignalPattern.weaker(by: Int): SignalPattern = SignalPattern { t ->
+    val s = at(t)
+    if (!s.locked) s else s.copy(ss = (s.ss - by).coerceAtLeast(0), snq = (s.snq - by).coerceAtLeast(0))
+}
+
+/**
+ * A fault on one unit alone (its coax branch, its front end), not on the antenna: every tuner of the [FakeHdhr]
+ * it is set on ([FakeHdhr.fault]) passes its channel's signal through it. [at] takes the fake's clock time, not the
+ * time since tuning, so every tuner of that unit sees it at once and a second unit with no fault sees nothing.
+ */
+fun interface UnitFault {
+    fun at(nowMs: Long, signal: Signal): Signal
+
+    companion object {
+        /** No lock on any tuner from [fromMs] until [untilMs] (clock time), then the channel's own signal again. */
+        fun dropout(fromMs: Long, untilMs: Long): UnitFault =
+            UnitFault { now, signal -> if (now in fromMs until untilMs) Signal.NONE else signal }
+    }
+}
+
 /** The gust schedule behind [SignalPattern.windy]: calm, then a 2-hour blow, repeating every 6 hours from tuning. */
 object Wind {
     const val GUSTY_KPH = 30.0

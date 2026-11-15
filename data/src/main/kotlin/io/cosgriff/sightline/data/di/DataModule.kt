@@ -17,7 +17,7 @@ import io.cosgriff.sightline.data.db.ChannelDao
 import io.cosgriff.sightline.data.db.DeviceDao
 import io.cosgriff.sightline.data.db.SessionDao
 import io.cosgriff.sightline.data.db.SightlineDatabase
-import io.cosgriff.sightline.data.device.DemoDevice
+import io.cosgriff.sightline.data.device.DemoDevices
 import io.cosgriff.sightline.data.heading.HeadingSource
 import io.cosgriff.sightline.data.heading.RotationVectorHeading
 import io.cosgriff.sightline.data.settings.SettingsStore
@@ -31,9 +31,9 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class DataModule {
-    /** Bound only in debug builds (the Demo tuner); absent in release. */
+    /** Bound only in debug builds (the two Demo tuners); absent in release. */
     @BindsOptionalOf
-    abstract fun demoDevice(): DemoDevice
+    abstract fun demoDevices(): DemoDevices
 
     @Binds
     abstract fun headingSource(impl: RotationVectorHeading): HeadingSource

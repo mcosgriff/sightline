@@ -20,7 +20,7 @@ import io.cosgriff.sightline.data.db.SessionKind
 import io.cosgriff.sightline.data.db.SessionSummaryEntity
 import io.cosgriff.sightline.data.db.WeatherHourEntity
 import io.cosgriff.sightline.data.device.Channel
-import io.cosgriff.sightline.data.device.DemoDevice
+import io.cosgriff.sightline.data.device.DemoDevices
 import io.cosgriff.sightline.data.device.DeviceRepository
 import io.cosgriff.sightline.data.settings.SettingsRepository
 import io.cosgriff.sightline.data.weather.WeatherSource
@@ -107,9 +107,9 @@ class SessionRepository @Inject constructor(
     private val settings: SettingsRepository,
     private val weatherSource: WeatherSource,
     private val clock: Clock,
-    demoDevice: Optional<DemoDevice>,
+    demoDevices: Optional<DemoDevices>,
 ) {
-    private val demo: DemoDevice? = demoDevice.orElse(null)
+    private val demo: DemoDevices? = demoDevices.orElse(null)
     private val weatherLock = Mutex()
 
     /** Finished sessions of every kind, newest first. */
@@ -185,10 +185,10 @@ class SessionRepository @Inject constructor(
     private suspend fun weatherOf(s: SessionEntity): SessionWeather = when {
         s.weatherFetched -> SessionWeather.Fetched(
             sessions.weather(s.id).map { WeatherHour(it.hourTs, it.tempC, it.windKph, it.gustKph, it.precipMm) },
-            demo = s.deviceId == demo?.device?.deviceId,
+            demo = isDemo(s),
         )
         !s.fetchWeather -> SessionWeather.NotAsked
-        s.deviceId != demo?.device?.deviceId && settings.settings.first().home == null -> SessionWeather.NoHome
+        !isDemo(s) && settings.settings.first().home == null -> SessionWeather.NoHome
         else -> SessionWeather.Missing
     }
 
@@ -202,7 +202,7 @@ class SessionRepository @Inject constructor(
         val end = s.endedAt ?: return false
         if (!s.fetchWeather) return false
         val first = Math.floorDiv(s.startedAt, WeatherHour.HOUR_MS) * WeatherHour.HOUR_MS
-        val hours = if (s.deviceId == demo?.device?.deviceId) {
+        val hours = if (demo != null && isDemo(s)) {
             demo.weather(s.startedAt, end)
         } else {
             val home = settings.settings.first().home ?: return false
@@ -220,6 +220,8 @@ class SessionRepository @Inject constructor(
             if (s.fetchWeather && !s.weatherFetched) fetchWeather(s.id)
         }
     }
+
+    private fun isDemo(s: SessionEntity) = demo?.isDemo(s.deviceId) == true
 
     suspend fun delete(ids: Collection<Long>) = sessions.deleteAll(ids.toList())
 

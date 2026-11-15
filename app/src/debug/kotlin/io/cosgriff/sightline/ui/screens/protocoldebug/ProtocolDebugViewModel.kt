@@ -64,7 +64,7 @@ class ProtocolDebugViewModel @Inject constructor(
     private val http: HttpApi,
     @param:ApplicationScope private val appScope: CoroutineScope,
 ) : ViewModel() {
-    private val _state = MutableStateFlow(ProtocolDebugState(devices = listOf(DebugDevice(DemoTuner.device, demo = true))))
+    private val _state = MutableStateFlow(ProtocolDebugState(devices = demoDevices()))
     val state: StateFlow<ProtocolDebugState> = _state.asStateFlow()
 
     private var control: ControlClient? = null
@@ -72,12 +72,14 @@ class ProtocolDebugViewModel @Inject constructor(
     private var claimed: ClaimedTuner? = null
     private var ticker: Job? = null
 
+    private fun demoDevices() = DemoTuner.all.map { DebugDevice(it.device, demo = true) }
+
     fun scan() {
         if (_state.value.scanning) return
         _state.update { it.copy(scanning = true) }
         viewModelScope.launch {
             val found = discovery.discover().map { DebugDevice(it, demo = false) }
-            _state.update { it.copy(scanning = false, devices = found + DebugDevice(DemoTuner.device, demo = true)) }
+            _state.update { it.copy(scanning = false, devices = found + demoDevices()) }
         }
     }
 

@@ -129,6 +129,42 @@ class StorageTest {
     }
 
     @Test
+    fun `both demo tuners are listed last, found by their own ids, and each shows its own made-up player`() = runBlocking<Unit> {
+        val unit = FakeHdhr(deviceId = 0x1A2B3C4D) // a real unit's ID, as in the captures
+        val demoFakes = listOf(FakeHdhr.demo(), FakeHdhr.secondDemo())
+        try {
+            val demos = object : DemoDevices {
+                override val devices = demoFakes.map { f ->
+                    Device(f.deviceIdHex, f.friendlyName, "HDFX-4K", f.firmwareVersion, f.baseUrl, "${f.baseUrl}/lineup.json", f.tunerCount, f.host, f.controlPort, 0, demo = true)
+                }
+            }
+            val repo = DeviceRepository(
+                db.devices(), db.channels(),
+                Discovery(PlainDiscoveryEnvironment(listOf(InetAddress.getByName(unit.host))), port = unit.discoveryPort, includeGlobalBroadcast = false),
+                http, access, TunerLeases(), clock, Optional.of(demos),
+            )
+            assertThat(repo.scan()).containsExactly("1A2B3C4D", "1D3E0001", "1D3E0002")
+            assertThat(repo.all.first().map { it.deviceId }).containsExactly("1A2B3C4D", "1D3E0001", "1D3E0002").inOrder()
+            assertThat(db.devices().get("1D3E0002")).isNull() // never stored: a Demo tuner lives only in debug builds' memory
+
+            val first = repo.device("1D3E0001")!!
+            val second = repo.device("1D3E0002")!!
+            assertThat(second.friendlyName).isEqualTo("Demo tuner 2")
+            val player = TunerUse.Other(FakeHdhr.DEMO_PLAYER)
+            assertThat(repo.tunerUse(first)).containsExactly(TunerUse.Idle, TunerUse.Idle, TunerUse.Idle, player).inOrder()
+            assertThat(repo.tunerUse(second)).containsExactly(player, TunerUse.Idle, TunerUse.Idle, TunerUse.Idle).inOrder()
+            assertThat(repo.refreshLineup(first)).isTrue()
+            assertThat(repo.refreshLineup(second)).isTrue()
+            val lineup = repo.channelList("1D3E0001").map { it.guideNumber }
+            assertThat(lineup).isNotEmpty()
+            assertThat(repo.channelList("1D3E0002").map { it.guideNumber }).isEqualTo(lineup) // the same stations on both
+        } finally {
+            unit.close()
+            demoFakes.forEach { it.close() }
+        }
+    }
+
+    @Test
     fun `stale locks are released at start, and only ours`() = runBlocking<Unit> {
         repository.scan()
         val old = ControlClient(InetAddress.getByName(fake.host), fake.controlPort)

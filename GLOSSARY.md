@@ -47,4 +47,7 @@
 - **Device tools** — the screen that starts a channel scan or a firmware update, refused while any tuner is in use.
 - **Firmware update** — downloading the device's firmware file from SiliconDust and uploading it over the control
   protocol; the device then installs it and restarts (ADR-0005).
-- **Demo tuner** — the fake HDHomeRun (`FakeHdhr`) built into debug builds, with scripted signal patterns.
+- **Demo tuner** — a fake HDHomeRun (`FakeHdhr`) built into debug builds, with scripted signal patterns. There
+  are two, "Demo tuner" and "Demo tuner 2", as the user has two units.
+- **Unit fault** — a fault scripted on one Demo tuner alone (`FakeHdhr.fault`), as a failing coax branch or front
+  end: every tuner on that unit drops, the other unit doesn't. Not an antenna fault, which both units share.
