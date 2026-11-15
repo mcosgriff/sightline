@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.5.0](https://github.com/mcosgriff/sightline/compare/v0.4.0...v0.5.0) (2026-11-15)
+
+
+### Features
+
+* add a second Demo tuner to debug builds ([#28](https://github.com/mcosgriff/sightline/issues/28)) ([f7b3806](https://github.com/mcosgriff/sightline/commit/f7b3806f9ea54492d8f89c2f32064215a12fda2f))
+* compare the two units on the same channel in Monitor ([#30](https://github.com/mcosgriff/sightline/issues/30)) ([1976c03](https://github.com/mcosgriff/sightline/commit/1976c0380b7597ed24c176edc505b48ec55c9168))
+* record the phone's Wi-Fi with each monitor session ([#31](https://github.com/mcosgriff/sightline/issues/31)) ([ae10d8b](https://github.com/mcosgriff/sightline/commit/ae10d8b1a3c2437afccb79990222e00cf9548cb6)), closes [#27](https://github.com/mcosgriff/sightline/issues/27)
+* watch every tuner of one or both devices in Monitor ([#29](https://github.com/mcosgriff/sightline/issues/29)) ([865f21a](https://github.com/mcosgriff/sightline/commit/865f21ac9566441ba6649505444e07b1fe6d97d9)), closes [#25](https://github.com/mcosgriff/sightline/issues/25)
+
+
+### Bug Fixes
+
+* word a device's own channel scan as busy, not as no answer ([#20](https://github.com/mcosgriff/sightline/issues/20)) ([666cfbe](https://github.com/mcosgriff/sightline/commit/666cfbe5d59d4440a815e983450d7b5209cac0e0))
+
 ## [0.4.0](https://github.com/mcosgriff/sightline/compare/v0.3.0...v0.4.0) (2026-11-14)
 
 
