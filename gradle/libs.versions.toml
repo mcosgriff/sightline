@@ -1,6 +1,6 @@
 [versions]
 # Built with Android Studio; keep AGP current via Studio's AGP Upgrade Assistant.
-agp = "9.5.1"
+agp = "9.5.3"
 kotlin = "2.4.21"
 ksp = "2.3.13"
 coroutines = "1.11.0"
@@ -28,9 +28,9 @@ turbine = "1.2.1"
 # Robolectric would fetch that jar itself at test time; Gradle resolves and caches it instead (root
 # build.gradle.kts). Each Robolectric release names its own builds of it, so these move together: on a Robolectric
 # upgrade, take the version from its `AndroidSdk` list.
-robolectric = "4.17"
+robolectric = "4.18.1"
 # Screenshot tests of the custom components (app/src/test/.../ui/components), drawn by Robolectric.
-roborazzi = "1.78.0"
+roborazzi = "1.79.0"
 robolectric-androidAll-sdk35 = "15-robolectric-13954326-i7"
 
 [libraries]
